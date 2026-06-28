@@ -41,12 +41,41 @@ function getDisplayObjects() {
   }
   const frame = snapshots.value[currentFrame.value]
   if (!frame) return state.objects
+  // 向后兼容：旧快照是数组，新快照是 { objects, field, groundY, ... }
+  const frameObjects = Array.isArray(frame) ? frame : frame.objects
   // 合并：用快照的位置/速度，加上 state.objects 的颜色/半径/名称
   return state.objects.map(obj => {
-    const snap = frame.find(s => s.id === obj.id)
+    const snap = frameObjects.find(s => s.id === obj.id)
     if (!snap) return obj
     return { ...obj, x: snap.x, y: snap.y, vx: snap.vx, vy: snap.vy }
   })
+}
+
+/**
+ * 回放模式下获取快照中的 field，否则用当前 state.field
+ * 向后兼容：旧快照无 field 字段时回退 state.field
+ */
+function getDisplayField() {
+  if (props.mode === 'replay' && snapshots.value.length > 0) {
+    const frame = snapshots.value[currentFrame.value]
+    if (frame && !Array.isArray(frame) && frame.field) {
+      return frame.field
+    }
+  }
+  return state.field
+}
+
+/**
+ * 回放模式下获取快照中的 groundY，否则用当前 state.groundY
+ */
+function getDisplayGroundY() {
+  if (props.mode === 'replay' && snapshots.value.length > 0) {
+    const frame = snapshots.value[currentFrame.value]
+    if (frame && !Array.isArray(frame) && frame.groundY !== undefined) {
+      return frame.groundY
+    }
+  }
+  return state.groundY
 }
 
 function drawGrid() {
@@ -70,23 +99,26 @@ function drawGrid() {
 
 function drawGround() {
   const canvas = canvasRef.value
+  const groundY = getDisplayGroundY()
   ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)'
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.moveTo(0, state.groundY)
-  ctx.lineTo(canvas.width, state.groundY)
+  ctx.moveTo(0, groundY)
+  ctx.lineTo(canvas.width, groundY)
   ctx.stroke()
   ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
   ctx.font = '12px sans-serif'
   ctx.textAlign = 'left'
-  ctx.fillText('地面', 10, state.groundY + 18)
+  ctx.fillText('地面', 10, groundY + 18)
 }
 
 function drawField() {
   const canvas = canvasRef.value
   if (!canvas) return
   const step = 60
-  const symbol = state.field.type
+  // 回放模式下使用快照中的 field，保证场可视化与帧一致
+  const field = getDisplayField()
+  const symbol = field.type
 
   if (symbol === 'magnetic') {
     ctx.fillStyle = 'rgba(34, 211, 238, 0.15)'
@@ -97,7 +129,7 @@ function drawField() {
         ctx.beginPath()
         ctx.arc(x, y, 6, 0, Math.PI * 2)
         ctx.stroke()
-        if (state.field.B >= 0) {
+        if (field.B >= 0) {
           // ⊙ 向里：画实心点
           ctx.beginPath()
           ctx.arc(x, y, 2, 0, Math.PI * 2)
@@ -114,8 +146,8 @@ function drawField() {
       }
     }
   } else if (symbol === 'electric') {
-    const ex = state.field.E.x
-    const ey = state.field.E.y
+    const ex = field.E.x
+    const ey = field.E.y
     const mag = Math.sqrt(ex * ex + ey * ey)
     if (mag < 0.01) return
     // 归一化方向

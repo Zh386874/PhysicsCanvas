@@ -110,10 +110,16 @@ function updatePhysics(dt) {
   // 碰撞检测（返回是否发生碰撞，用于关键帧标记）
   const collided = checkCollision(state.objects, state.groundY, state.restitution)
 
-  // 记录快照
-  const frame = state.objects.map(o => ({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy }))
+  // 记录快照（包含全局状态 field/groundY/gravity，便于回放时完整恢复）
+  const frame = {
+    objects: state.objects.map(o => ({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy })),
+    field: JSON.parse(JSON.stringify(state.field)),
+    groundY: state.groundY,
+    gravity: state.gravity,
+    timestamp: Date.now()
+  }
   const prevFrame = snapshots.value[snapshots.value.length - 1]
-  if (collided || (prevFrame && detectKeyframe(prevFrame, frame))) {
+  if (collided || (prevFrame && detectKeyframe(prevFrame.objects, frame.objects))) {
     keyframeIndices.value.push(snapshots.value.length)
   }
   snapshots.value.push(frame)
