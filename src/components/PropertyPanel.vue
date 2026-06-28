@@ -167,7 +167,17 @@
     <!-- 场设置 -->
     <div class="field-section">
       <div class="section-header">
-        <span class="panel-title">场设置</span>
+        <span class="panel-title">场景设置</span>
+      </div>
+      <div class="field">
+        <label>重力加速度 (m/s²)</label>
+        <input
+          type="number"
+          step="0.1"
+          :value="(state.gravity / PIXELS_PER_METER).toFixed(2)"
+          @input="state.gravity = parseFloat($event.target.value) * PIXELS_PER_METER"
+        />
+        <div class="hint">内部: {{ state.gravity.toFixed(0) }} 像素/s²</div>
       </div>
       <div class="field">
         <label>场类型</label>
@@ -220,7 +230,7 @@
 
 <script setup>
 import ForceEditor from './ForceEditor.vue'
-import { state } from '../composables/usePhysics'
+import { state, PIXELS_PER_METER } from '../composables/usePhysics'
 
 const props = defineProps({
   object: { type: Object, default: null }

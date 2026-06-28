@@ -1,7 +1,9 @@
 import { reactive, ref } from 'vue'
 import { checkCollision } from './useCollision'
 
-const GRAVITY = 9.8 // m/s^2
+const PIXELS_PER_METER = 50 // 1 米 = 50 像素（全局尺度常量）
+const GRAVITY_SI = 9.8 // m/s^2
+const GRAVITY = GRAVITY_SI * PIXELS_PER_METER // 像素/s^2 = 490
 const MAX_SNAPSHOTS = 600 // 10秒 × 60fps
 
 // 初始物体数据
@@ -200,5 +202,6 @@ export {
   addForce,
   removeForce,
   clearForces,
-  loadScene
+  loadScene,
+  PIXELS_PER_METER
 }
