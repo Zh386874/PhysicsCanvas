@@ -1,6 +1,9 @@
 /**
  * 碰撞检测模块
- * 目前实现：质点与水平线段（地面）碰撞、质点间一维弹性碰撞
+ * 实现：
+ *   1. 质点与水平地面碰撞
+ *   2. 质点间一维弹性碰撞
+ *   3. 质点与任意线段碰撞（含法线反射）
  */
 
 /**
@@ -62,17 +65,155 @@ export function checkParticleCollision(a, b, restitution = 1.0) {
 }
 
 /**
+ * 质点与任意线段碰撞检测（连续碰撞检测）
+ * segment: { x1, y1, x2, y2, normalX, normalY, restitution }
+ * obj 需提供 prevX, prevY（上一帧位置）, x, y, vx, vy, radius
+ */
+export function detectSegmentCollision(obj, segment) {
+  if (obj.type !== '质点' && obj.type !== '刚体') return false
+
+  const radius = obj.radius || 10
+  const restitution = segment.restitution !== undefined ? segment.restitution : 0.3
+
+  const prevX = obj.prevX !== undefined ? obj.prevX : obj.x
+  const prevY = obj.prevY !== undefined ? obj.prevY : obj.y
+
+  // 线段端点
+  const { x1, y1, x2, y2 } = segment
+  const nx = segment.normalX
+  const ny = segment.normalY
+
+  // 1. 路径与线段相交判断（叉积法）
+  // 路径 (prevX,prevY) -> (x,y)
+  // 线段 (x1,y1) -> (x2,y2)
+  const d1 = cross(x1, y1, x2, y2, prevX, prevY)
+  const d2 = cross(x1, y1, x2, y2, obj.x, obj.y)
+  const d3 = cross(prevX, prevY, obj.x, obj.y, x1, y1)
+  const d4 = cross(prevX, prevY, obj.x, obj.y, x2, y2)
+
+  const intersect = ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+                     ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+
+  // 2. 即使路径不严格相交，也用距离判断（半径接触）
+  let hit = false
+  let hitX = obj.x
+  let hitY = obj.y
+
+  if (intersect) {
+    // 计算精确交点
+    const pt = segmentIntersection(prevX, prevY, obj.x, obj.y, x1, y1, x2, y2)
+    if (pt) {
+      hitX = pt.x
+      hitY = pt.y
+      hit = true
+    }
+  }
+
+  // 3. 距离接触：质点到线段距离小于半径
+  if (!hit) {
+    const dist = pointToSegmentDistance(obj.x, obj.y, x1, y1, x2, y2)
+    if (dist <= radius) {
+      // 判断质点是否在线段法线"外侧"（与法线方向相反）
+      const sideDot = (obj.x - x1) * nx + (obj.y - y1) * ny
+      if (sideDot < 0) {
+        // 在外侧，需要被推回
+        hitX = obj.x
+        hitY = obj.y
+        hit = true
+      }
+    }
+  }
+
+  if (!hit) return false
+
+  // 4. 位置修正：将质点放到交点 + 沿法线偏移 1px
+  obj.x = hitX + nx * (radius + 1)
+  obj.y = hitY + ny * (radius + 1)
+
+  // 5. 速度反射
+  const v_normal = obj.vx * nx + obj.vy * ny
+  if (v_normal < 0) {
+    // 正在向内侧穿透，反射法向速度
+    obj.vx -= (1 + restitution) * v_normal * nx
+    obj.vy -= (1 + restitution) * v_normal * ny
+    return true
+  }
+
+  return true
+}
+
+/**
+ * 叉积辅助：向量 AB × AP 的 z 分量
+ */
+function cross(ax, ay, bx, by, px, py) {
+  return (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+}
+
+/**
+ * 两线段交点
+ */
+function segmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+  if (Math.abs(denom) < 1e-10) return null
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null
+  return {
+    x: x1 + t * (x2 - x1),
+    y: y1 + t * (y2 - y1)
+  }
+}
+
+/**
+ * 点到线段距离
+ */
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len2 = dx * dx + dy * dy
+  if (len2 < 1e-10) {
+    return Math.hypot(px - x1, py - y1)
+  }
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2
+  t = Math.max(0, Math.min(1, t))
+  const cx = x1 + t * dx
+  const cy = y1 + t * dy
+  return Math.hypot(px - cx, py - cy)
+}
+
+/**
  * 执行所有碰撞检测
+ * @param {Array} objects 物体数组
+ * @param {number} groundY 地面 y 坐标
+ * @param {number} restitution 地面恢复系数
+ * @returns {boolean} 是否发生任何碰撞
  */
 export function checkCollision(objects, groundY, restitution = 0.6) {
+  let collided = false
+
   // 地面碰撞
   for (const obj of objects) {
-    checkGroundCollision(obj, groundY, restitution)
+    if (checkGroundCollision(obj, groundY, restitution)) collided = true
   }
+
+  // 线段碰撞
+  for (const obj of objects) {
+    if (obj.type === '质点' || obj.type === '刚体') {
+      for (const seg of objects) {
+        if (seg.type === 'line_segment') {
+          if (detectSegmentCollision(obj, seg)) collided = true
+        }
+      }
+    }
+  }
+
   // 质点间碰撞
   for (let i = 0; i < objects.length; i++) {
     for (let j = i + 1; j < objects.length; j++) {
-      checkParticleCollision(objects[i], objects[j], restitution)
+      if (objects[i].type === 'line_segment' || objects[j].type === 'line_segment') continue
+      if (checkParticleCollision(objects[i], objects[j], restitution)) collided = true
     }
   }
+
+  return collided
 }

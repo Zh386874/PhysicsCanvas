@@ -32,10 +32,11 @@ defineEmits(['select'])
 }
 
 .panel-title {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: #60a5fa;
   margin-bottom: 0.75rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .list {
@@ -50,19 +51,21 @@ defineEmits(['select'])
   align-items: center;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.4);
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .item:hover {
+  background: rgba(59, 130, 246, 0.08);
   border-color: rgba(59, 130, 246, 0.3);
 }
 
 .item.selected {
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(59, 130, 246, 0.4);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.05));
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.15);
 }
 
 .name {
@@ -72,6 +75,9 @@ defineEmits(['select'])
 
 .type {
   color: #64748b;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.08);
 }
 </style>
