@@ -231,6 +231,7 @@
 <script setup>
 import ForceEditor from './ForceEditor.vue'
 import { state, PIXELS_PER_METER } from '../composables/usePhysics'
+import { autoComputeNormal } from '../composables/useCollision'
 
 const props = defineProps({
   object: { type: Object, default: null }
@@ -239,7 +240,14 @@ const props = defineProps({
 const emit = defineEmits(['update:object'])
 
 function update(key, value) {
-  emit('update:object', { ...props.object, [key]: value })
+  const newObj = { ...props.object, [key]: value }
+  // 线段端点变化时自动重算法线（保留用户方向偏好）
+  if (newObj.type === 'line_segment' && ['x1', 'y1', 'x2', 'y2'].includes(key)) {
+    const auto = autoComputeNormal(newObj)
+    newObj.normalX = auto.normalX
+    newObj.normalY = auto.normalY
+  }
+  emit('update:object', newObj)
 }
 
 function onFieldTypeChange(type) {

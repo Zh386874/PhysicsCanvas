@@ -256,13 +256,13 @@ function drawSegments(objects) {
     ctx.lineTo(x2, y2)
     ctx.stroke()
 
-    // 3. 法线箭头（从中点指向内侧）
+    // 3. 法线箭头（从中点指向内侧，浅紫色半透明）
     const midX = (x1 + x2) / 2
     const midY = (y1 + y2) / 2
-    const arrowLen = 25
+    const arrowLen = 20
     const tipX = midX + nx * arrowLen
     const tipY = midY + ny * arrowLen
-    ctx.strokeStyle = 'rgba(96, 165, 250, 0.6)'
+    ctx.strokeStyle = 'rgba(167, 139, 250, 0.7)'
     ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.moveTo(midX, midY)
@@ -275,7 +275,7 @@ function drawSegments(objects) {
     ctx.lineTo(tipX - 5 * Math.cos(angle - 0.4), tipY - 5 * Math.sin(angle - 0.4))
     ctx.lineTo(tipX - 5 * Math.cos(angle + 0.4), tipY - 5 * Math.sin(angle + 0.4))
     ctx.closePath()
-    ctx.fillStyle = 'rgba(96, 165, 250, 0.6)'
+    ctx.fillStyle = 'rgba(167, 139, 250, 0.7)'
     ctx.fill()
 
     // 4. 名称

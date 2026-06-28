@@ -7,6 +7,33 @@
  */
 
 /**
+ * 根据线段端点自动计算法线
+ * 法线 = (dy, -dx) 归一化（画布坐标中视觉上的逆时针旋转 90°，默认指向上方/左侧）
+ * 若当前法线与新法线方向相反（点积 < 0），翻转新法线以保留用户方向偏好
+ * @param {Object} segment { x1, y1, x2, y2, normalX, normalY }
+ * @returns {{ normalX: number, normalY: number }}
+ */
+export function autoComputeNormal(segment) {
+  const dx = segment.x2 - segment.x1
+  const dy = segment.y2 - segment.y1
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len < 1e-6) return { normalX: 0, normalY: -1 } // 退化情况默认向上
+
+  let nx = dy / len
+  let ny = -dx / len
+
+  // 保留用户方向偏好：当前法线与新法线点积为负则翻转
+  const curNx = segment.normalX || 0
+  const curNy = segment.normalY || 0
+  if (curNx * nx + curNy * ny < 0) {
+    nx = -nx
+    ny = -ny
+  }
+
+  return { normalX: nx, normalY: ny }
+}
+
+/**
  * 质点与水平地面碰撞检测
  * 当质点底部超过地面线时，修正位置并反弹
  */
