@@ -46,10 +46,8 @@
 
 <script setup>
 import { ref } from 'vue'
-import { state, loadScene } from '../composables/usePhysics'
-import { getPreset } from '../composables/usePresets'
 
-const emit = defineEmits(['parsed'])
+const emit = defineEmits(['load-preset', 'update-params'])
 
 const question = ref('')
 const loading = ref(false)
@@ -60,6 +58,7 @@ const collapsed = ref(false)
 /**
  * AI 解析（Mock 版）
  * 用关键词匹配 + 数字提取模拟 AI 解析过程
+ * 解析完成后通过 emit 通知父组件，不直接修改全局状态
  */
 function onParse() {
   if (!question.value.trim()) return
@@ -86,12 +85,20 @@ function onParse() {
       sceneName = '电场偏转'
     }
 
-    // 2. 提取数字参数
+    // 2. 提取数字参数（SI 单位，父组件负责转像素）
+    const params = {}
+
     const massMatch = text.match(/(\d+(?:\.\d+)?)\s*kg/)
-    if (massMatch) items.push({ label: '物体质量', value: massMatch[1] + ' kg' })
+    if (massMatch) {
+      items.push({ label: '物体质量', value: massMatch[1] + ' kg' })
+      params.mass = parseFloat(massMatch[1])
+    }
 
     const velMatch = text.match(/(\d+(?:\.\d+)?)\s*m\/s/)
-    if (velMatch) items.push({ label: '初始速度', value: velMatch[1] + ' m/s' })
+    if (velMatch) {
+      items.push({ label: '初始速度', value: velMatch[1] + ' m/s' })
+      params.vx = parseFloat(velMatch[1])
+    }
 
     const angleMatch = text.match(/(\d+(?:\.\d+)?)\s*[°度]/)
     if (angleMatch) items.push({ label: '倾角', value: angleMatch[1] + '°' })
@@ -99,6 +106,7 @@ function onParse() {
     const chargeMatch = text.match(/(\d+(?:\.\d+)?)\s*[cq]/)
     if (chargeMatch && /电|磁/.test(text)) {
       items.push({ label: '电荷量', value: chargeMatch[1] + ' C' })
+      params.charge = parseFloat(chargeMatch[1])
     }
 
     loading.value = false
@@ -110,35 +118,15 @@ function onParse() {
 
     items.unshift({ label: '识别场景', value: sceneName })
 
-    // 3. 加载对应预设
-    const preset = getPreset(sceneName)
-    loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
-
-    // 4. 自动应用提取的参数到第一个物体
-    applyExtractedParams(preset.objects[0], text)
+    // 3. 通知父组件加载对应预设
+    emit('load-preset', sceneName)
+    // 4. 通知父组件更新物体参数（SI 单位）
+    if (Object.keys(params).length > 0) {
+      emit('update-params', params)
+    }
 
     result.value = { items }
-
-    // 5. 通知父组件：解析完成 + 场景名
-    emit('parsed', sceneName)
   }, 1500)
-}
-
-/**
- * 将提取的数字参数应用到物体上
- */
-function applyExtractedParams(firstObj, text) {
-  if (!firstObj) return
-  const massMatch = text.match(/(\d+(?:\.\d+)?)\s*kg/)
-  if (massMatch) firstObj.mass = parseFloat(massMatch[1])
-
-  const velMatch = text.match(/(\d+(?:\.\d+)?)\s*m\/s/)
-  if (velMatch) firstObj.vx = parseFloat(velMatch[1])
-
-  const chargeMatch = text.match(/(\d+(?:\.\d+)?)\s*[cq]/)
-  if (chargeMatch && /电|磁/.test(text)) {
-    firstObj.charge = parseFloat(chargeMatch[1])
-  }
 }
 </script>
 

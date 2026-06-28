@@ -10,7 +10,7 @@
 
     <div class="main">
       <div class="left-panel">
-        <AIInput @parsed="onAIParsed" />
+        <AIInput @load-preset="handleLoadPreset" @update-params="handleUpdateParams" />
         <ObjectList
           :objects="state.objects"
           :selectedId="selectedId"
@@ -54,7 +54,7 @@ import ControlBar from './components/ControlBar.vue'
 import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
 import AIInput from './components/AIInput.vue'
-import { state, reset, loadScene, snapshots, currentFrame, keyframeIndices } from './composables/usePhysics'
+import { state, reset, loadScene, updateObjectProperty, snapshots, currentFrame, keyframeIndices, PIXELS_PER_METER } from './composables/usePhysics'
 import { getPreset } from './composables/usePresets'
 
 const activeScene = ref('抛体运动')
@@ -107,17 +107,31 @@ function onToggleReplay() {
 }
 
 /**
- * AI 解析完成回调：切换场景 + 自动播放 + 显示画布提示
+ * AI 解析完成：加载对应预设 + 自动播放 + 画布提示
  */
-function onAIParsed(sceneName) {
+function handleLoadPreset(sceneName) {
   activeScene.value = sceneName
-  selectedId.value = state.objects[0]?.id ?? null
+  const preset = getPreset(sceneName)
+  loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
+  selectedId.value = preset.objects[0]?.id ?? null
   mode.value = 'live'
   // 自动开始播放
   state.isPlaying = true
   // 显示画布左上角提示
   aiToast.value = 'AI 已解析：' + sceneName + '场景'
   setTimeout(() => { aiToast.value = '' }, 3000)
+}
+
+/**
+ * AI 解析出的参数应用到第一个质点物体
+ * params 中速度为 m/s，需 ×PIXELS_PER_METER 转像素
+ */
+function handleUpdateParams(params) {
+  const obj = state.objects.find(o => o.type === '质点')
+  if (!obj) return
+  if (params.mass !== undefined) updateObjectProperty(obj.id, 'mass', params.mass)
+  if (params.vx !== undefined) updateObjectProperty(obj.id, 'vx', params.vx * PIXELS_PER_METER)
+  if (params.charge !== undefined) updateObjectProperty(obj.id, 'charge', params.charge)
 }
 </script>
 

@@ -166,6 +166,17 @@ function clearForces() {
 }
 
 /**
+ * 更新指定物体的单个属性
+ * @param {number} id 物体 id
+ * @param {string} key 属性名
+ * @param {*} value 属性值
+ */
+function updateObjectProperty(id, key, value) {
+  const obj = state.objects.find(o => o.id === id)
+  if (obj) obj[key] = value
+}
+
+/**
  * 加载场景预设
  * groundY 可选：水平地面 y 坐标；传 null 表示禁用水平地面（由线段物体接管碰撞）
  */
@@ -202,6 +213,7 @@ export {
   addForce,
   removeForce,
   clearForces,
+  updateObjectProperty,
   loadScene,
   PIXELS_PER_METER
 }
