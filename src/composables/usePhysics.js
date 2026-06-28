@@ -165,12 +165,19 @@ function clearForces() {
 
 /**
  * 加载场景预设
+ * groundY 可选：水平地面 y 坐标；传 null 表示禁用水平地面（由线段物体接管碰撞）
  */
-function loadScene(objects, forces, field, gravity) {
+function loadScene(objects, forces, field, gravity, groundY) {
   state.objects = objects.map(o => ({ ...o, trail: [] }))
   state.forces = forces ? [...forces] : []
   state.field = field ? JSON.parse(JSON.stringify(field)) : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
   state.gravity = gravity !== undefined ? gravity : GRAVITY
+  // groundY: null 禁用水平地面（设为极大值），undefined 保持默认，数值则使用
+  if (groundY === null) {
+    state.groundY = 100000
+  } else if (groundY !== undefined) {
+    state.groundY = groundY
+  }
   state.time = 0
   state.isPlaying = false
   // 更新快照，使 reset 恢复到当前场景

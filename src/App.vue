@@ -10,6 +10,7 @@
 
     <div class="main">
       <div class="left-panel">
+        <AIInput @parsed="onAIParsed" />
         <ObjectList
           :objects="state.objects"
           :selectedId="selectedId"
@@ -22,7 +23,7 @@
       </div>
 
       <div class="right-area">
-        <PhysicsCanvas :mode="mode" />
+        <PhysicsCanvas :mode="mode" :aiToast="aiToast" />
         <Timeline
           v-if="mode === 'replay'"
           :snapshots="snapshots"
@@ -52,6 +53,7 @@ import PropertyPanel from './components/PropertyPanel.vue'
 import ControlBar from './components/ControlBar.vue'
 import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
+import AIInput from './components/AIInput.vue'
 import { state, reset, loadScene, snapshots, currentFrame, keyframeIndices } from './composables/usePhysics'
 import { getPreset } from './composables/usePresets'
 
@@ -60,11 +62,12 @@ const selectedId = ref(1)
 const mode = ref('live')
 const isPlaying = computed(() => state.isPlaying)
 const showForce = computed(() => state.showForce)
+const aiToast = ref('')
 
 // 初始化默认场景
 {
   const preset = getPreset('抛体运动')
-  loadScene(preset.objects, preset.forces, preset.field, preset.gravity)
+  loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
 }
 
 const selectedObject = computed(() =>
@@ -79,7 +82,7 @@ function onObjectUpdate(updated) {
 function onSceneSwitch(sceneName) {
   activeScene.value = sceneName
   const preset = getPreset(sceneName)
-  loadScene(preset.objects, preset.forces, preset.field, preset.gravity)
+  loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
   selectedId.value = preset.objects[0]?.id ?? null
   // 切换场景时退出回放模式
   mode.value = 'live'
@@ -101,6 +104,20 @@ function onToggleReplay() {
   } else {
     mode.value = 'live'
   }
+}
+
+/**
+ * AI 解析完成回调：切换场景 + 自动播放 + 显示画布提示
+ */
+function onAIParsed(sceneName) {
+  activeScene.value = sceneName
+  selectedId.value = state.objects[0]?.id ?? null
+  mode.value = 'live'
+  // 自动开始播放
+  state.isPlaying = true
+  // 显示画布左上角提示
+  aiToast.value = 'AI 已解析：' + sceneName + '场景'
+  setTimeout(() => { aiToast.value = '' }, 3000)
 }
 </script>
 

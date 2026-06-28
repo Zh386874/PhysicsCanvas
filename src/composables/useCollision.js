@@ -109,34 +109,47 @@ export function detectSegmentCollision(obj, segment) {
     }
   }
 
-  // 3. 距离接触：质点到线段距离小于半径
+  // 3. 距离接触：质点到线段距离小于半径（不论在哪一侧都需处理）
   if (!hit) {
     const dist = pointToSegmentDistance(obj.x, obj.y, x1, y1, x2, y2)
     if (dist <= radius) {
-      // 判断质点是否在线段法线"外侧"（与法线方向相反）
-      const sideDot = (obj.x - x1) * nx + (obj.y - y1) * ny
-      if (sideDot < 0) {
-        // 在外侧，需要被推回
-        hitX = obj.x
-        hitY = obj.y
-        hit = true
-      }
+      // 取斜面上最近点 P，以 P 为基准做位置修正
+      const P = closestPointOnSegment(obj.x, obj.y, x1, y1, x2, y2)
+      hitX = P.x
+      hitY = P.y
+      hit = true
     }
   }
 
   if (!hit) return false
 
-  // 4. 位置修正：将质点放到交点 + 沿法线偏移 1px
-  obj.x = hitX + nx * (radius + 1)
-  obj.y = hitY + ny * (radius + 1)
+  // 4. 位置修正：将质点放到 hitX,hitY + 沿法线偏移 radius
+  //    （路径交点情况 hitX,hitY 为交点；距离接触情况为斜面上最近点）
+  obj.x = hitX + nx * radius
+  obj.y = hitY + ny * radius
 
-  // 5. 速度反射
+  // 5. 速度反射：仅在质点正在向线段内侧（法线反方向）运动时反射
   const v_normal = obj.vx * nx + obj.vy * ny
   if (v_normal < 0) {
-    // 正在向内侧穿透，反射法向速度
+    // 反射法向速度（恢复系数作用于法向分量）
     obj.vx -= (1 + restitution) * v_normal * nx
     obj.vy -= (1 + restitution) * v_normal * ny
-    return true
+  }
+
+  // 6. 切向摩擦：接触时沿斜面方向施加摩擦衰减
+  //    切向单位向量 t（与法线垂直），取与速度方向一致的那个
+  const friction = obj.friction || 0
+  if (friction > 0) {
+    let tx = -ny
+    let ty = nx
+    const v_tangent = obj.vx * tx + obj.vy * ty
+    if (Math.abs(v_tangent) > 1e-6) {
+      // 摩擦使切向速度衰减（每帧衰减比例与摩擦系数成正比）
+      const damp = Math.min(friction * 0.15, 0.9)
+      const newVt = v_tangent * (1 - damp)
+      obj.vx += (newVt - v_tangent) * tx
+      obj.vy += (newVt - v_tangent) * ty
+    }
   }
 
   return true
@@ -179,6 +192,19 @@ function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
   const cx = x1 + t * dx
   const cy = y1 + t * dy
   return Math.hypot(px - cx, py - cy)
+}
+
+/**
+ * 点到线段的最近点
+ */
+function closestPointOnSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len2 = dx * dx + dy * dy
+  if (len2 < 1e-10) return { x: x1, y: y1 }
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2
+  t = Math.max(0, Math.min(1, t))
+  return { x: x1 + t * dx, y: y1 + t * dy }
 }
 
 /**

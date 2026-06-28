@@ -9,7 +9,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { state, updatePhysics, snapshots, currentFrame } from '../composables/usePhysics'
 
 const props = defineProps({
-  mode: { type: String, default: 'live' }
+  mode: { type: String, default: 'live' },
+  aiToast: { type: String, default: '' }
 })
 
 const emit = defineEmits(['seek'])
@@ -271,14 +272,53 @@ function drawForces(objects) {
     if (obj.type === 'line_segment') continue
     const r = obj.radius || 10
 
-    // 重力箭头（红色，竖直向下）
+    // 重力箭头（红色，竖直向下）—— 仅当重力不为 0 时绘制
     const fgy = obj.mass * state.gravity
-    const gLen = Math.min(fgy * 2, 50)
-    drawArrow(obj.x, obj.y, obj.x, obj.y + gLen, 'rgba(239, 68, 68, 0.8)', 2)
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'
-    ctx.font = '11px sans-serif'
-    ctx.textAlign = 'left'
-    ctx.fillText('mg', obj.x + 6, obj.y + gLen / 2)
+    if (fgy > 0.01) {
+      const gLen = Math.min(fgy * 2, 50)
+      drawArrow(obj.x, obj.y, obj.x, obj.y + gLen, 'rgba(239, 68, 68, 0.8)', 2)
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'
+      ctx.font = '11px sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText('mg', obj.x + 6, obj.y + gLen / 2)
+    }
+
+    // 电磁场力（仅当存在场且物体带电时绘制）
+    const charge = obj.charge || 0
+    if (charge !== 0) {
+      if (state.field.type === 'electric') {
+        // 电场力 Fe = qE（绿色）
+        const Fex = charge * state.field.E.x
+        const Fey = charge * state.field.E.y
+        const feMag = Math.hypot(Fex, Fey)
+        if (feMag > 0.01) {
+          const feLen = Math.min(feMag * 0.8, 60)
+          const ex = obj.x + (Fex / feMag) * feLen
+          const ey = obj.y + (Fey / feMag) * feLen
+          drawArrow(obj.x, obj.y, ex, ey, 'rgba(34, 197, 94, 0.9)', 2)
+          ctx.fillStyle = 'rgba(34, 197, 94, 1)'
+          ctx.font = '11px sans-serif'
+          ctx.textAlign = 'left'
+          ctx.fillText('qE', ex + 4, ey)
+        }
+      } else if (state.field.type === 'magnetic') {
+        // 洛伦兹力 F = qv×B（紫色，垂直于速度）
+        // Fx = q*vy*B, Fy = -q*vx*B
+        const Fmx = charge * obj.vy * state.field.B
+        const Fmy = -charge * obj.vx * state.field.B
+        const fmMag = Math.hypot(Fmx, Fmy)
+        if (fmMag > 0.01) {
+          const fmLen = Math.min(fmMag * 0.8, 60)
+          const mx = obj.x + (Fmx / fmMag) * fmLen
+          const my = obj.y + (Fmy / fmMag) * fmLen
+          drawArrow(obj.x, obj.y, mx, my, 'rgba(168, 85, 247, 0.9)', 2)
+          ctx.fillStyle = 'rgba(168, 85, 247, 1)'
+          ctx.font = '11px sans-serif'
+          ctx.textAlign = 'left'
+          ctx.fillText('qvB', mx + 4, my)
+        }
+      }
+    }
 
     // 查找物体是否贴近某条线段（在斜面上）
     const seg = findContactSegment(obj, objects)
@@ -289,16 +329,16 @@ function drawForces(objects) {
       const segDx = seg.x2 - seg.x1
       const segDy = seg.y2 - seg.y1
       const segLen = Math.sqrt(segDx * segDx + segDy * segDy)
-      const cosA = Math.abs(segDy) / segLen // 线段与水平的夹角的余弦近似
+      const cosA = Math.abs(segDx) / segLen // 斜面与水平夹角 α 的余弦：cos(α)=dx/len
       // 支持力 N = mg*cos(α)，方向沿法线（指向内侧）
       const N = obj.mass * state.gravity * cosA
       const nLen = Math.min(N * 2, 50)
       drawArrow(
         obj.x, obj.y,
         obj.x + nx * nLen, obj.y + ny * nLen,
-        'rgba(168, 85, 247, 0.8)', 2
+        'rgba(148, 163, 184, 0.8)', 2
       )
-      ctx.fillStyle = 'rgba(168, 85, 247, 0.9)'
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.9)'
       ctx.fillText('N', obj.x + nx * nLen + 4, obj.y + ny * nLen)
 
       // 摩擦力 f = μ*N，方向沿斜面与运动方向相反
@@ -380,6 +420,49 @@ function drawWatermark() {
   ctx.fillText('回放模式', canvas.width - 16, 24)
 }
 
+/**
+ * 绘制 AI 解析提示（画布左上角，3秒后由父组件清空）
+ */
+function drawAIToast() {
+  if (!props.aiToast) return
+  const canvas = canvasRef.value
+  // 背景胶囊
+  ctx.font = 'bold 13px sans-serif'
+  const metrics = ctx.measureText(props.aiToast)
+  const padX = 12
+  const padY = 6
+  const boxW = metrics.width + padX * 2
+  const boxH = 26
+  const x = 16
+  const y = 16
+  ctx.fillStyle = 'rgba(59, 130, 246, 0.85)'
+  roundRect(ctx, x, y, boxW, boxH, 13)
+  ctx.fill()
+  // 文字
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(props.aiToast, x + padX, y + boxH / 2)
+  ctx.textBaseline = 'alphabetic'
+}
+
+/**
+ * 圆角矩形辅助
+ */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h - r)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+  ctx.lineTo(x + r, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.closePath()
+}
+
 function draw() {
   const canvas = canvasRef.value
   if (!canvas || !ctx) return
@@ -396,6 +479,7 @@ function draw() {
   drawVelocity(objects)
   drawForces(objects)
   drawWatermark()
+  drawAIToast()
 }
 
 function loop(now) {

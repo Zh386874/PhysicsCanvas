@@ -2,7 +2,7 @@
   <div class="force-editor">
     <div class="section-header">
       <span class="panel-title">附加力</span>
-      <button class="btn-add" @click="addForce">+ 添加</button>
+      <button class="btn-add" @click="onAddForce">+ 添加</button>
     </div>
 
     <div v-if="objectForces.length === 0" class="empty">暂无附加力</div>
@@ -48,7 +48,7 @@ const objectForces = computed(() =>
   state.forces.filter(f => f.targetId === props.objectId)
 )
 
-function addForce() {
+function onAddForce() {
   addForce({ id: nextId(), fx: 0, fy: 0, targetId: props.objectId })
 }
 

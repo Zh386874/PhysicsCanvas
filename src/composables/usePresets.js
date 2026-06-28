@@ -32,6 +32,8 @@ export function presetProjectile() {
  * 斜面滑块：滑块沿斜面下滑，使用真实线段碰撞
  * 斜面端点 (150,420) -> (450,160)，法线指向左上（斜面"上方"）
  * 地面线段在画布底部，法线向上
+ * 注意：画布坐标单位是像素，重力数值需放大到与像素尺度匹配，
+ *       否则 SI 单位的 9.8 会让滑块几秒才移动 1 像素。
  */
 export function presetIncline() {
   // 斜面方向向量 (300, -260)，法线（顺时针 90°）= (-260, -300) 归一化
@@ -43,7 +45,7 @@ export function presetIncline() {
       {
         id: 1, name: '滑块', type: '质点',
         mass: 3.0, x: 420, y: 180, vx: 0, vy: 0,
-        radius: 14, color: '#60a5fa', friction: 0.2, trail: []
+        radius: 14, color: '#60a5fa', friction: 0.05, trail: []
       },
       {
         id: 2, name: '斜面', type: 'line_segment',
@@ -62,7 +64,8 @@ export function presetIncline() {
     ],
     forces: [],
     field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
-    gravity: 9.8
+    gravity: 300, // 像素尺度重力，保证 1~2 秒内滑完斜面
+    groundY: null // 禁用水平地面，由斜面/地面线段接管碰撞
   }
 }
 
