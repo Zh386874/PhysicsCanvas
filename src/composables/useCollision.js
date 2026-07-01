@@ -326,12 +326,12 @@ function closestPointOnSegment(px, py, x1, y1, x2, y2) {
  * @param {number} restitution 地面恢复系数
  * @returns {boolean} 是否发生任何碰撞
  */
-export function checkCollision(objects, groundY, restitution = 0.6) {
+export function checkCollision(objects, groundY, groundRestitution = 0.6, particleRestitution = 1.0) {
   let collided = false
 
   // 地面碰撞
   for (const obj of objects) {
-    if (checkGroundCollision(obj, groundY, restitution)) collided = true
+    if (checkGroundCollision(obj, groundY, groundRestitution)) collided = true
   }
 
   // 线段碰撞（弧线用专属圆-弧碰撞，普通线段用线段碰撞）
@@ -358,7 +358,7 @@ export function checkCollision(objects, groundY, restitution = 0.6) {
   for (let i = 0; i < objects.length; i++) {
     for (let j = i + 1; j < objects.length; j++) {
       if (objects[i].type === 'line_segment' || objects[j].type === 'line_segment') continue
-      if (checkParticleCollision(objects[i], objects[j], restitution)) collided = true
+      if (checkParticleCollision(objects[i], objects[j], particleRestitution)) collided = true
     }
   }
 

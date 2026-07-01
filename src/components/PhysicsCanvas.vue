@@ -19,6 +19,8 @@
       <button class="tool-btn" @click="$emit('export-scene')">💾 导出</button>
       <button class="tool-btn" @click="$emit('import-scene')">📂 导入</button>
     </div>
+    <!-- 重置视图按钮（所有场景常驻右下角） -->
+    <button class="reset-view-btn" title="重置视图（平移与缩放归位）" @click="resetView">🎯 重置视图</button>
   </div>
 </template>
 
@@ -57,6 +59,11 @@ const worldOffset = ref({ x: 0, y: 0 })
 const worldScale = ref(1)
 let panning = false           // 中键平移中
 let panStart = null           // { x, y, offsetX, offsetY }
+
+// 高 DPI 适配：dpr 与 CSS 逻辑尺寸（绘制坐标均用 CSS 像素）
+let dpr = 1
+let cssW = 0
+let cssH = 0
 
 // 拖拽/绘制状态
 let drawing = false           // 是否正在绘制线段
@@ -451,10 +458,12 @@ function generateArcSegments(cx, cy, r, startAngle, endAngle, reverse) {
 function onMouseMove(e) {
   // 中键平移（任何场景下都可用）
   if (panning && panStart) {
-    worldOffset.value = {
+    const canvas = canvasRef.value
+    const rawOffset = {
       x: panStart.offsetX + (e.clientX - panStart.x),
       y: panStart.offsetY + (e.clientY - panStart.y)
     }
+    worldOffset.value = canvas ? clampOffset(rawOffset, worldScale.value, canvas) : rawOffset
     return
   }
 
@@ -667,23 +676,56 @@ function onWheel(e) {
   // 以鼠标为中心缩放：保持鼠标点对应的世界坐标不变
   const worldX = (mouseX - worldOffset.value.x) / worldScale.value
   const worldY = (mouseY - worldOffset.value.y) / worldScale.value
-  worldOffset.value = {
+  worldOffset.value = clampOffset({
     x: mouseX - worldX * newScale,
     y: mouseY - worldY * newScale
-  }
+  }, newScale, canvas)
   worldScale.value = newScale
+}
+
+/**
+ * 限制 worldOffset 范围，防止场景完全移出视野
+ * 允许世界中心点在 ±3000 像素范围内移动
+ */
+function clampOffset(offset, scale, canvas) {
+  // 用 CSS 逻辑尺寸计算（与绘制坐标一致）
+  const halfW = cssW / 2
+  const halfH = cssH / 2
+  const limit = 3000
+  const minX = halfW - limit * scale
+  const maxX = halfW + limit * scale
+  const minY = halfH - limit * scale
+  const maxY = halfH + limit * scale
+  return {
+    x: Math.max(minX, Math.min(maxX, offset.x)),
+    y: Math.max(minY, Math.min(maxY, offset.y))
+  }
+}
+
+/**
+ * 重置视图：worldOffset 归零、worldScale 归 1
+ */
+function resetView() {
+  worldOffset.value = { x: 0, y: 0 }
+  worldScale.value = 1
 }
 
 function resizeCanvas() {
   const canvas = canvasRef.value
   if (!canvas) return
   const rect = canvas.parentElement.getBoundingClientRect()
-  canvas.width = rect.width
-  canvas.height = rect.height
+  // 高 DPI 适配：backing store 按 dpr 放大，CSS 尺寸不变，绘制坐标用 CSS 像素
+  dpr = window.devicePixelRatio || 1
+  cssW = rect.width
+  cssH = rect.height
+  canvas.width = Math.floor(cssW * dpr)
+  canvas.height = Math.floor(cssH * dpr)
+  canvas.style.width = cssW + 'px'
+  canvas.style.height = cssH + 'px'
   ctx = canvas.getContext('2d')
   // 仅当场景启用水平地面时才跟随容器更新；null 表示禁用（斜面/自定义场景）
-  if (state.groundY !== null) {
-    state.groundY = rect.height - 60
+  if (state.groundY !== null && state.groundY !== 100000) {
+    state.groundY = cssH - 60
   }
 }
 
@@ -736,32 +778,30 @@ function getDisplayGroundY() {
 }
 
 function drawGrid() {
-  const canvas = canvasRef.value
   ctx.strokeStyle = 'rgba(59, 130, 246, 0.06)'
   ctx.lineWidth = 1
   const step = 40
-  for (let x = 0; x < canvas.width; x += step) {
+  for (let x = 0; x < cssW; x += step) {
     ctx.beginPath()
     ctx.moveTo(x, 0)
-    ctx.lineTo(x, canvas.height)
+    ctx.lineTo(x, cssH)
     ctx.stroke()
   }
-  for (let y = 0; y < canvas.height; y += step) {
+  for (let y = 0; y < cssH; y += step) {
     ctx.beginPath()
     ctx.moveTo(0, y)
-    ctx.lineTo(canvas.width, y)
+    ctx.lineTo(cssW, y)
     ctx.stroke()
   }
 }
 
 function drawGround() {
-  const canvas = canvasRef.value
   const groundY = getDisplayGroundY()
   ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)'
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(0, groundY)
-  ctx.lineTo(canvas.width, groundY)
+  ctx.lineTo(cssW, groundY)
   ctx.stroke()
   ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
   ctx.font = '12px sans-serif'
@@ -781,8 +821,8 @@ function drawField() {
     ctx.fillStyle = 'rgba(34, 211, 238, 0.15)'
     ctx.strokeStyle = 'rgba(34, 211, 238, 0.15)'
     ctx.lineWidth = 1
-    for (let x = step / 2; x < canvas.width; x += step) {
-      for (let y = step / 2; y < canvas.height; y += step) {
+    for (let x = step / 2; x < cssW; x += step) {
+      for (let y = step / 2; y < cssH; y += step) {
         ctx.beginPath()
         ctx.arc(x, y, 6, 0, Math.PI * 2)
         ctx.stroke()
@@ -813,8 +853,8 @@ function drawField() {
     ctx.strokeStyle = 'rgba(34, 211, 238, 0.2)'
     ctx.fillStyle = 'rgba(34, 211, 238, 0.2)'
     ctx.lineWidth = 1
-    for (let x = step / 2; x < canvas.width; x += step) {
-      for (let y = step / 2; y < canvas.height; y += step) {
+    for (let x = step / 2; x < cssW; x += step) {
+      for (let y = step / 2; y < cssH; y += step) {
         // 箭头线
         ctx.beginPath()
         ctx.moveTo(x - dx / 2, y - dy / 2)
@@ -1076,9 +1116,10 @@ function drawArrow(x1, y1, x2, y2, color, width) {
 
 /**
  * 查找物体当前接触的线段（距离小于半径+阈值）
+ * 阈值收紧到 +1，避免物体实际未接触却被判定为接触而画出错误支持力
  */
 function findContactSegment(obj, objects) {
-  const threshold = (obj.radius || 10) + 4
+  const threshold = (obj.radius || 10) + 1
   for (const seg of objects) {
     if (seg.type !== 'line_segment') continue
     const dist = pointToSegmentDistance(obj.x, obj.y, seg.x1, seg.y1, seg.x2, seg.y2)
@@ -1102,11 +1143,10 @@ function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
 
 function drawWatermark() {
   if (props.mode !== 'replay') return
-  const canvas = canvasRef.value
   ctx.fillStyle = 'rgba(251, 191, 36, 0.7)'
   ctx.font = 'bold 14px sans-serif'
   ctx.textAlign = 'right'
-  ctx.fillText('回放模式', canvas.width - 16, 24)
+  ctx.fillText('回放模式', cssW - 16, 24)
 }
 
 /**
@@ -1236,11 +1276,13 @@ function drawSelectionHighlight(objects) {
 function draw() {
   const canvas = canvasRef.value
   if (!canvas || !ctx) return
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  // 高 DPI：基础变换设为 dpr 缩放，后续所有绘制用 CSS 像素坐标
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, cssW, cssH)
 
   const objects = getDisplayObjects()
 
-  // 应用世界坐标变换（平移 + 缩放）
+  // 应用世界坐标变换（平移 + 缩放），叠加在 dpr 之上
   ctx.save()
   ctx.translate(worldOffset.value.x, worldOffset.value.y)
   ctx.scale(worldScale.value, worldScale.value)
@@ -1369,7 +1411,6 @@ function drawPreviewArc() {
  */
 function drawEditUI() {
   if (!props.editMode || !ctx) return
-  const canvas = canvasRef.value
   let text = '工具：' + (
     tool.value === 'ball' ? '⚽ 小球（点击添加，拖拽移动）' :
     tool.value === 'platform' ? '➖ 平台（拖拽绘制，Shift 吸附）' :
@@ -1381,7 +1422,7 @@ function drawEditUI() {
   const padX = 10
   const boxW = metrics.width + padX * 2
   const boxH = 24
-  const x = canvas.width - boxW - 16
+  const x = cssW - boxW - 16
   const y = 16
   ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'
   roundRect(ctx, x, y, boxW, boxH, 6)
@@ -1448,6 +1489,28 @@ canvas {
   border-radius: 8px;
   backdrop-filter: blur(8px);
   z-index: 10;
+}
+
+.reset-view-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #67e8f9;
+  cursor: pointer;
+  font-size: 0.8rem;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.reset-view-btn:hover {
+  background: rgba(34, 211, 238, 0.18);
+  border-color: rgba(34, 211, 238, 0.7);
+  color: #a5f3fc;
 }
 
 .tool-btn {

@@ -79,9 +79,15 @@ defineEmits(['select', 'remove'])
 }
 
 .item.multi-selected {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.18), rgba(167, 139, 250, 0.08));
-  border-color: rgba(96, 165, 250, 0.7);
-  box-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.22), rgba(167, 139, 250, 0.12));
+  border-color: rgba(167, 139, 250, 0.8);
+  border-left: 3px solid rgba(167, 139, 250, 0.95);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
+}
+
+.item.multi-selected .name {
+  font-weight: 600;
+  color: #c4b5fd;
 }
 
 .name {

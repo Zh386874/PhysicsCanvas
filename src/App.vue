@@ -61,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import SceneTabs from './components/SceneTabs.vue'
 import ObjectList from './components/ObjectList.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
@@ -102,6 +102,12 @@ function onObjectUpdate(updated) {
 }
 
 function onSceneSwitch(sceneName) {
+  // 从自定义场景切出时二次确认（编辑内容已自动保存，确认避免误操作）
+  if (activeScene.value === '自定义' && sceneName !== '自定义' && state.objects.length > 0) {
+    if (!window.confirm('确定切换到「' + sceneName + '」场景？自定义场景内容已自动保存，可随时切回恢复。')) {
+      return
+    }
+  }
   activeScene.value = sceneName
   const preset = getPreset(sceneName)
   loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
@@ -112,7 +118,19 @@ function onSceneSwitch(sceneName) {
   if (sceneName === '自定义') {
     state.isPlaying = false
     restoreCustomScene()
+    // 初始化重置基线：未播放过时重置应回到进入场景时的状态，而非空白
+    customSnapshot = deepCopyObjects(state.objects)
   }
+}
+
+/**
+ * 深拷贝物体数组，剥离运行时字段（trail/prevX/prevY）
+ */
+function deepCopyObjects(objs) {
+  return JSON.parse(JSON.stringify(objs.map(o => {
+    const { trail, prevX, prevY, ...rest } = o
+    return rest
+  })))
 }
 
 /**
@@ -121,10 +139,7 @@ function onSceneSwitch(sceneName) {
 function onTogglePlay() {
   if (activeScene.value === '自定义' && !state.isPlaying) {
     // 即将播放：保存当前 objects 作为重置恢复点
-    customSnapshot = JSON.parse(JSON.stringify(state.objects.map(o => {
-      const { trail, prevX, prevY, ...rest } = o
-      return rest
-    })))
+    customSnapshot = deepCopyObjects(state.objects)
   }
   state.isPlaying = !state.isPlaying
 }
@@ -150,31 +165,56 @@ function onReset() {
 
 /**
  * 保存自定义场景到 localStorage
+ * 包含 objects + gravity + groundY + field，保证场设置等全局参数持久化
  */
 function saveCustomScene() {
   if (activeScene.value !== '自定义') return
   try {
-    const data = JSON.stringify(state.objects.map(o => {
-      const { trail, prevX, prevY, ...rest } = o
-      return rest
-    }))
-    localStorage.setItem(CUSTOM_STORAGE_KEY, data)
-  } catch {}
+    const sceneData = {
+      objects: deepCopyObjects(state.objects),
+      gravity: state.gravity,
+      groundY: state.groundY >= 100000 ? null : state.groundY,
+      field: JSON.parse(JSON.stringify(state.field))
+    }
+    localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(sceneData))
+  } catch (e) {
+    // P1-7: 配额超限等异常处理
+    if (e && (e.name === 'QuotaExceededError' || e.code === 22)) {
+      aiToast.value = '场景数据过大，已超出本地存储限制'
+      setTimeout(() => { aiToast.value = '' }, 3000)
+    }
+  }
 }
 
 /**
  * 从 localStorage 恢复自定义场景
+ * 兼容旧格式（纯数组）和新格式（含全局参数的对象）
  */
 function restoreCustomScene() {
   try {
     const data = localStorage.getItem(CUSTOM_STORAGE_KEY)
     if (!data) return
-    const objs = JSON.parse(data)
+    const parsed = JSON.parse(data)
+    let objs, gravity, groundY, field
+    if (Array.isArray(parsed)) {
+      // 旧格式兼容：仅 objects
+      objs = parsed
+    } else if (parsed && Array.isArray(parsed.objects)) {
+      objs = parsed.objects
+      gravity = parsed.gravity
+      groundY = parsed.groundY
+      field = parsed.field
+    } else {
+      return
+    }
     if (!Array.isArray(objs) || objs.length === 0) return
     state.objects.splice(0, state.objects.length)
     for (const o of objs) {
       state.objects.push({ ...o, trail: [] })
     }
+    if (gravity !== undefined) state.gravity = gravity
+    if (groundY !== undefined) state.groundY = groundY === null ? 100000 : groundY
+    if (field) state.field = JSON.parse(JSON.stringify(field))
     selectedId.value = objs[0]?.id ?? null
     aiToast.value = '已恢复上次自定义场景'
     setTimeout(() => { aiToast.value = '' }, 2500)
@@ -262,21 +302,41 @@ function handleUpdateObject({ id, props: newProps }) {
 
 /**
  * 删除物体
+ * 弧线由多条线段共享 groupId 组成，删除其中一条时整组删除，避免弧线断裂
  */
 function handleRemoveObject(id) {
-  removeObject(id)
+  const target = state.objects.find(o => o.id === id)
+  if (target && target.groupId) {
+    // 弧线组：删除同 groupId 的所有线段
+    const groupIds = [id]
+    for (const o of [...state.objects]) {
+      if (o.groupId === target.groupId && o.id !== id) groupIds.push(o.id)
+    }
+    for (const gid of groupIds) removeObject(gid)
+    // 清理多选中已删除的 id
+    selectedIds.value = selectedIds.value.filter(sid => !groupIds.includes(sid))
+  } else {
+    removeObject(id)
+    selectedIds.value = selectedIds.value.filter(sid => sid !== id)
+  }
   if (selectedId.value === id) selectedId.value = null
   saveCustomScene()
 }
 
 /**
  * 导出场景为 JSON 文本（复制到剪贴板，降级 prompt）
+ * 包含 objects + gravity + groundY + field 全局参数，保证导入后状态完整
  */
 async function handleExportScene() {
-  const data = JSON.stringify(state.objects.map(o => {
-    const { trail, prevX, prevY, ...rest } = o
-    return rest
-  }), null, 2)
+  const sceneData = {
+    version: 2,
+    objects: deepCopyObjects(state.objects),
+    gravity: state.gravity,
+    // groundY >= 100000 是 usePhysics 内部"禁用地面"的标记，导出为 null 还原语义
+    groundY: state.groundY >= 100000 ? null : state.groundY,
+    field: JSON.parse(JSON.stringify(state.field))
+  }
+  const data = JSON.stringify(sceneData, null, 2)
   try {
     await navigator.clipboard.writeText(data)
     aiToast.value = '场景已导出到剪贴板'
@@ -290,7 +350,44 @@ async function handleExportScene() {
 }
 
 /**
+ * 校验并规范化单个物体对象
+ * @returns {Object|null} 合法物体返回规范化对象，非法返回 null
+ */
+function validateObject(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null
+  const obj = { ...o }
+  // 公共字段
+  if (typeof obj.id !== 'number' || !isFinite(obj.id)) return null
+  if (typeof obj.type !== 'string') return null
+  if (!['质点', '刚体', 'line_segment'].includes(obj.type)) return null
+  if (typeof obj.name !== 'string') obj.name = '未命名'
+
+  if (obj.type === 'line_segment') {
+    for (const k of ['x1', 'y1', 'x2', 'y2']) {
+      if (typeof obj[k] !== 'number' || !isFinite(obj[k])) return null
+    }
+    if (typeof obj.restitution !== 'number' || !isFinite(obj.restitution)) obj.restitution = 0.3
+    if (typeof obj.normalX !== 'number') obj.normalX = 0
+    if (typeof obj.normalY !== 'number') obj.normalY = -1
+  } else {
+    // 质点 / 刚体
+    for (const k of ['x', 'y', 'vx', 'vy']) {
+      if (typeof obj[k] !== 'number' || !isFinite(obj[k])) return null
+    }
+    if (typeof obj.mass !== 'number' || obj.mass <= 0 || !isFinite(obj.mass)) obj.mass = 1
+    if (typeof obj.radius !== 'number' || obj.radius <= 0 || !isFinite(obj.radius)) obj.radius = 15
+    if (typeof obj.charge !== 'number' || !isFinite(obj.charge)) obj.charge = 0
+  }
+  obj.trail = []
+  return obj
+}
+
+/**
  * 导入场景（从剪贴板读取 JSON，降级 prompt 粘贴）
+ * 兼容两种格式：
+ *   - 旧格式：纯对象数组（仅 objects）
+ *   - 新格式：{ objects, gravity, groundY, field }（完整状态）
+ * 导入时校验每个物体属性，跳过非法物体
  */
 async function handleImportScene() {
   let text = ''
@@ -302,15 +399,35 @@ async function handleImportScene() {
   }
   if (!text) return
   try {
-    const objs = JSON.parse(text)
-    if (!Array.isArray(objs)) throw new Error('格式错误：应为数组')
+    const parsed = JSON.parse(text)
+    let rawObjs, gravity, groundY, field
+    if (Array.isArray(parsed)) {
+      // 旧格式兼容：仅 objects
+      rawObjs = parsed
+    } else if (parsed && Array.isArray(parsed.objects)) {
+      rawObjs = parsed.objects
+      gravity = parsed.gravity
+      groundY = parsed.groundY
+      field = parsed.field
+    } else {
+      throw new Error('格式错误：应为数组或含 objects 的对象')
+    }
+    // 校验每个物体，过滤非法
+    const validObjs = rawObjs.map(validateObject).filter(Boolean)
+    if (validObjs.length === 0) throw new Error('无有效物体')
+    const skipped = rawObjs.length - validObjs.length
     // 清空当前物体，加载导入的
     state.objects.splice(0, state.objects.length)
-    for (const o of objs) {
-      state.objects.push({ ...o, trail: [] })
+    for (const o of validObjs) {
+      state.objects.push(o)
     }
-    selectedId.value = objs[0]?.id ?? null
-    aiToast.value = '场景已导入（' + objs.length + ' 个物体）'
+    // 应用全局参数（groundY=null 表示禁用地面，用 100000 占位）
+    if (typeof gravity === 'number' && isFinite(gravity)) state.gravity = gravity
+    if (groundY !== undefined) state.groundY = groundY === null ? 100000 : groundY
+    if (field && typeof field === 'object') state.field = JSON.parse(JSON.stringify(field))
+    selectedId.value = validObjs[0]?.id ?? null
+    aiToast.value = '场景已导入（' + validObjs.length + ' 个物体' + (skipped > 0 ? '，已忽略 ' + skipped + ' 个非法' : '') + '）'
+    saveCustomScene()
   } catch (err) {
     aiToast.value = '导入失败：' + err.message
   }
@@ -322,11 +439,23 @@ async function handleImportScene() {
  */
 function onDeleteKey() {
   if (activeScene.value !== '自定义') return
-  // 优先批量删除多选
+  // 回放模式下禁止编辑操作（删除）
+  if (mode.value === 'replay') return
+  // 优先批量删除多选（弧线组整组删除，避免断裂）
   if (selectedIds.value.length > 0) {
-    for (const id of [...selectedIds.value]) {
-      removeObject(id)
+    // 收集所有需删除的 id（扩展弧线组同组线段）
+    const toDelete = new Set()
+    for (const id of selectedIds.value) {
+      const target = state.objects.find(o => o.id === id)
+      if (target && target.groupId) {
+        for (const o of state.objects) {
+          if (o.groupId === target.groupId) toDelete.add(o.id)
+        }
+      } else {
+        toDelete.add(id)
+      }
     }
+    for (const id of toDelete) removeObject(id)
     selectedIds.value = []
     if (selectedId.value !== null && !state.objects.find(o => o.id === selectedId.value)) {
       selectedId.value = null
@@ -348,13 +477,12 @@ function onKeydown(e) {
   }
 }
 
-onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
-})
+// 监听场设置与重力变化：自定义场景下自动保存到 localStorage
+watch(() => state.field, () => saveCustomScene(), { deep: true })
+watch(() => state.gravity, () => saveCustomScene())
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown)
-})
+onMounted(() => { window.addEventListener('keydown', onKeydown) })
+onUnmounted(() => { window.removeEventListener('keydown', onKeydown) })
 </script>
 
 <style scoped>

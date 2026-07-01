@@ -22,7 +22,8 @@ const state = reactive({
   isPlaying: false,
   showForce: true,
   groundY: 400,
-  restitution: 0.6,
+  groundRestitution: 0.6,   // 地面碰撞恢复系数（独立调节）
+  particleRestitution: 1.0, // 质点间碰撞恢复系数（弹性碰撞默认 1.0）
   gravity: GRAVITY
 })
 
@@ -108,7 +109,8 @@ function updatePhysics(dt) {
   }
 
   // 碰撞检测（返回是否发生碰撞，用于关键帧标记）
-  const collided = checkCollision(state.objects, state.groundY, state.restitution)
+  // 地面与质点间使用独立的恢复系数
+  const collided = checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution)
 
   // 记录快照（包含全局状态 field/groundY/gravity，便于回放时完整恢复）
   const frame = {
