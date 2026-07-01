@@ -183,6 +183,21 @@ function updateObjectProperty(id, key, value) {
 }
 
 /**
+ * 添加物体到场景
+ */
+function addObject(obj) {
+  state.objects.push(obj)
+}
+
+/**
+ * 删除指定 id 的物体
+ */
+function removeObject(id) {
+  const idx = state.objects.findIndex(o => o.id === id)
+  if (idx !== -1) state.objects.splice(idx, 1)
+}
+
+/**
  * 加载场景预设
  * groundY 可选：水平地面 y 坐标；传 null 表示禁用水平地面（由线段物体接管碰撞）
  */
@@ -220,6 +235,8 @@ export {
   removeForce,
   clearForces,
   updateObjectProperty,
+  addObject,
+  removeObject,
   loadScene,
   PIXELS_PER_METER
 }

@@ -190,6 +190,91 @@ function cross(ax, ay, bx, by, px, py) {
 }
 
 /**
+ * 判断角度 angle 是否在弧线 [startAngle, endAngle] 范围内
+ * 支持逆时针（endAngle > startAngle）和顺时针（endAngle < startAngle）
+ */
+function isAngleInRange(angle, startAngle, endAngle) {
+  const TWO_PI = Math.PI * 2
+  // 将 angle 规范化到 [startAngle, startAngle + 2π)
+  let normAngle = angle
+  while (normAngle < startAngle) normAngle += TWO_PI
+  while (normAngle >= startAngle + TWO_PI) normAngle -= TWO_PI
+  const minA = Math.min(startAngle, endAngle)
+  const maxA = Math.max(startAngle, endAngle)
+  return normAngle >= minA && normAngle <= maxA
+}
+
+/**
+ * 质点与弧线碰撞检测（圆-弧碰撞，自动判别内外侧）
+ * seg 需带 arc 元数据：{ cx, cy, r, startAngle, endAngle }
+ * 内侧碰撞（物体在弧线圆内，如碗内）：法线指向圆心
+ * 外侧碰撞（物体在弧线圆外，如拱顶上方）：法线指向外侧
+ */
+export function detectArcCollision(obj, seg) {
+  if (obj.type !== '质点' && obj.type !== '刚体') return false
+  if (!seg.arc) return false
+
+  const radius = obj.radius || 10
+  const restitution = seg.restitution !== undefined ? seg.restitution : 0.3
+  const { cx, cy, r, startAngle, endAngle } = seg.arc
+
+  // 物体圆心到弧线圆心的向量与距离
+  const dx = obj.x - cx
+  const dy = obj.y - cy
+  const dist = Math.hypot(dx, dy)
+  if (dist < 1e-6) return false // 物体恰在弧线圆心，无法判别方向
+
+  // 判断物体相对弧线的角度是否在弧线范围内
+  const angle = Math.atan2(dy, dx)
+  if (!isAngleInRange(angle, startAngle, endAngle)) return false
+
+  // 判别碰撞侧：dist < r 为内侧（碗内），dist > r 为外侧（拱外）
+  const onInnerSide = dist < r
+  const surfaceDist = onInnerSide ? (r - dist) : (dist - r)
+  if (surfaceDist > radius) return false // 离弧线表面太远
+
+  // 法线方向（从弧线表面指向物体）
+  let nx, ny
+  if (onInnerSide) {
+    // 内侧：法线指向圆心方向 = (-dx/dist, -dy/dist)
+    nx = -dx / dist
+    ny = -dy / dist
+  } else {
+    // 外侧：法线指向远离圆心方向 = (dx/dist, dy/dist)
+    nx = dx / dist
+    ny = dy / dist
+  }
+
+  // 位置修正：将物体放到弧线表面 ± radius 处
+  const targetDist = onInnerSide ? (r - radius) : (r + radius)
+  obj.x = cx + (dx / dist) * targetDist
+  obj.y = cy + (dy / dist) * targetDist
+
+  // 速度反射：物体向弧线运动（法线反方向）时反射
+  const v_normal = obj.vx * nx + obj.vy * ny
+  if (v_normal < 0) {
+    obj.vx -= (1 + restitution) * v_normal * nx
+    obj.vy -= (1 + restitution) * v_normal * ny
+  }
+
+  // 切向摩擦
+  const friction = obj.friction || 0
+  if (friction > 0) {
+    const tx = -ny
+    const ty = nx
+    const v_tangent = obj.vx * tx + obj.vy * ty
+    if (Math.abs(v_tangent) > 1e-6) {
+      const damp = Math.min(friction * 0.15, 0.9)
+      const newVt = v_tangent * (1 - damp)
+      obj.vx += (newVt - v_tangent) * tx
+      obj.vy += (newVt - v_tangent) * ty
+    }
+  }
+
+  return true
+}
+
+/**
  * 两线段交点
  */
 function segmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
@@ -249,11 +334,20 @@ export function checkCollision(objects, groundY, restitution = 0.6) {
     if (checkGroundCollision(obj, groundY, restitution)) collided = true
   }
 
-  // 线段碰撞
+  // 线段碰撞（弧线用专属圆-弧碰撞，普通线段用线段碰撞）
   for (const obj of objects) {
     if (obj.type === '质点' || obj.type === '刚体') {
+      // 已处理的弧线 groupId 集合（同一弧线 8 条线段只检测一次）
+      const processedArcs = new Set()
       for (const seg of objects) {
-        if (seg.type === 'line_segment') {
+        if (seg.type !== 'line_segment') continue
+        if (seg.arc && seg.groupId) {
+          // 弧线：同一组只检测一次
+          if (processedArcs.has(seg.groupId)) continue
+          processedArcs.add(seg.groupId)
+          if (detectArcCollision(obj, seg)) collided = true
+        } else {
+          // 普通线段
           if (detectSegmentCollision(obj, seg)) collided = true
         }
       }

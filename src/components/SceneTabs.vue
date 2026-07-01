@@ -19,7 +19,7 @@ defineProps({
 
 defineEmits(['switch'])
 
-const scenes = ['抛体运动', '斜面滑块', '弹性碰撞', '磁场圆周', '电场偏转']
+const scenes = ['抛体运动', '斜面滑块', '弹性碰撞', '磁场圆周', '电场偏转', '自定义']
 </script>
 
 <style scoped>

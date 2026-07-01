@@ -138,6 +138,20 @@ export function presetElectric() {
 }
 
 /**
+ * 自定义场景：空白画布，无物体，无场，有重力，禁用水平地面
+ * 用户进入后可通过点击/拖拽搭建自己的场景
+ */
+export function customPreset() {
+  return {
+    objects: [],
+    forces: [],
+    field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
+    gravity: G,
+    groundY: null
+  }
+}
+
+/**
  * 根据场景名称获取预设
  */
 export function getPreset(sceneName) {
@@ -147,6 +161,7 @@ export function getPreset(sceneName) {
     case '弹性碰撞': return presetCollision()
     case '磁场圆周': return presetMagnetic()
     case '电场偏转': return presetElectric()
+    case '自定义': return customPreset()
     default: return presetProjectile()
   }
 }

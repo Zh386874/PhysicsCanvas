@@ -6,11 +6,19 @@
         v-for="obj in objects"
         :key="obj.id"
         class="item"
-        :class="{ selected: obj.id === selectedId }"
+        :class="{ selected: obj.id === selectedId, 'multi-selected': selectedIds.includes(obj.id) }"
         @click="$emit('select', obj.id)"
       >
         <span class="name">{{ obj.name }}</span>
-        <span class="type">{{ obj.type }}</span>
+        <div class="item-right">
+          <span class="type">{{ obj.type }}</span>
+          <button
+            v-if="removable"
+            class="del-btn"
+            title="删除"
+            @click.stop="$emit('remove', obj.id)"
+          >✕</button>
+        </div>
       </div>
     </div>
   </div>
@@ -19,10 +27,12 @@
 <script setup>
 defineProps({
   objects: { type: Array, required: true },
-  selectedId: { type: Number, default: null }
+  selectedId: { type: Number, default: null },
+  selectedIds: { type: Array, default: () => [] },
+  removable: { type: Boolean, default: false }
 })
 
-defineEmits(['select'])
+defineEmits(['select', 'remove'])
 </script>
 
 <style scoped>
@@ -68,6 +78,12 @@ defineEmits(['select'])
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.15);
 }
 
+.item.multi-selected {
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.18), rgba(167, 139, 250, 0.08));
+  border-color: rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.3);
+}
+
 .name {
   color: #e0e6ff;
   font-size: 0.9rem;
@@ -79,5 +95,32 @@ defineEmits(['select'])
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
   background: rgba(59, 130, 246, 0.08);
+}
+
+.item-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.del-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.del-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.6);
 }
 </style>
