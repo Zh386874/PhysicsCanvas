@@ -6,21 +6,27 @@
  * 重力单位：像素/秒²（= m/s² × PIXELS_PER_METER）
  */
 
-import { PIXELS_PER_METER } from './usePhysics'
+import { PIXELS_PER_METER, type PhysicsObject, type CustomForce, type FieldState } from './usePhysics'
 
-const G = 9.8 * PIXELS_PER_METER // 统一重力：490 像素/s²
+const G: number = 9.8 * PIXELS_PER_METER // 统一重力：490 像素/s²
 
-let idCounter = 100
+let idCounter: number = 100
 
-function nextId() {
+function nextId(): number {
   return ++idCounter
 }
 
-/**
- * 平抛运动：单个小球从左上方水平抛出
- * v0 = 10 m/s → 500 像素/s
- */
-export function presetProjectile() {
+/** 预设场景结构 */
+export interface PresetScene {
+  objects: PhysicsObject[]
+  forces: CustomForce[]
+  field: FieldState
+  gravity: number
+  groundY?: number | null
+}
+
+/** 平抛运动：单个小球从左上方水平抛出 */
+export function presetProjectile(): PresetScene {
   return {
     objects: [
       {
@@ -35,14 +41,9 @@ export function presetProjectile() {
   }
 }
 
-/**
- * 斜面滑块：滑块沿斜面下滑，使用真实线段碰撞
- * 斜面端点 (150,420) -> (450,160)，法线指向左上（斜面"上方"）
- * 地面线段在画布底部，法线向上
- */
-export function presetIncline() {
-  // 斜面方向向量 (300, -260)，法线（顺时针 90°）= (-260, -300) 归一化
-  const len = Math.sqrt(260 * 260 + 300 * 300) // ≈ 396.99
+/** 斜面滑块：滑块沿斜面下滑，使用真实线段碰撞 */
+export function presetIncline(): PresetScene {
+  const len = Math.sqrt(260 * 260 + 300 * 300)
   const nx = -260 / len
   const ny = -300 / len
   return {
@@ -70,15 +71,12 @@ export function presetIncline() {
     forces: [],
     field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
     gravity: G,
-    groundY: null // 禁用水平地面，由斜面/地面线段接管碰撞
+    groundY: null
   }
 }
 
-/**
- * 弹性碰撞：两个小球相向运动
- * v1 = 8 m/s → 400 像素/s，v2 = -3 m/s → -150 像素/s
- */
-export function presetCollision() {
+/** 弹性碰撞：两个小球相向运动 */
+export function presetCollision(): PresetScene {
   return {
     objects: [
       {
@@ -98,11 +96,8 @@ export function presetCollision() {
   }
 }
 
-/**
- * 带电粒子在匀强磁场中的圆周运动
- * 圆周半径 r = mv/(qB) = 1×150/(1×1) = 150 像素，画布内合理
- */
-export function presetMagnetic() {
+/** 带电粒子在匀强磁场中的圆周运动 */
+export function presetMagnetic(): PresetScene {
   return {
     objects: [
       {
@@ -117,12 +112,8 @@ export function presetMagnetic() {
   }
 }
 
-/**
- * 带电粒子在匀强电场中的抛物线运动
- * v0 = 6 m/s → 300 像素/s
- * E.y = -1000 像素/s²（电场加速度，向上），与重力 490 形成向上合力 -510
- */
-export function presetElectric() {
+/** 带电粒子在匀强电场中的抛物线运动 */
+export function presetElectric(): PresetScene {
   return {
     objects: [
       {
@@ -137,11 +128,8 @@ export function presetElectric() {
   }
 }
 
-/**
- * 自定义场景：空白画布，无物体，无场，有重力，禁用水平地面
- * 用户进入后可通过点击/拖拽搭建自己的场景
- */
-export function customPreset() {
+/** 自定义场景：空白画布 */
+export function customPreset(): PresetScene {
   return {
     objects: [],
     forces: [],
@@ -151,10 +139,8 @@ export function customPreset() {
   }
 }
 
-/**
- * 根据场景名称获取预设
- */
-export function getPreset(sceneName) {
+/** 根据场景名称获取预设 */
+export function getPreset(sceneName: string): PresetScene {
   switch (sceneName) {
     case '抛体运动': return presetProjectile()
     case '斜面滑块': return presetIncline()

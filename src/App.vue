@@ -38,6 +38,8 @@
           @import-scene="handleImportScene"
           @update-selected="selectedIds = $event"
           @batch-update="handleBatchUpdate"
+          @undo="onUndo"
+          @redo="onRedo"
         />
         <Timeline
           v-if="mode === 'replay'"
@@ -71,6 +73,7 @@ import Timeline from './components/Timeline.vue'
 import AIInput from './components/AIInput.vue'
 import { state, reset, loadScene, updateObjectProperty, addObject, removeObject, snapshots, currentFrame, keyframeIndices, PIXELS_PER_METER } from './composables/usePhysics'
 import { getPreset } from './composables/usePresets'
+import { pushHistory, undo as historyUndo, redo as historyRedo, clearHistory } from './composables/useHistory'
 
 const activeScene = ref('抛体运动')
 const selectedId = ref(1)
@@ -108,6 +111,8 @@ function onSceneSwitch(sceneName) {
       return
     }
   }
+  // 场景切换清空撤销/重做历史，避免跨场景撤销
+  clearHistory()
   activeScene.value = sceneName
   const preset = getPreset(sceneName)
   loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
@@ -275,6 +280,7 @@ function onSelectObject(id) {
  * updates: [{ id, props }]
  */
 function handleBatchUpdate(updates) {
+  if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
   for (const { id, props } of updates) {
     const obj = state.objects.find(o => o.id === id)
     if (obj) Object.assign(obj, props)
@@ -286,6 +292,7 @@ function handleBatchUpdate(updates) {
  * 添加物体（自定义场景编辑）
  */
 function handleAddObject(obj) {
+  if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
   addObject(obj)
   selectedId.value = obj.id
   saveCustomScene()
@@ -293,6 +300,7 @@ function handleAddObject(obj) {
 
 /**
  * 更新物体属性（拖拽时实时调用）
+ * 注：拖拽过程中频繁调用，不推入历史，由调用方在拖拽结束时推入
  */
 function handleUpdateObject({ id, props: newProps }) {
   const obj = state.objects.find(o => o.id === id)
@@ -305,6 +313,7 @@ function handleUpdateObject({ id, props: newProps }) {
  * 弧线由多条线段共享 groupId 组成，删除其中一条时整组删除，避免弧线断裂
  */
 function handleRemoveObject(id) {
+  if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
   const target = state.objects.find(o => o.id === id)
   if (target && target.groupId) {
     // 弧线组：删除同 groupId 的所有线段
@@ -416,6 +425,8 @@ async function handleImportScene() {
     const validObjs = rawObjs.map(validateObject).filter(Boolean)
     if (validObjs.length === 0) throw new Error('无有效物体')
     const skipped = rawObjs.length - validObjs.length
+    // 导入前推入历史
+    if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
     // 清空当前物体，加载导入的
     state.objects.splice(0, state.objects.length)
     for (const o of validObjs) {
@@ -443,6 +454,8 @@ function onDeleteKey() {
   if (mode.value === 'replay') return
   // 优先批量删除多选（弧线组整组删除，避免断裂）
   if (selectedIds.value.length > 0) {
+    // 删除前推入历史
+    pushHistory(state.objects, state.gravity, state.groundY, state.field)
     // 收集所有需删除的 id（扩展弧线组同组线段）
     const toDelete = new Set()
     for (const id of selectedIds.value) {
@@ -468,12 +481,58 @@ function onDeleteKey() {
   }
 }
 
+/**
+ * 撤销：从历史栈弹出上一状态并恢复
+ */
+function onUndo() {
+  if (activeScene.value !== '自定义') return
+  if (mode.value === 'replay') return
+  const prev = historyUndo(state.objects, state.gravity, state.groundY, state.field)
+  if (!prev) return
+  applyHistorySnapshot(prev)
+  aiToast.value = '已撤销'
+  setTimeout(() => { aiToast.value = '' }, 1500)
+}
+
+/**
+ * 重做：从重做栈弹出下一状态并恢复
+ */
+function onRedo() {
+  if (activeScene.value !== '自定义') return
+  if (mode.value === 'replay') return
+  const next = historyRedo(state.objects, state.gravity, state.groundY, state.field)
+  if (!next) return
+  applyHistorySnapshot(next)
+  aiToast.value = '已重做'
+  setTimeout(() => { aiToast.value = '' }, 1500)
+}
+
+/**
+ * 应用历史快照到 state
+ */
+function applyHistorySnapshot(snap) {
+  state.objects.splice(0, state.objects.length)
+  for (const o of snap.objects) state.objects.push({ ...o, trail: [] })
+  state.gravity = snap.gravity
+  state.groundY = snap.groundY === null ? 100000 : snap.groundY
+  state.field = JSON.parse(JSON.stringify(snap.field))
+  selectedId.value = snap.objects[0]?.id ?? null
+  selectedIds.value = []
+  saveCustomScene()
+}
+
 function onKeydown(e) {
+  // 避免在输入框中触发
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    // 避免在输入框中触发
-    const tag = document.activeElement?.tagName
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return
     onDeleteKey()
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    onUndo()
+  } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+    e.preventDefault()
+    onRedo()
   }
 }
 
