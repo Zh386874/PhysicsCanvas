@@ -203,6 +203,7 @@ function onMouseDown(e: MouseEvent): void {
 
   // 右键（button === 2）：进入框选模式
   if (e.button === 2) {
+    e.preventDefault()
     const pos = getMousePos(e)
     selectionActive = true
     selectionStart = pos

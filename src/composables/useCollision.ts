@@ -193,7 +193,35 @@ function isAngleInRange(angle: number, startAngle: number, endAngle: number): bo
 }
 
 /**
- * 质点与弧线碰撞检测（圆-弧碰撞，自动判别内外侧）
+ * 线段-圆相交参数解（返回最早的 t ∈ [0,1]，若无交点返回 -1）
+ */
+function lineCircleIntersect(
+  x1: number, y1: number, x2: number, y2: number,
+  cx: number, cy: number, radius: number
+): number {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const fx = x1 - cx
+  const fy = y1 - cy
+
+  const a = dx * dx + dy * dy
+  const b = 2 * (fx * dx + fy * dy)
+  const c = fx * fx + fy * fy - radius * radius
+
+  const disc = b * b - 4 * a * c
+  if (disc < 0) return -1
+
+  const sqrtDisc = Math.sqrt(disc)
+  const t1 = (-b - sqrtDisc) / (2 * a)
+  const t2 = (-b + sqrtDisc) / (2 * a)
+
+  if (t1 >= 0 && t1 <= 1) return t1
+  if (t2 >= 0 && t2 <= 1) return t2
+  return -1
+}
+
+/**
+ * 质点与弧线碰撞检测（连续碰撞检测 CCD，防止隧穿）
  */
 export function detectArcCollision(
   obj: ParticleObject,
@@ -204,31 +232,63 @@ export function detectArcCollision(
   const restitution = seg.restitution !== undefined ? seg.restitution : 0.3
   const { cx, cy, r, startAngle, endAngle } = seg.arc
 
-  const dx = obj.x - cx
-  const dy = obj.y - cy
-  const dist = Math.hypot(dx, dy)
-  if (dist < 1e-6) return false
+  const prevX = obj.prevX !== undefined ? obj.prevX : obj.x
+  const prevY = obj.prevY !== undefined ? obj.prevY : obj.y
 
-  const angle = Math.atan2(dy, dx)
-  if (!isAngleInRange(angle, startAngle, endAngle)) return false
+  // CCD：检测路径线段与两个边界圆的交点
+  const outerRadius = r + radius
+  const innerRadius = r > radius ? r - radius : 0
 
-  const onInnerSide = dist < r
-  const surfaceDist = onInnerSide ? (r - dist) : (dist - r)
-  if (surfaceDist > radius) return false
+  let tOuter = lineCircleIntersect(prevX, prevY, obj.x, obj.y, cx, cy, outerRadius)
+  let tInner = lineCircleIntersect(prevX, prevY, obj.x, obj.y, cx, cy, innerRadius)
+
+  // 找最早的交点
+  let t = -1
+  let fromOutside = true // true = 从外向内进入弧线
+  if (tOuter >= 0 && tInner >= 0) {
+    if (tOuter < tInner) { t = tOuter; fromOutside = true }
+    else { t = tInner; fromOutside = false }
+  } else if (tOuter >= 0) { t = tOuter; fromOutside = true }
+  else if (tInner >= 0) { t = tInner; fromOutside = false }
+
+  if (t < 0) return false // 无交点
+
+  // 计算交点位置
+  const hitX = prevX + (obj.x - prevX) * t
+  const hitY = prevY + (obj.y - prevY) * t
+
+  // 检查交点角度是否在弧范围内
+  const angle = Math.atan2(hitY - cy, hitX - cx)
+  if (!isAngleInRange(angle, startAngle, endAngle)) return false // 从缺口穿过
+
+  // 计算碰撞点对应的法线（径向）
+  const hitDx = hitX - cx
+  const hitDy = hitY - cy
+  const hitDist = Math.hypot(hitDx, hitDy)
+  if (hitDist < 1e-6) return false
 
   let nx: number, ny: number
-  if (onInnerSide) { nx = -dx / dist; ny = -dy / dist }
-  else { nx = dx / dist; ny = dy / dist }
+  if (fromOutside) {
+    // 从外向内进入弧线：推向外侧
+    nx = hitDx / hitDist; ny = hitDy / hitDist
+  } else {
+    // 从内向外离开弧线：推向内侧
+    nx = -hitDx / hitDist; ny = -hitDy / hitDist
+  }
 
-  const targetDist = onInnerSide ? (r - radius) : (r + radius)
-  obj.x = cx + (dx / dist) * targetDist
-  obj.y = cy + (dy / dist) * targetDist
+  // 位置修正：将粒子推到碰撞点（加上半径偏移）
+  const targetRadius = fromOutside ? (r + radius) : (r - radius)
+  obj.x = cx + (hitDx / hitDist) * targetRadius
+  obj.y = cy + (hitDy / hitDist) * targetRadius
 
+  // 速度反射
   const v_normal = obj.vx * nx + obj.vy * ny
   if (v_normal < 0) {
     obj.vx -= (1 + restitution) * v_normal * nx
     obj.vy -= (1 + restitution) * v_normal * ny
   }
+
+  // 切向摩擦
   const friction = obj.friction || 0
   if (friction > 0) {
     const tx = -ny, ty = nx

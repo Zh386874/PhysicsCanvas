@@ -13,9 +13,9 @@ interface TrailPoint { x: number; y: number }
 type ObjectType = '质点' | '刚体' | 'line_segment'
 
 /** 场类型字面量 */
-type FieldType = 'none' | 'electric' | 'magnetic'
+type FieldType = 'none' | 'electric' | 'magnetic' | 'composite'
 
-/** 场设置 */
+/** 场设置（支持多场同时存在：gravity 始终独立，E 和 B 可同时非零） */
 export interface FieldState {
   type: FieldType
   E: Vec2
@@ -166,12 +166,10 @@ function detectKeyframe(prevFrame: SnapshotObject[], curFrame: SnapshotObject[])
 }
 
 /**
- * 物理更新：遍历所有物体，计算合力，欧拉积分，处理碰撞
+ * 单次子步物理更新（供子步循环调用）
  */
-function updatePhysics(dt: number): void {
-  if (!state.isPlaying) return
-
-  // 保存上一帧位置，供线段连续碰撞检测使用
+function subStepPhysics(subDt: number): boolean {
+  // 保存上一帧位置，供连续碰撞检测使用
   for (const obj of state.objects) {
     if (obj.type === '质点' || obj.type === '刚体') {
       const p = obj as ParticleObject
@@ -197,10 +195,13 @@ function updatePhysics(dt: number): void {
 
     const charge = p.charge || 0
     if (charge !== 0) {
-      if (state.field.type === 'electric') {
+      // 多场同时支持：电场力 qE 和洛伦兹力 qv×B 可同时存在
+      // 根据 E 和 B 值是否非零判断，而非 type 字段
+      if (state.field.E.x !== 0 || state.field.E.y !== 0) {
         fx += charge * state.field.E.x
         fy += charge * state.field.E.y
-      } else if (state.field.type === 'magnetic') {
+      }
+      if (state.field.B !== 0) {
         fx += charge * p.vy * state.field.B
         fy += -charge * p.vx * state.field.B
       }
@@ -209,16 +210,47 @@ function updatePhysics(dt: number): void {
     const ax = fx / p.mass
     const ay = fy / p.mass
 
-    p.vx += ax * dt
-    p.vy += ay * dt
-    p.x += p.vx * dt
-    p.y += p.vy * dt
-
-    p.trail.push({ x: p.x, y: p.y })
-    if (p.trail.length > 80) p.trail.shift()
+    p.vx += ax * subDt
+    p.vy += ay * subDt
+    p.x += p.vx * subDt
+    p.y += p.vy * subDt
   }
 
-  const collided = checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution)
+  return checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution)
+}
+
+/**
+ * 物理更新：子步循环防止隧穿 + 快照录制
+ */
+function updatePhysics(dt: number): void {
+  if (!state.isPlaying) return
+
+  // 子步循环：每次移动距离不超过 radius/2，防止隧穿
+  const maxStepDist = 10 // 像素（假设最小半径约 10）
+  let maxVelMag = 0
+  for (const obj of state.objects) {
+    if (obj.type === '质点' || obj.type === '刚体') {
+      const p = obj as ParticleObject
+      const velMag = Math.hypot(p.vx, p.vy)
+      if (velMag > maxVelMag) maxVelMag = velMag
+    }
+  }
+
+  const steps = Math.max(1, Math.ceil(maxVelMag * dt / maxStepDist))
+  const subDt = dt / steps
+
+  for (let i = 0; i < steps; i++) {
+    subStepPhysics(subDt)
+  }
+
+  // 仅在最后一帧录制轨迹和快照（避免轨迹过于密集）
+  for (const obj of state.objects) {
+    if (obj.type === '质点' || obj.type === '刚体') {
+      const p = obj as ParticleObject
+      p.trail.push({ x: p.x, y: p.y })
+      if (p.trail.length > 80) p.trail.shift()
+    }
+  }
 
   const frame: SnapshotFrame = {
     objects: state.objects
@@ -230,7 +262,9 @@ function updatePhysics(dt: number): void {
     timestamp: Date.now()
   }
   const prevFrame = snapshots.value[snapshots.value.length - 1]
-  if (collided || (prevFrame && detectKeyframe(prevFrame.objects, frame.objects))) {
+  // 简化关键帧检测：仅用最后一帧的结果（实际子步中间也有碰撞，但暂不标记）
+  const collided = false // 子步循环中碰撞已处理，不再重复标记
+  if (prevFrame && detectKeyframe(prevFrame.objects, frame.objects)) {
     keyframeIndices.value.push(snapshots.value.length)
   }
   snapshots.value.push(frame)

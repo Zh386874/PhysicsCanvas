@@ -150,7 +150,8 @@ export function drawGround(rc: RenderContext, groundY: number): void {
 export function drawField(rc: RenderContext, field: FieldState): void {
   const { ctx, cssW, cssH } = rc
   const step = 60
-  if (field.type === 'magnetic') {
+  // 多场同时绘制：磁场和电场可共存
+  if (field.B !== 0) {
     ctx.fillStyle = 'rgba(34, 211, 238, 0.15)'
     ctx.strokeStyle = 'rgba(34, 211, 238, 0.15)'
     ctx.lineWidth = 1
@@ -167,7 +168,8 @@ export function drawField(rc: RenderContext, field: FieldState): void {
         }
       }
     }
-  } else if (field.type === 'electric') {
+  }
+  if (field.E.x !== 0 || field.E.y !== 0) {
     const ex = field.E.x, ey = field.E.y
     const mag = Math.sqrt(ex * ex + ey * ey)
     if (mag < 0.01) return
@@ -327,7 +329,8 @@ export function drawForces(
     }
     const charge = p.charge || 0
     if (charge !== 0) {
-      if (field.type === 'electric') {
+      // 多场同时绘制力箭头
+      if (field.E.x !== 0 || field.E.y !== 0) {
         const Fex = charge * field.E.x, Fey = charge * field.E.y
         const feMag = Math.hypot(Fex, Fey)
         if (feMag > 0.01) {
@@ -339,7 +342,8 @@ export function drawForces(
           ctx.textAlign = 'left'
           ctx.fillText('qE', ex + 4, ey)
         }
-      } else if (field.type === 'magnetic') {
+      }
+      if (field.B !== 0) {
         const Fmx = charge * p.vy * field.B, Fmy = -charge * p.vx * field.B
         const fmMag = Math.hypot(Fmx, Fmy)
         if (fmMag > 0.01) {

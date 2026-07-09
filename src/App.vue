@@ -6,11 +6,22 @@
         <span class="logo-text">物理解模</span>
       </div>
       <SceneTabs :activeScene="activeScene" @switch="onSceneSwitch" />
+      <button class="api-config-btn" :class="{ configured: isAIConfigured }" @click="showApiKeyDialog = true">
+        <span class="api-icon">🔑</span>
+        <span class="api-text">{{ isAIConfigured ? configuredModelName : 'AI 配置' }}</span>
+      </button>
     </header>
+
+    <ApiKeyDialog
+      :visible="showApiKeyDialog"
+      @close="showApiKeyDialog = false"
+      @saved="onApiKeySaved"
+      @cleared="onApiKeyCleared"
+    />
 
     <div class="main">
       <div class="left-panel">
-        <AIInput @load-preset="handleLoadPreset" @update-params="handleUpdateParams" />
+        <AIInput @load-preset="handleLoadPreset" @update-params="handleUpdateParams" @scene-built="handleSceneBuilt" />
         <ObjectList
           :objects="state.objects"
           :selectedId="selectedId"
@@ -71,9 +82,11 @@ import ControlBar from './components/ControlBar.vue'
 import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
 import AIInput from './components/AIInput.vue'
+import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import { state, reset, loadScene, updateObjectProperty, addObject, removeObject, snapshots, currentFrame, keyframeIndices, PIXELS_PER_METER } from './composables/usePhysics'
 import { getPreset } from './composables/usePresets'
 import { pushHistory, undo as historyUndo, redo as historyRedo, clearHistory } from './composables/useHistory'
+import { isAIConfigured, configuredModelName } from './composables/useAIParser'
 
 const activeScene = ref('抛体运动')
 const selectedId = ref(1)
@@ -82,8 +95,19 @@ const mode = ref('live')
 const isPlaying = computed(() => state.isPlaying)
 const showForce = computed(() => state.showForce)
 const aiToast = ref('')
+const showApiKeyDialog = ref(false)
 // 编辑模式：自定义场景下未播放时为 true，允许编辑画布
 const editMode = computed(() => activeScene.value === '自定义' && mode.value === 'live' && !state.isPlaying)
+
+// API Key 保存/清除后的回调（触发 isAIConfigured 重新计算）
+function onApiKeySaved() {
+  aiToast.value = '✅ AI 配置已保存'
+  setTimeout(() => aiToast.value = '', 2000)
+}
+function onApiKeyCleared() {
+  aiToast.value = '⚠️ AI 配置已清除，已切换为本地解析'
+  setTimeout(() => aiToast.value = '', 2000)
+}
 
 // 自定义场景：播放前快照（重置时恢复到此状态，而非空白）
 let customSnapshot = null
@@ -252,6 +276,26 @@ function handleLoadPreset(sceneName) {
   state.isPlaying = true
   // 显示画布左上角提示
   aiToast.value = 'AI 已解析：' + sceneName + '场景'
+  setTimeout(() => { aiToast.value = '' }, 3000)
+}
+
+/**
+ * AI 通过 buildScene 直接构建场景完成
+ * 需切换到"自定义"场景并同步状态（选中、快照、播放）
+ */
+function handleSceneBuilt(info) {
+  // 切换到"自定义"场景（editMode 依赖此判断）
+  activeScene.value = '自定义'
+  // 同步选中第一个物体
+  selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
+  selectedIds.value = []
+  mode.value = 'live'
+  // 保存自定义场景快照（供 reset 恢复）
+  customSnapshot = deepCopyObjects(state.objects)
+  // 自动开始播放
+  state.isPlaying = true
+  // 画布提示
+  aiToast.value = `AI 已生成：${info.title}（${info.objectCount} 个物体）`
   setTimeout(() => { aiToast.value = '' }, 3000)
 }
 
@@ -562,6 +606,41 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown) })
   background: rgba(15, 23, 42, 0.9);
   border-bottom: 1px solid rgba(59, 130, 246, 0.25);
   backdrop-filter: blur(10px);
+}
+
+.api-config-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 6px;
+  color: #fcd34d;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.api-config-btn:hover {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.api-config-btn.configured {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.api-config-btn.configured:hover {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.api-icon {
+  font-size: 0.9rem;
 }
 
 .logo {

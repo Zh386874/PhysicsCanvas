@@ -188,9 +188,10 @@
           <option value="none">无场</option>
           <option value="electric">匀强电场</option>
           <option value="magnetic">匀强磁场</option>
+          <option value="composite">复合场（电+磁）</option>
         </select>
       </div>
-      <div v-if="state.field.type === 'electric'" class="field-group">
+      <div v-if="state.field.type === 'electric' || state.field.type === 'composite'" class="field-group">
         <div class="field">
           <label>Ex (N/C)</label>
           <input
@@ -210,7 +211,7 @@
           />
         </div>
       </div>
-      <div v-if="state.field.type === 'magnetic'" class="field-group">
+      <div v-if="state.field.type === 'magnetic' || state.field.type === 'composite'" class="field-group">
         <div class="field">
           <label>B (T)</label>
           <input
