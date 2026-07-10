@@ -37,7 +37,10 @@
           :class="{ active: selectedId === q.id }"
           @click="selectQuestion(q.id)"
         >
-          <div class="question-title">{{ q.title }}</div>
+          <div class="question-header">
+            <div class="question-title">{{ q.title }}</div>
+            <button class="load-btn" @click.stop="handleLoad(q)" title="加载此题目">▶</button>
+          </div>
           <div class="question-desc">{{ q.description.substring(0, 60) }}...</div>
           <div class="question-meta">
             <span class="difficulty-badge" :class="'diff-' + q.difficulty">
@@ -86,6 +89,12 @@ const collapsed = ref(false)
 function handleApply() {
   if (!selectedQuestion.value) return
   emit('load-question', selectedQuestion.value)
+}
+
+function handleLoad(q: typeof selectedQuestion.value) {
+  if (!q) return
+  selectQuestion(q.id)
+  emit('load-question', q)
 }
 </script>
 
@@ -217,7 +226,31 @@ function handleApply() {
   font-size: 0.78rem;
   font-weight: 600;
   color: #e0e6ff;
+  flex: 1;
+}
+
+.question-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 0.2rem;
+}
+
+.load-btn {
+  padding: 0.2rem 0.5rem;
+  background: rgba(34, 211, 238, 0.2);
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-radius: 4px;
+  color: #67e8f9;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-btn:hover {
+  background: rgba(34, 211, 238, 0.4);
+  border-color: rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.3);
 }
 
 .question-desc {

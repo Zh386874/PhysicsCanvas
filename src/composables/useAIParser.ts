@@ -47,7 +47,7 @@ export interface ParsedProblem {
     B?: number
   }
   gravity?: number
-  groundY?: number
+  groundY?: number | null
   worldWidth?: number
   simulationTime?: number
   question?: string

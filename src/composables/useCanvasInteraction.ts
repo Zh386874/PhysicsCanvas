@@ -233,8 +233,9 @@ function onMouseDown(e: MouseEvent): void {
       batchDragInitial = props.selectedIds.map((id: number) => {
         const o = state.objects.find(o => o.id === id)
         if (!o) return null
-        if (o.type === '质点') return { id, x: o.x, y: o.y }
-        return { id, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 }
+        if (o.type === '质点' || o.type === '刚体') return { id, x: o.x, y: o.y }
+        if (o.type === 'line_segment') return { id, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 }
+        return null
       }).filter(Boolean)
       return
     }
@@ -242,16 +243,19 @@ function onMouseDown(e: MouseEvent): void {
     dragging = true
     dragTarget = hit
     const obj = state.objects.find(o => o.id === hit.id)
+    if (!obj) return
     if (hit.mode === 'circle') {
-      hit.offsetX = pos.x - obj.x
-      hit.offsetY = pos.y - obj.y
+      const p = obj as ParticleObject
+      hit.offsetX = pos.x - p.x
+      hit.offsetY = pos.y - p.y
     } else if (hit.mode === 'segment') {
+      const s = obj as SegmentObject
       hit.offsetX = pos.x
       hit.offsetY = pos.y
-      hit.startX1 = obj.x1
-      hit.startY1 = obj.y1
-      hit.startX2 = obj.x2
-      hit.startY2 = obj.y2
+      hit.startX1 = s.x1
+      hit.startY1 = s.y1
+      hit.startX2 = s.x2
+      hit.startY2 = s.y2
     }
     return
   }
@@ -356,11 +360,11 @@ function onMouseMove(e: MouseEvent): void {
     if (dragTarget.mode === 'circle') {
       emitFn('update-object', { id: obj.id, props: { x: pos.x - dragTarget.offsetX, y: pos.y - dragTarget.offsetY } })
     } else if (dragTarget.mode === 'endpoint') {
-      const newProps = dragTarget.endpointIdx === 0
+      const newProps: { x1?: number; y1?: number; x2?: number; y2?: number; normalX?: number; normalY?: number } = dragTarget.endpointIdx === 0
         ? { x1: pos.x, y1: pos.y }
         : { x2: pos.x, y2: pos.y }
       // 自动重算法线
-      const tempSeg = { ...obj, ...newProps }
+      const tempSeg = { ...obj, ...newProps } as SegmentObject
       const normal = autoComputeNormal(tempSeg)
       newProps.normalX = normal.normalX
       newProps.normalY = normal.normalY
@@ -534,7 +538,7 @@ function resetView(): void {
 
 function resizeCanvas(): void {
   const canvas = canvasRef?.value
-  if (!canvas) return
+  if (!canvas || !canvas.parentElement) return
   const rect = canvas.parentElement.getBoundingClientRect()
   // 高 DPI 适配：backing store 按 dpr 放大，CSS 尺寸不变，绘制坐标用 CSS 像素
   dpr = window.devicePixelRatio || 1

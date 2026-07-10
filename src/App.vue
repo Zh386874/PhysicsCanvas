@@ -22,7 +22,6 @@
     <div class="main">
       <div class="left-panel">
         <AIInput @load-preset="handleLoadPreset" @update-params="handleUpdateParams" @scene-built="handleSceneBuilt" />
-        <QuestionBankPanel @load-question="handleLoadQuestion" />
         <ObjectList
           :objects="state.objects"
           :selectedId="selectedId"
@@ -69,6 +68,10 @@
           @toggle-force="state.showForce = !state.showForce"
           @toggle-replay="onToggleReplay"
         />
+      </div>
+
+      <div class="right-panel">
+        <QuestionBankPanel @load-question="handleLoadQuestion" />
       </div>
     </div>
   </div>
@@ -712,5 +715,14 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown) })
   flex-direction: column;
   min-height: 500px;
   min-width: 0;
+}
+
+.right-panel {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 23, 42, 0.5);
+  border-left: 1px solid rgba(59, 130, 246, 0.2);
+  overflow-y: auto;
 }
 </style>
