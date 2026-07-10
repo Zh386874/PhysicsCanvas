@@ -160,6 +160,46 @@
           />
         </div>
       </template>
+
+      <!-- 弹簧物体属性 -->
+      <template v-if="object.type === 'spring'">
+        <div class="field">
+          <label>劲度系数 k (N/m)</label>
+          <input
+            type="number"
+            step="1"
+            :value="object.k"
+            @input="update('k', parseFloat($event.target.value))"
+          />
+        </div>
+        <div class="field">
+          <label>自然长度 (m)</label>
+          <input
+            type="number"
+            step="0.1"
+            :value="(object.naturalLength / PIXELS_PER_METER).toFixed(2)"
+            @input="update('naturalLength', parseFloat($event.target.value) * PIXELS_PER_METER)"
+          />
+        </div>
+        <div class="field">
+          <label>固定端 X (px)</label>
+          <input
+            type="number"
+            step="1"
+            :value="Math.round(object.anchorX)"
+            @input="update('anchorX', parseFloat($event.target.value))"
+          />
+        </div>
+        <div class="field">
+          <label>固定端 Y (px)</label>
+          <input
+            type="number"
+            step="1"
+            :value="Math.round(object.anchorY)"
+            @input="update('anchorY', parseFloat($event.target.value))"
+          />
+        </div>
+      </template>
     </form>
 
     <ForceEditor v-if="object" :objectId="object.id" />
@@ -262,9 +302,8 @@ function setNormal(nx, ny) {
 
 <style scoped>
 .property-panel {
-  flex: 1;
+  flex-shrink: 0;
   padding: 1rem;
-  overflow-y: auto;
 }
 
 .panel-title {

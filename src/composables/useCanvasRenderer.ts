@@ -2,7 +2,7 @@
  * 画布渲染层：所有纯绘制函数
  * 接收 ctx 和状态参数，无副作用，不持有状态
  */
-import type { PhysicsObject, FieldState, ParticleObject, SegmentObject } from './usePhysics'
+import type { PhysicsObject, FieldState, ParticleObject, SegmentObject, SpringObject } from './usePhysics'
 
 /** 渲染上下文：绘制所需的外部依赖 */
 export interface RenderContext {
@@ -194,10 +194,10 @@ export function drawField(rc: RenderContext, field: FieldState): void {
 }
 
 export function drawTrails(rc: RenderContext, objects: PhysicsObject[], isReplay: boolean): void {
-  const { ctx } = rc
   if (isReplay) return
+  const { ctx } = rc
   for (const obj of objects) {
-    if (obj.type === 'line_segment') continue
+    if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
     if (!p.trail || p.trail.length < 2) continue
     ctx.strokeStyle = p.color + '40'
@@ -212,7 +212,7 @@ export function drawTrails(rc: RenderContext, objects: PhysicsObject[], isReplay
 export function drawObjects(rc: RenderContext, objects: PhysicsObject[]): void {
   const { ctx } = rc
   for (const obj of objects) {
-    if (obj.type === 'line_segment') continue
+    if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
     const r = p.radius || 10
     ctx.beginPath()
@@ -291,10 +291,62 @@ export function drawArcsVisually(rc: RenderContext, objects: PhysicsObject[]): v
   }
 }
 
+/** 弹簧常量：螺旋圈数与振幅 */
+const SPRING_COILS = 8
+const SPRING_AMPLITUDE = 8
+
+/**
+ * 绘制弹簧：从固定端到连接球体的螺旋线
+ */
+export function drawSprings(rc: RenderContext, objects: PhysicsObject[]): void {
+  const { ctx } = rc
+  for (const obj of objects) {
+    if (obj.type !== 'spring') continue
+    const spring = obj as SpringObject
+    const ball = objects.find(o => o.id === spring.ballId && (o.type === '质点' || o.type === '刚体')) as ParticleObject | undefined
+    if (!ball) continue
+    const x1 = spring.anchorX, y1 = spring.anchorY
+    const x2 = ball.x, y2 = ball.y
+    const dx = x2 - x1, dy = y2 - y1
+    const len = Math.hypot(dx, dy)
+    if (len < 1e-6) continue
+    // 螺旋方向：垂直于弹簧轴线
+    const px = -dy / len, py = dx / len
+    ctx.strokeStyle = spring.color || '#34d399'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    // 端部留 15% 直线，中间 70% 画螺旋
+    const startPad = len * 0.15
+    const endPad = len * 0.15
+    const coilStart = x1 + dx / len * startPad
+    const coilStartY = y1 + dy / len * startPad
+    const coilEnd = x1 + dx / len * (len - endPad)
+    const coilEndY = y1 + dy / len * (len - endPad)
+    ctx.lineTo(coilStart, coilStartY)
+    const coilLen = len - startPad - endPad
+    const steps = SPRING_COILS * 8
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      const cx = coilStart + (coilEnd - coilStart) * t
+      const cy = coilStartY + (coilEndY - coilStartY) * t
+      const wave = Math.sin(t * SPRING_COILS * Math.PI * 2) * SPRING_AMPLITUDE
+      ctx.lineTo(cx + px * wave, cy + py * wave)
+    }
+    ctx.lineTo(x2, y2)
+    ctx.stroke()
+    // 固定端标记
+    ctx.fillStyle = spring.color || '#34d399'
+    ctx.beginPath()
+    ctx.arc(x1, y1, 4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
 export function drawVelocity(rc: RenderContext, objects: PhysicsObject[]): void {
   const { ctx } = rc
   for (const obj of objects) {
-    if (obj.type === 'line_segment') continue
+    if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
     if (Math.abs(p.vx) < 1 && Math.abs(p.vy) < 1) continue
     ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)'
@@ -316,7 +368,7 @@ export function drawForces(
   const { ctx } = rc
   if (!showForce) return
   for (const obj of objects) {
-    if (obj.type === 'line_segment') continue
+    if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
     const fgy = p.mass * gravity
     if (fgy > 0.01) {
@@ -368,7 +420,7 @@ export function drawForces(
       drawArrow(ctx, p.x, p.y, p.x + nx * nLen, p.y + ny * nLen, 'rgba(148, 163, 184, 0.8)', 2)
       ctx.fillStyle = 'rgba(148, 163, 184, 0.9)'
       ctx.fillText('N', p.x + nx * nLen + 4, p.y + ny * nLen)
-      const mu = p.friction || 0
+      const mu = seg.friction ?? p.friction ?? 0
       if (mu > 0) {
         const f = mu * N
         const fLen = Math.min(f * 2, 40)
@@ -534,6 +586,7 @@ export function drawEditUI(rc: RenderContext, ui: UIState): void {
   let text = '工具：' + (
     ui.tool === 'ball' ? '⚽ 小球（点击添加，拖拽移动）' :
     ui.tool === 'platform' ? '➖ 平台（拖拽绘制，Shift 吸附）' :
+    ui.tool === 'spring' ? '🌀 弹簧（两次点击：固定端→连接的球）' :
     '⤵ 圆弧（三次点击：圆心→半径起点→终点，Shift反向）'
   )
   if (ui.chargeMode) text += '  ⚡带电粒子'

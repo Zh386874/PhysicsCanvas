@@ -22,6 +22,7 @@
     <div class="main">
       <div class="left-panel">
         <AIInput @load-preset="handleLoadPreset" @update-params="handleUpdateParams" @scene-built="handleSceneBuilt" />
+        <QuestionBankPanel @load-question="handleLoadQuestion" />
         <ObjectList
           :objects="state.objects"
           :selectedId="selectedId"
@@ -83,6 +84,8 @@ import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
 import AIInput from './components/AIInput.vue'
 import ApiKeyDialog from './components/ApiKeyDialog.vue'
+import QuestionBankPanel from './components/QuestionBankPanel.vue'
+import { buildScene } from './composables/useSceneBuilder'
 import { state, reset, loadScene, updateObjectProperty, addObject, removeObject, snapshots, currentFrame, keyframeIndices, PIXELS_PER_METER } from './composables/usePhysics'
 import { getPreset } from './composables/usePresets'
 import { pushHistory, undo as historyUndo, redo as historyRedo, clearHistory } from './composables/useHistory'
@@ -300,6 +303,27 @@ function handleSceneBuilt(info) {
 }
 
 /**
+ * 从题库加载题目：调用 buildScene 构建场景
+ */
+function handleLoadQuestion(question) {
+  const buildResult = buildScene(question.sceneJson)
+  if (!buildResult.success) {
+    aiToast.value = `加载失败：${buildResult.message}`
+    setTimeout(() => { aiToast.value = '' }, 3000)
+    return
+  }
+  // 切换到"自定义"场景
+  activeScene.value = '自定义'
+  selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
+  selectedIds.value = []
+  mode.value = 'live'
+  customSnapshot = deepCopyObjects(state.objects)
+  state.isPlaying = true
+  aiToast.value = `已加载：${question.title}`
+  setTimeout(() => { aiToast.value = '' }, 3000)
+}
+
+/**
  * AI 解析出的参数应用到第一个质点物体
  * params 中速度为 m/s，需 ×PIXELS_PER_METER 转像素
  */
@@ -412,7 +436,7 @@ function validateObject(o) {
   // 公共字段
   if (typeof obj.id !== 'number' || !isFinite(obj.id)) return null
   if (typeof obj.type !== 'string') return null
-  if (!['质点', '刚体', 'line_segment'].includes(obj.type)) return null
+  if (!['质点', '刚体', 'line_segment', 'spring'].includes(obj.type)) return null
   if (typeof obj.name !== 'string') obj.name = '未命名'
 
   if (obj.type === 'line_segment') {
@@ -422,6 +446,11 @@ function validateObject(o) {
     if (typeof obj.restitution !== 'number' || !isFinite(obj.restitution)) obj.restitution = 0.3
     if (typeof obj.normalX !== 'number') obj.normalX = 0
     if (typeof obj.normalY !== 'number') obj.normalY = -1
+  } else if (obj.type === 'spring') {
+    for (const k of ['anchorX', 'anchorY', 'naturalLength', 'k']) {
+      if (typeof obj[k] !== 'number' || !isFinite(obj[k])) return null
+    }
+    if (typeof obj.ballId !== 'number' || !isFinite(obj.ballId)) return null
   } else {
     // 质点 / 刚体
     for (const k of ['x', 'y', 'vx', 'vy']) {

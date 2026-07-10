@@ -4,7 +4,7 @@
  */
 
 import { state, loadScene, PIXELS_PER_METER } from './usePhysics'
-import type { PhysicsObject, ParticleObject, SegmentObject, FieldState } from './usePhysics'
+import type { PhysicsObject, ParticleObject, SegmentObject, SpringObject, FieldState } from './usePhysics'
 import type { ParsedProblem, ParsedObject } from './useAIParser'
 
 /** 默认画布尺寸（像素），用于自动缩放计算 */
@@ -66,18 +66,22 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
   const color = COLOR_POOL[index % COLOR_POOL.length]
 
   if (obj.type === 'ball') {
+    const radiusM = obj.radius ?? 0.2
+    const radiusPx = Math.max(radiusM * scale, 8)
+    // initialPosition.y 语义为"球底高度"（球与下方表面的接触点高度），球心 = 球底 + 半径
+    const bottomY = obj.initialPosition?.y ?? 0
     const ball: ParticleObject = {
       id: nextId++,
       name: obj.id || `物体${index + 1}`,
       type: '质点',
       mass: obj.mass ?? 1,
       x: (obj.initialPosition?.x ?? 0) * scale + CANVAS_MARGIN,
-      // 坐标系翻转：AI 的 y 向上为正，画布 y 向下为正
-      y: GROUND_BASELINE - (obj.initialPosition?.y ?? 5) * scale,
+      // 球心 = 球底 + 半径（米单位计算后转像素）；坐标系翻转：AI 的 y 向上为正，画布 y 向下为正
+      y: GROUND_BASELINE - (bottomY + radiusM) * scale,
       vx: (obj.initialVelocity?.x ?? 0) * scale,
       // vy 翻转：AI 的向上为正，画布向下为正
       vy: -(obj.initialVelocity?.y ?? 0) * scale,
-      radius: Math.max((obj.radius ?? 0.2) * scale, 8),
+      radius: radiusPx,
       color,
       charge: obj.charge ?? 0,
       friction: obj.friction ?? 0,
@@ -111,7 +115,15 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       normalY,
       friction: obj.friction ?? 0,
       restitution: 0.2,
-      color: '#94a3b8'
+      color: '#94a3b8',
+      // 传送带速度（SI m/s → 像素/s，y 需翻转）
+      velocity: obj.beltVelocity ? {
+        x: obj.beltVelocity.x * scale,
+        y: -obj.beltVelocity.y * scale
+      } : undefined,
+      // 板块模型：可移动线段
+      movable: obj.movable ?? false,
+      mass: obj.movable ? (obj.mass ?? 1) : undefined
     }
     return segment
   }
@@ -201,6 +213,32 @@ function expandArcToSegments(obj: ParsedObject, scale: number, index: number): S
 }
 
 /**
+ * 将弹簧 AI 物体转换为内部格式
+ * 需要在所有球体转换完成后调用（依赖 idMap 解析连接关系）
+ */
+function convertSpring(
+  obj: ParsedObject, scale: number, index: number, idMap: Map<string, number>
+): SpringObject | null {
+  if (!obj.ballId || !idMap.has(obj.ballId)) return null
+  const ballId = idMap.get(obj.ballId)!
+  const anchorX = (obj.anchor?.x ?? 0) * scale + CANVAS_MARGIN
+  const anchorY = GROUND_BASELINE - (obj.anchor?.y ?? 0) * scale
+  const naturalLength = Math.max((obj.naturalLength ?? 1) * scale, 10)
+  const k = obj.k ?? 50
+  return {
+    id: nextId++,
+    name: obj.id || `弹簧${index + 1}`,
+    type: 'spring',
+    anchorX,
+    anchorY,
+    ballId,
+    naturalLength,
+    k,
+    color: '#34d399'
+  }
+}
+
+/**
  * 主函数：将 AI 解析结果构建为可运行场景
  */
 export function buildScene(parsed: ParsedProblem): { success: boolean; message: string; objectCount: number } {
@@ -211,16 +249,28 @@ export function buildScene(parsed: ParsedProblem): { success: boolean; message: 
   // 1. 计算自动缩放
   const scale = computeAutoScale(parsed)
 
-  // 2. 转换所有物体
+  // 2. 转换所有物体（先非弹簧，后弹簧——弹簧需引用球的内部 id）
   const physicsObjects: PhysicsObject[] = []
+  const idMap = new Map<string, number>() // ParsedObject.id → 内部数字 id
+
   parsed.objects.forEach((obj, index) => {
+    if (obj.type === 'spring') return // 弹簧在第二遍处理
     if (obj.type === 'arc') {
-      // 弧线展开为多段
       physicsObjects.push(...expandArcToSegments(obj, scale, index))
     } else {
       const converted = convertObject(obj, scale, index)
-      if (converted) physicsObjects.push(converted)
+      if (converted) {
+        physicsObjects.push(converted)
+        if (obj.id) idMap.set(obj.id, converted.id)
+      }
     }
+  })
+
+  // 第二遍：处理弹簧（依赖 idMap 解析连接关系）
+  parsed.objects.forEach((obj, index) => {
+    if (obj.type !== 'spring') return
+    const spring = convertSpring(obj, scale, index, idMap)
+    if (spring) physicsObjects.push(spring)
   })
 
   if (physicsObjects.length === 0) {
@@ -256,6 +306,14 @@ export function buildScene(parsed: ParsedProblem): { success: boolean; message: 
 
   // 6. 加载场景
   loadScene(physicsObjects, [], field, gravity, groundY)
+
+  // 7. 碰撞恢复系数（可选，未指定则保持默认）
+  if (parsed.particleRestitution !== undefined) {
+    state.particleRestitution = parsed.particleRestitution
+  }
+  if (parsed.groundRestitution !== undefined) {
+    state.groundRestitution = parsed.groundRestitution
+  }
 
   return {
     success: true,

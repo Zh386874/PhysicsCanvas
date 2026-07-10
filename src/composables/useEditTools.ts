@@ -2,11 +2,11 @@
  * 编辑工具层：工具状态管理 + 弧线绘制 + Shift 防重叠检测
  * 不含事件处理（由 useCanvasInteraction 调用）
  */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { autoComputeNormal } from './useCollision'
-import type { PhysicsObject, SegmentObject, ParticleObject } from './usePhysics'
+import type { PhysicsObject, SegmentObject, ParticleObject, SpringObject } from './usePhysics'
 
-type ToolType = 'ball' | 'platform' | 'arc'
+type ToolType = 'ball' | 'platform' | 'arc' | 'spring'
 
 /** 工具状态 */
 const tool = ref<ToolType>('ball')
@@ -25,6 +25,14 @@ const previewArc = ref<{
 
 /** 线段绘制预览 */
 const previewLine = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
+
+/** 弹簧绘制状态：第一次点击设置固定端，第二次点击选择连接的球 */
+let springAnchor: { x: number; y: number } | null = null
+
+/** 工具切换时重置弹簧状态 */
+watch(tool, (newTool) => {
+  if (newTool !== 'spring') resetSpringState()
+})
 
 /** Shift 闪烁反馈状态 */
 let shiftFlashPos: { x: number; y: number } | null = null
@@ -149,6 +157,71 @@ function generateArcSegments(
   }
 }
 
+// ===== 弹簧绘制 =====
+
+/** 获取弹簧锚点（供交互层判断阶段） */
+function getSpringAnchor(): { x: number; y: number } | null {
+  return springAnchor
+}
+
+/** 重置弹簧绘制状态 */
+function resetSpringState(): void {
+  springAnchor = null
+  previewLine.value = null
+}
+
+/**
+ * 弹簧点击处理：两次点击（固定端 → 连接的球）
+ * 第一次点击设置锚点，第二次点击选择球并创建弹簧
+ * @returns true 表示已消费此次点击
+ */
+function handleSpringClick(
+  pos: { x: number; y: number },
+  objects: PhysicsObject[],
+  onAddObject: (obj: SpringObject) => void
+): boolean {
+  if (!springAnchor) {
+    // 第一次点击：设置固定端
+    springAnchor = pos
+    previewLine.value = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y }
+    return true
+  }
+  // 第二次点击：查找点击的球
+  const ball = objects.find(o =>
+    (o.type === '质点' || o.type === '刚体') &&
+    Math.hypot((o as ParticleObject).x - pos.x, (o as ParticleObject).y - pos.y) <= (o as ParticleObject).radius
+  ) as ParticleObject | undefined
+
+  if (ball) {
+    const dx = ball.x - springAnchor.x
+    const dy = ball.y - springAnchor.y
+    const naturalLength = Math.max(Math.hypot(dx, dy), 10)
+    const newObj: SpringObject = {
+      id: genId(),
+      name: '弹簧' + (objects.filter(o => o.type === 'spring').length + 1),
+      type: 'spring',
+      anchorX: springAnchor.x,
+      anchorY: springAnchor.y,
+      ballId: ball.id,
+      naturalLength,
+      k: 10,
+      color: '#34d399'
+    }
+    onAddObject(newObj)
+  }
+  // 无论是否成功，都重置状态
+  resetSpringState()
+  return true
+}
+
+/**
+ * 更新弹簧预览（鼠标移动时调用）
+ */
+function updateSpringPreview(pos: { x: number; y: number }): void {
+  if (!springAnchor) return
+  previewLine.value = { x1: springAnchor.x, y1: springAnchor.y, x2: pos.x, y2: pos.y }
+}
+
 // ===== Shift 防重叠 =====
 
 /** 点到线段距离 */
@@ -243,6 +316,10 @@ export {
   getArcCenter,
   handleArcClick,
   updateArcPreview,
+  getSpringAnchor,
+  resetSpringState,
+  handleSpringClick,
+  updateSpringPreview,
   findOverlap,
   pushOutOfOverlap,
   triggerShiftFlash,

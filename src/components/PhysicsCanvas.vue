@@ -15,6 +15,7 @@
       <button class="tool-btn" :class="{ active: tool === 'ball' }" @click="tool = 'ball'">⚽ 小球</button>
       <button class="tool-btn" :class="{ active: tool === 'platform' }" @click="tool = 'platform'">➖ 平台</button>
       <button class="tool-btn" :class="{ active: tool === 'arc' }" @click="tool = 'arc'">⤵ 圆弧</button>
+      <button class="tool-btn" :class="{ active: tool === 'spring' }" @click="tool = 'spring'">🌀 弹簧</button>
       <button class="tool-btn" :class="{ active: chargeMode }" @click="chargeMode = !chargeMode">⚡ 带电</button>
       <button class="tool-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">↶ 撤销</button>
       <button class="tool-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">↷ 重做</button>
@@ -32,7 +33,7 @@ import { state, updatePhysics, snapshots, currentFrame } from '../composables/us
 // 渲染层：纯绘制函数
 import {
   drawGrid, drawField, drawGround, drawSegments, drawArcsVisually,
-  drawTrails, drawObjects, drawVelocity, drawForces,
+  drawTrails, drawObjects, drawSprings, drawVelocity, drawForces,
   drawPreviewLine, drawPreviewArc,
   drawSelectionRect, drawSelectionHighlight,
   drawShiftFlash, drawWatermark, drawAIToast, drawEditUI
@@ -150,6 +151,7 @@ function draw() {
   drawArcsVisually(rc, objects)
   drawTrails(rc, objects, props.mode === 'replay')
   drawObjects(rc, objects)
+  drawSprings(rc, objects)
   drawVelocity(rc, objects)
   drawForces(rc, objects, state.gravity, state.field, state.showForce)
   drawPreviewLine(rc, previewLine.value)

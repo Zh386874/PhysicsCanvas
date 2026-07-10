@@ -8,7 +8,7 @@ import { ref, computed } from 'vue'
 /** AI 解析结果类型（增强版：多物体、多场、几何体） */
 export interface ParsedObject {
   id?: string
-  type: 'ball' | 'platform' | 'arc'
+  type: 'ball' | 'platform' | 'arc' | 'spring'
   mass?: number
   charge?: number
   radius?: number
@@ -22,6 +22,18 @@ export interface ParsedObject {
   endAngle?: number
   friction?: number
   fixed?: boolean
+  /** 弹簧固定端坐标（SI 单位：米） */
+  anchor?: { x: number; y: number }
+  /** 弹簧连接的物体 id（字符串名，对应 ParsedObject.id） */
+  ballId?: string
+  /** 弹簧自然长度（米） */
+  naturalLength?: number
+  /** 劲度系数 k（N/m） */
+  k?: number
+  /** 传送带速度（SI 单位 m/s） */
+  beltVelocity?: { x: number; y: number }
+  /** 是否为可移动线段（板块模型） */
+  movable?: boolean
 }
 
 export interface ParsedProblem {
@@ -39,6 +51,10 @@ export interface ParsedProblem {
   worldWidth?: number
   simulationTime?: number
   question?: string
+  /** 质点间碰撞恢复系数（0=完全非弹性，1=完全弹性），默认 1 */
+  particleRestitution?: number
+  /** 地面碰撞恢复系数，默认 0.6 */
+  groundRestitution?: number
 }
 
 /** 解析状态 */

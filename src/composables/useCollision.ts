@@ -45,9 +45,24 @@ export interface SegmentObject {
   color?: string
   groupId?: number
   arc?: ArcMeta
+  velocity?: { x: number; y: number }
+  movable?: boolean
+  mass?: number
 }
 
-export type PhysicsObject = ParticleObject | SegmentObject
+export interface SpringObject {
+  id: number
+  name: string
+  type: 'spring'
+  anchorX: number
+  anchorY: number
+  ballId: number
+  naturalLength: number
+  k: number
+  color?: string
+}
+
+export type PhysicsObject = ParticleObject | SegmentObject | SpringObject
 
 interface NormalResult {
   normalX: number
@@ -90,7 +105,7 @@ export function checkGroundCollision(
   if (obj.y + radius >= groundY) {
     obj.y = groundY - radius
     if (obj.vy > 0) obj.vy = -obj.vy * restitution
-    obj.vx *= 0.98
+    // 水平摩擦力由地面线段（detectSegmentCollision）统一处理，此处不再硬编码
     return true
   }
   return false
@@ -116,8 +131,16 @@ export function checkParticleCollision(
     const ma = a.mass, mb = b.mass
     const va = a.vx * nx + a.vy * ny
     const vb = b.vx * nx + b.vy * ny
-    const vaNew = ((ma - mb) * va + 2 * mb * vb) / (ma + mb) * restitution
-    const vbNew = ((mb - ma) * vb + 2 * ma * va) / (ma + mb) * restitution
+    let vaNew: number, vbNew: number
+    if (restitution === 0) {
+      // 完全非弹性碰撞：碰撞后共速
+      const vCommon = (ma * va + mb * vb) / (ma + mb)
+      vaNew = vCommon
+      vbNew = vCommon
+    } else {
+      vaNew = ((ma - mb) * va + 2 * mb * vb) / (ma + mb) * restitution
+      vbNew = ((mb - ma) * vb + 2 * ma * va) / (ma + mb) * restitution
+    }
     a.vx += (vaNew - va) * nx; a.vy += (vaNew - va) * ny
     b.vx += (vbNew - vb) * nx; b.vy += (vbNew - vb) * ny
     return true
@@ -127,7 +150,9 @@ export function checkParticleCollision(
 
 export function detectSegmentCollision(
   obj: ParticleObject,
-  segment: SegmentObject
+  segment: SegmentObject,
+  dt: number,
+  gravity: number
 ): boolean {
   const radius = obj.radius || 10
   const restitution = segment.restitution !== undefined ? segment.restitution : 0.3
@@ -164,15 +189,43 @@ export function detectSegmentCollision(
     obj.vx -= (1 + restitution) * v_normal * nx
     obj.vy -= (1 + restitution) * v_normal * ny
   }
-  const friction = obj.friction || 0
+  // 摩擦力源：优先取线段摩擦系数，兼容物体自身摩擦系数
+  const friction = segment.friction ?? obj.friction ?? 0
   if (friction > 0) {
     const tx = -ny, ty = nx
-    const v_tangent = obj.vx * tx + obj.vy * ty
+    // 传送带/板块：摩擦力基于物体相对线段的速度
+    const segVx = segment.velocity?.x ?? 0
+    const segVy = segment.velocity?.y ?? 0
+    const v_tangent = (obj.vx - segVx) * tx + (obj.vy - segVy) * ty
     if (Math.abs(v_tangent) > 1e-6) {
-      const damp = Math.min(friction * 0.15, 0.9)
-      const newVt = v_tangent * (1 - damp)
-      obj.vx += (newVt - v_tangent) * tx
-      obj.vy += (newVt - v_tangent) * ty
+      // 法向力 N = m·g·cos(θ)，θ 为线段与水平面夹角
+      const segDx = segment.x2 - segment.x1
+      const segDy = segment.y2 - segment.y1
+      const segLen = Math.hypot(segDx, segDy) || 1
+      const cosA = Math.abs(segDx) / segLen
+      // 摩擦减速度 a = μ·g·cos(θ)，线性减速 Δv = a·dt
+      const a = friction * gravity * cosA
+      const dVt = a * dt
+      let newVt: number
+      if (Math.abs(v_tangent) <= dVt) {
+        // 摩擦力足以使物体停止（或与传送带共速）
+        newVt = 0
+      } else {
+        newVt = v_tangent - Math.sign(v_tangent) * dVt
+      }
+      const dVtActual = newVt - v_tangent
+      obj.vx += dVtActual * tx
+      obj.vy += dVtActual * ty
+      // 板块模型：牛顿第三定律，反作用力作用于可移动线段
+      if (segment.movable && segment.mass) {
+        const segDv = -obj.mass * dVtActual / segment.mass
+        if (segment.velocity) {
+          segment.velocity.x += segDv * tx
+          segment.velocity.y += segDv * ty
+        } else {
+          segment.velocity = { x: segDv * tx, y: segDv * ty }
+        }
+      }
     }
   }
   return true
@@ -225,7 +278,9 @@ function lineCircleIntersect(
  */
 export function detectArcCollision(
   obj: ParticleObject,
-  seg: SegmentObject
+  seg: SegmentObject,
+  dt: number,
+  gravity: number
 ): boolean {
   if (!seg.arc) return false
   const radius = obj.radius || 10
@@ -288,14 +343,26 @@ export function detectArcCollision(
     obj.vy -= (1 + restitution) * v_normal * ny
   }
 
-  // 切向摩擦
-  const friction = obj.friction || 0
+  // 切向摩擦（优先取线段摩擦系数）
+  const friction = seg.friction ?? obj.friction ?? 0
   if (friction > 0) {
     const tx = -ny, ty = nx
     const v_tangent = obj.vx * tx + obj.vy * ty
     if (Math.abs(v_tangent) > 1e-6) {
-      const damp = Math.min(friction * 0.15, 0.9)
-      const newVt = v_tangent * (1 - damp)
+      // 法向力 N = m·g·cos(θ)，θ 为弧线切线与水平面夹角
+      const segDx = seg.x2 - seg.x1
+      const segDy = seg.y2 - seg.y1
+      const segLen = Math.hypot(segDx, segDy) || 1
+      const cosA = Math.abs(segDx) / segLen
+      // 摩擦减速度 a = μ·g·cos(θ)，线性减速 Δv = a·dt
+      const a = friction * gravity * cosA
+      const dVt = a * dt
+      let newVt: number
+      if (Math.abs(v_tangent) <= dVt) {
+        newVt = 0
+      } else {
+        newVt = v_tangent - Math.sign(v_tangent) * dVt
+      }
       obj.vx += (newVt - v_tangent) * tx
       obj.vy += (newVt - v_tangent) * ty
     }
@@ -341,12 +408,16 @@ function closestPointOnSegment(
  * 统一碰撞检测入口
  * @param groundRestitution 地面碰撞恢复系数
  * @param particleRestitution 质点间碰撞恢复系数
+ * @param dt 子步时间（秒），用于摩擦力线性减速计算
+ * @param gravity 重力加速度（像素/s²），用于法向力计算
  */
 export function checkCollision(
   objects: PhysicsObject[],
   groundY: number,
   groundRestitution = 0.6,
-  particleRestitution = 1.0
+  particleRestitution = 1.0,
+  dt = 0.016,
+  gravity = 490
 ): boolean {
   let collided = false
 
@@ -366,18 +437,19 @@ export function checkCollision(
       if (seg.arc && seg.groupId) {
         if (processedArcs.has(seg.groupId)) continue
         processedArcs.add(seg.groupId)
-        if (detectArcCollision(obj, seg)) collided = true
+        if (detectArcCollision(obj, seg, dt, gravity)) collided = true
       } else {
-        if (detectSegmentCollision(obj, seg)) collided = true
+        if (detectSegmentCollision(obj, seg, dt, gravity)) collided = true
       }
     }
   }
 
-  // 质点间碰撞
+  // 质点间碰撞（跳过线段和弹簧）
   for (let i = 0; i < objects.length; i++) {
     for (let j = i + 1; j < objects.length; j++) {
       const a = objects[i], b = objects[j]
-      if (a.type === 'line_segment' || b.type === 'line_segment') continue
+      if (a.type !== '质点' && a.type !== '刚体') continue
+      if (b.type !== '质点' && b.type !== '刚体') continue
       if (checkParticleCollision(a as ParticleObject, b as ParticleObject, particleRestitution)) collided = true
     }
   }

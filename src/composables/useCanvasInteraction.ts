@@ -9,6 +9,7 @@ import { autoComputeNormal } from './useCollision'
 import {
   tool, chargeMode, previewLine, genId,
   handleArcClick, updateArcPreview,
+  getSpringAnchor, handleSpringClick, updateSpringPreview,
   pushOutOfOverlap, triggerShiftFlash
 } from './useEditTools'
 import { pointToSegmentDistance } from './useCanvasRenderer'
@@ -216,6 +217,12 @@ function onMouseDown(e: MouseEvent): void {
 
   const pos = getMousePos(e)
 
+  // 弹簧工具：第二次点击（已有锚点）→ 选择球并创建弹簧
+  if (tool.value === 'spring' && getSpringAnchor()) {
+    handleSpringClick(pos, state.objects, (obj) => emitFn('add-object', obj))
+    return
+  }
+
   // 拖拽优先：ball 工具下只检测圆（避免点击线段拦截添加小球）；其他工具完整 hitTest
   const hit = hitTest(pos, tool.value === 'ball')
   if (hit) {
@@ -261,6 +268,11 @@ function onMouseDown(e: MouseEvent): void {
   // 圆弧工具：三次点击（圆心 → 半径起点 → 终点角度），委托给 useEditTools
   if (tool.value === 'arc') {
     handleArcClick(pos, e.shiftKey, (obj) => emitFn('add-object', obj), state.objects)
+    return
+  }
+  // 弹簧工具：第一次点击（设置固定端），第二次点击在选择球时已提前处理
+  if (tool.value === 'spring') {
+    handleSpringClick(pos, state.objects, (obj) => emitFn('add-object', obj))
     return
   }
   // ball 工具：mousedown 不做事，由 click 添加
@@ -309,6 +321,12 @@ function onMouseMove(e: MouseEvent): void {
   // 圆弧预览：委托给 useEditTools
   if (tool.value === 'arc') {
     updateArcPreview(pos)
+    return
+  }
+
+  // 弹簧预览：从锚点到鼠标位置
+  if (tool.value === 'spring') {
+    updateSpringPreview(pos)
     return
   }
 

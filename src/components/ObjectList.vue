@@ -53,6 +53,8 @@ defineEmits(['select', 'remove'])
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .item {

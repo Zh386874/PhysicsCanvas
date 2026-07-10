@@ -74,10 +74,33 @@ export interface SegmentObject {
   color?: string
   groupId?: number
   arc?: ArcMeta
+  /** 传送带速度（像素/秒），可选。设置后摩擦力按相对速度计算 */
+  velocity?: { x: number; y: number }
+  /** 可移动标记（板块模型），设为 true 时线段受力可运动 */
+  movable?: boolean
+  /** 可移动线段质量（板块模型） */
+  mass?: number
+}
+
+/** 弹簧物体 */
+export interface SpringObject {
+  id: number
+  name: string
+  type: 'spring'
+  /** 固定端坐标（像素） */
+  anchorX: number
+  anchorY: number
+  /** 连接的质点 id */
+  ballId: number
+  /** 自然长度（像素） */
+  naturalLength: number
+  /** 劲度系数 k（N/m，SI 单位） */
+  k: number
+  color?: string
 }
 
 /** 物体联合类型 */
-export type PhysicsObject = ParticleObject | SegmentObject
+export type PhysicsObject = ParticleObject | SegmentObject | SpringObject
 
 /** 快照中的物体精简结构 */
 interface SnapshotObject {
@@ -179,10 +202,10 @@ function subStepPhysics(subDt: number): boolean {
   }
 
   for (const obj of state.objects) {
-    if (obj.type === 'line_segment') continue
+    if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
 
-    // 合力 = 重力 + 自定义力 + 场力
+    // 合力 = 重力 + 自定义力 + 场力 + 弹簧力
     let fx = 0
     let fy = p.mass * state.gravity
 
@@ -207,6 +230,24 @@ function subStepPhysics(subDt: number): boolean {
       }
     }
 
+    // 弹簧力 F = -k·x（x 为形变量，k 为劲度系数）
+    for (const s of state.objects) {
+      if (s.type !== 'spring') continue
+      const spring = s as SpringObject
+      if (spring.ballId !== p.id) continue
+      const dx = p.x - spring.anchorX
+      const dy = p.y - spring.anchorY
+      const currentLen = Math.hypot(dx, dy)
+      if (currentLen < 1e-6) continue
+      const deformation = currentLen - spring.naturalLength
+      // k 为 SI 单位 N/m，形变用像素。F_px = -k * x_px
+      // 推导：a_px = F_SI/m * scale = (-k * x_m / m) * scale = -k * (x_px/scale) / m * scale = -k * x_px / m
+      // 故 F_px = a_px * m = -k * x_px，k 无需额外转换
+      const forceMag = -spring.k * deformation
+      fx += forceMag * dx / currentLen
+      fy += forceMag * dy / currentLen
+    }
+
     const ax = fx / p.mass
     const ay = fy / p.mass
 
@@ -216,7 +257,17 @@ function subStepPhysics(subDt: number): boolean {
     p.y += p.vy * subDt
   }
 
-  return checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution)
+  // 更新可移动线段位置（板块模型，仅水平平移）
+  for (const obj of state.objects) {
+    if (obj.type !== 'line_segment') continue
+    const seg = obj as SegmentObject
+    if (!seg.movable || !seg.velocity) continue
+    const dx = seg.velocity.x * subDt
+    seg.x1 += dx
+    seg.x2 += dx
+  }
+
+  return checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution, subDt, state.gravity)
 }
 
 /**
@@ -225,7 +276,9 @@ function subStepPhysics(subDt: number): boolean {
 function updatePhysics(dt: number): void {
   if (!state.isPlaying) return
 
-  // 子步循环：每次移动距离不超过 radius/2，防止隧穿
+  // 子步循环：每次移动距离不超过 maxStepDist，防止隧穿
+  // 设置上限避免微观粒子（高速度）导致计算量爆炸
+  const MAX_SUBSTEPS = 200
   const maxStepDist = 10 // 像素（假设最小半径约 10）
   let maxVelMag = 0
   for (const obj of state.objects) {
@@ -236,7 +289,7 @@ function updatePhysics(dt: number): void {
     }
   }
 
-  const steps = Math.max(1, Math.ceil(maxVelMag * dt / maxStepDist))
+  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(maxVelMag * dt / maxStepDist)))
   const subDt = dt / steps
 
   for (let i = 0; i < steps; i++) {
@@ -262,8 +315,6 @@ function updatePhysics(dt: number): void {
     timestamp: Date.now()
   }
   const prevFrame = snapshots.value[snapshots.value.length - 1]
-  // 简化关键帧检测：仅用最后一帧的结果（实际子步中间也有碰撞，但暂不标记）
-  const collided = false // 子步循环中碰撞已处理，不再重复标记
   if (prevFrame && detectKeyframe(prevFrame.objects, frame.objects)) {
     keyframeIndices.value.push(snapshots.value.length)
   }
