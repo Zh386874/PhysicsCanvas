@@ -5,15 +5,8 @@
 
 import { state, loadScene, PIXELS_PER_METER } from './usePhysics'
 import type { PhysicsObject, ParticleObject, SegmentObject, SpringObject, FieldState } from './usePhysics'
-import type { ParsedProblem, ParsedObject } from './useAIParser'
-
-/** 默认画布尺寸（像素），用于自动缩放计算 */
-const DEFAULT_CANVAS_WIDTH = 800
-const DEFAULT_CANVAS_HEIGHT = 500
-/** 画布边距（像素） */
-const CANVAS_MARGIN = 60
-/** 画布中地面基准线（像素），AI 的 y=0 对应此位置 */
-const GROUND_BASELINE = 400
+import type { ParsedProblem, ParsedObject, ParsedArc, ParsedSpring } from './useAIParser'
+import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, CANVAS_MARGIN, GROUND_BASELINE } from '../constants'
 
 /** 物体颜色池 */
 const COLOR_POOL = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb7185']
@@ -32,12 +25,13 @@ function computeAutoScale(parsed: ParsedProblem): number {
   }
 
   // 否则根据物体范围计算
+  // 联合类型：用 in 操作符做类型守卫，访问各类型特有字段
   const allPoints: { x: number; y: number }[] = []
   for (const obj of parsed.objects) {
-    if (obj.initialPosition) allPoints.push(obj.initialPosition)
-    if (obj.startPoint) allPoints.push(obj.startPoint)
-    if (obj.endPoint) allPoints.push(obj.endPoint)
-    if (obj.center) allPoints.push(obj.center)
+    if ('initialPosition' in obj && obj.initialPosition) allPoints.push(obj.initialPosition)
+    if ('startPoint' in obj && obj.startPoint) allPoints.push(obj.startPoint)
+    if ('endPoint' in obj && obj.endPoint) allPoints.push(obj.endPoint)
+    if ('center' in obj && obj.center) allPoints.push(obj.center)
   }
 
   if (allPoints.length === 0) return PIXELS_PER_METER
@@ -115,7 +109,8 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       normalY,
       friction: obj.friction ?? 0,
       restitution: 0.2,
-      color: '#94a3b8',
+      // 颜色按语义区分：传送带（青）/ 板块（红）/ 普通平台（灰），与 useEditTools 工厂保持一致
+      color: obj.beltVelocity ? '#0891b2' : obj.movable ? '#dc2626' : '#94a3b8',
       // 传送带速度（SI m/s → 像素/s，y 需翻转）
       velocity: obj.beltVelocity ? {
         x: obj.beltVelocity.x * scale,
@@ -170,7 +165,7 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
 /**
  * 将弧线物体展开为多段线段（20段近似）
  */
-function expandArcToSegments(obj: ParsedObject, scale: number, index: number): SegmentObject[] {
+function expandArcToSegments(obj: ParsedArc, scale: number, index: number): SegmentObject[] {
   const cx = (obj.center?.x ?? 0) * scale + CANVAS_MARGIN
   // 弧线圆心 y 翻转
   const cy = GROUND_BASELINE - (obj.center?.y ?? 0) * scale
@@ -217,7 +212,7 @@ function expandArcToSegments(obj: ParsedObject, scale: number, index: number): S
  * 需要在所有球体转换完成后调用（依赖 idMap 解析连接关系）
  */
 function convertSpring(
-  obj: ParsedObject, scale: number, index: number, idMap: Map<string, number>
+  obj: ParsedSpring, scale: number, index: number, idMap: Map<string, number>
 ): SpringObject | null {
   if (!obj.ballId || !idMap.has(obj.ballId)) return null
   const ballId = idMap.get(obj.ballId)!

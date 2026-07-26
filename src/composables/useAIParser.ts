@@ -5,36 +5,64 @@
 
 import { ref, computed } from 'vue'
 
-/** AI 解析结果类型（增强版：多物体、多场、几何体） */
-export interface ParsedObject {
+/** AI 解析结果类型（增强版：多物体、多场、几何体）
+ *  拆分为联合类型（ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring），
+ *  遵循接口隔离原则（ISP）——每个类型只包含自己需要的字段
+ */
+
+/** 二维向量 */
+export interface ParsedVec2 { x: number; y: number }
+
+/** 物体基类：仅包含公共字段 */
+export interface BaseParsedObject {
   id?: string
   type: 'ball' | 'platform' | 'arc' | 'spring'
+}
+
+/** 质点 / 刚体 */
+export interface ParsedBall extends BaseParsedObject {
+  type: 'ball'
   mass?: number
   charge?: number
   radius?: number
-  initialVelocity?: { x: number; y: number }
-  initialPosition?: { x: number; y: number }
-  startPoint?: { x: number; y: number }
-  endPoint?: { x: number; y: number }
-  center?: { x: number; y: number }
+  initialPosition?: ParsedVec2
+  initialVelocity?: ParsedVec2
+  fixed?: boolean
+  friction?: number
+}
+
+/** 线段平台 / 传送带 / 板块 */
+export interface ParsedPlatform extends BaseParsedObject {
+  type: 'platform'
+  startPoint?: ParsedVec2
+  endPoint?: ParsedVec2
+  friction?: number
+  beltVelocity?: ParsedVec2
+  movable?: boolean
+  mass?: number
+}
+
+/** 圆弧障碍物 */
+export interface ParsedArc extends BaseParsedObject {
+  type: 'arc'
+  center?: ParsedVec2
   arcRadius?: number
   startAngle?: number
   endAngle?: number
   friction?: number
-  fixed?: boolean
-  /** 弹簧固定端坐标（SI 单位：米） */
-  anchor?: { x: number; y: number }
-  /** 弹簧连接的物体 id（字符串名，对应 ParsedObject.id） */
-  ballId?: string
-  /** 弹簧自然长度（米） */
-  naturalLength?: number
-  /** 劲度系数 k（N/m） */
-  k?: number
-  /** 传送带速度（SI 单位 m/s） */
-  beltVelocity?: { x: number; y: number }
-  /** 是否为可移动线段（板块模型） */
-  movable?: boolean
 }
+
+/** 弹簧 */
+export interface ParsedSpring extends BaseParsedObject {
+  type: 'spring'
+  anchor?: ParsedVec2
+  ballId?: string
+  naturalLength?: number
+  k?: number
+}
+
+/** 物体联合类型（判别联合：通过 type 字段收窄） */
+export type ParsedObject = ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring
 
 export interface ParsedProblem {
   title?: string
@@ -267,15 +295,18 @@ export function convertToSceneParams(parsed: ParsedProblem): {
   const params: Record<string, number> = {}
 
   // 提取物体参数（仅第一个物体，SI 单位）
+  // 联合类型通过 type 判别收窄：mass/charge/radius/initialPosition/initialVelocity 仅在 ParsedBall 上
   if (parsed.objects.length > 0) {
     const obj = parsed.objects[0]
-    if (obj.mass) params.mass = obj.mass
-    if (obj.charge) params.charge = obj.charge
-    if (obj.radius) params.radius = obj.radius
-    if (obj.initialVelocity?.x) params.vx = obj.initialVelocity.x
-    if (obj.initialVelocity?.y) params.vy = obj.initialVelocity.y
-    if (obj.initialPosition?.x) params.x = obj.initialPosition.x
-    if (obj.initialPosition?.y) params.y = obj.initialPosition.y
+    if (obj.type === 'ball') {
+      if (obj.mass) params.mass = obj.mass
+      if (obj.charge) params.charge = obj.charge
+      if (obj.radius) params.radius = obj.radius
+      if (obj.initialVelocity?.x) params.vx = obj.initialVelocity.x
+      if (obj.initialVelocity?.y) params.vy = obj.initialVelocity.y
+      if (obj.initialPosition?.x) params.x = obj.initialPosition.x
+      if (obj.initialPosition?.y) params.y = obj.initialPosition.y
+    }
   }
 
   // 提取场参数（SI 单位）

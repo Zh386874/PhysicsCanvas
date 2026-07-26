@@ -127,6 +127,42 @@
             @input="update('restitution', parseFloat($event.target.value))"
           />
         </div>
+        <!-- 传送带速度（仅当线段带 velocity 时显示） -->
+        <template v-if="object.velocity">
+          <div class="field-group">
+            <div class="field">
+              <label>传送带速度 Vx (m/s)</label>
+              <input
+                type="number"
+                step="0.1"
+                :value="(object.velocity.x / PIXELS_PER_METER).toFixed(2)"
+                @input="updateVelocity('x', parseFloat($event.target.value) * PIXELS_PER_METER)"
+              />
+            </div>
+            <div class="field">
+              <label>传送带速度 Vy (m/s)</label>
+              <input
+                type="number"
+                step="0.1"
+                :value="(object.velocity.y / PIXELS_PER_METER).toFixed(2)"
+                @input="updateVelocity('y', parseFloat($event.target.value) * PIXELS_PER_METER)"
+              />
+            </div>
+          </div>
+        </template>
+        <!-- 板块质量（仅当线段 movable 为 true 时显示） -->
+        <template v-if="object.movable">
+          <div class="field">
+            <label>板块质量 (kg)</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              :value="object.mass || 1"
+              @input="update('mass', parseFloat($event.target.value))"
+            />
+          </div>
+        </template>
         <div class="field">
           <label>法线方向</label>
           <div class="normal-buttons">
@@ -289,6 +325,15 @@ function update(key, value) {
     newObj.normalY = auto.normalY
   }
   emit('update:object', newObj)
+}
+
+/**
+ * 更新传送带速度（单轴）
+ * 输入为 m/s，内部存储为像素/s（× PIXELS_PER_METER）
+ */
+function updateVelocity(axis, value) {
+  const oldVel = props.object.velocity || { x: 0, y: 0 }
+  emit('update:object', { ...props.object, velocity: { ...oldVel, [axis]: value } })
 }
 
 function onFieldTypeChange(type) {

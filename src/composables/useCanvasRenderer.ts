@@ -238,6 +238,7 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
   for (const obj of objects) {
     if (obj.type !== 'line_segment') continue
     const seg = obj as SegmentObject
+    if (seg.arc) continue // 弧线子段由 drawArcsVisually 统一绘制
     const { x1, y1, x2, y2, normalX, normalY } = seg
     const nx = normalX || 0, ny = normalY || 0
     const offset = 30
@@ -270,8 +271,13 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
   }
 }
 
-export function drawArcsVisually(rc: RenderContext, objects: PhysicsObject[]): void {
+export function drawArcsVisually(
+  rc: RenderContext,
+  objects: PhysicsObject[],
+  selectedIds: number[] = []
+): void {
   const { ctx } = rc
+  const selectedSet = new Set(selectedIds)
   const groups = new Map<number, SegmentObject[]>()
   for (const obj of objects) {
     if (obj.type === 'line_segment' && (obj as SegmentObject).groupId && (obj as SegmentObject).arc) {
@@ -283,11 +289,23 @@ export function drawArcsVisually(rc: RenderContext, objects: PhysicsObject[]): v
   for (const [, segs] of groups) {
     if (segs.length === 0) continue
     const { cx, cy, r, startAngle, endAngle } = segs[0].arc!
-    ctx.strokeStyle = 'rgba(124, 58, 237, 0.9)'
-    ctx.lineWidth = 3
+    const isSelected = segs.some(s => selectedSet.has(s.id))
+    if (isSelected) {
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.95)'
+      ctx.lineWidth = 5
+      ctx.shadowColor = 'rgba(96, 165, 250, 0.7)'
+      ctx.shadowBlur = 10
+    } else {
+      ctx.strokeStyle = 'rgba(124, 58, 237, 0.9)'
+      ctx.lineWidth = 3
+    }
+    // 根据 endAngle - startAngle 符号选择绘制方向，避免 startAngle > endAngle 时画成 3/4 圆
+    // 与 expandArcToSegments 的线性插值方向保持一致，确保视觉与碰撞检测重合
+    const anticlockwise = (endAngle - startAngle) < 0
     ctx.beginPath()
-    ctx.arc(cx, cy, r, startAngle, endAngle)
+    ctx.arc(cx, cy, r, startAngle, endAngle, anticlockwise)
     ctx.stroke()
+    ctx.shadowBlur = 0
   }
 }
 
@@ -409,6 +427,30 @@ export function drawForces(
         }
       }
     }
+    // 弹簧力 -kx：查找连接到当前粒子的弹簧并绘制
+    for (const obj of objects) {
+      if (obj.type !== 'spring') continue
+      const spring = obj as SpringObject
+      if (spring.ballId !== p.id) continue
+      const dx = p.x - spring.anchorX
+      const dy = p.y - spring.anchorY
+      const currentLen = Math.hypot(dx, dy)
+      if (currentLen < 1e-6) continue
+      const deformation = currentLen - spring.naturalLength
+      const forceMag = -spring.k * deformation
+      const fsLen = Math.min(Math.abs(forceMag) * 0.5, 50)
+      if (fsLen < 1) continue
+      // 力方向：拉伸时指向锚点（-dx），压缩时远离锚点（+dx）
+      const dirX = forceMag >= 0 ? -dx / currentLen : dx / currentLen
+      const dirY = forceMag >= 0 ? -dy / currentLen : dy / currentLen
+      const fx2 = p.x + dirX * fsLen
+      const fy2 = p.y + dirY * fsLen
+      drawArrow(ctx, p.x, p.y, fx2, fy2, 'rgba(34, 211, 238, 0.9)', 2)
+      ctx.fillStyle = 'rgba(34, 211, 238, 1)'
+      ctx.font = '11px sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText('-kx', fx2 + 4, fy2)
+    }
     const seg = findContactSegment(p, objects)
     if (seg) {
       const nx = seg.normalX, ny = seg.normalY
@@ -520,6 +562,7 @@ export function drawSelectionHighlight(rc: RenderContext, objects: PhysicsObject
       ctx.shadowBlur = 0
     } else if (obj.type === 'line_segment') {
       const seg = obj as SegmentObject
+      if (seg.arc) continue // 弧线选中高亮由 drawArcsVisually 处理
       ctx.strokeStyle = 'rgba(96, 165, 250, 0.95)'
       ctx.lineWidth = 5
       ctx.shadowColor = 'rgba(96, 165, 250, 0.7)'
@@ -584,8 +627,11 @@ export function drawEditUI(rc: RenderContext, ui: UIState): void {
   const { ctx, cssW } = rc
   if (!ui.editMode) return
   let text = '工具：' + (
+    ui.tool === 'select' ? '🖱️ 选择/移动（点击物体拖动，点击空白取消选择）' :
     ui.tool === 'ball' ? '⚽ 小球（点击添加，拖拽移动）' :
     ui.tool === 'platform' ? '➖ 平台（拖拽绘制，Shift 吸附）' :
+    ui.tool === 'conveyor' ? '📦 传送带（拖拽绘制，默认 2m/s 沿 x 正向）' :
+    ui.tool === 'plate' ? '🟫 板块（拖拽绘制，可被滑块带动）' :
     ui.tool === 'spring' ? '🌀 弹簧（两次点击：固定端→连接的球）' :
     '⤵ 圆弧（三次点击：圆心→半径起点→终点，Shift反向）'
   )

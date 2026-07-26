@@ -1,3 +1,5 @@
+import type { ParticleObject, SegmentObject, PhysicsObject } from './usePhysics'
+
 // ===== 类型定义 =====
 
 interface Vec2 { x: number; y: number }
@@ -12,57 +14,7 @@ interface ArcMeta {
   endAngle: number
 }
 
-export interface ParticleObject {
-  id: number
-  name: string
-  type: '质点' | '刚体'
-  mass: number
-  x: number
-  y: number
-  vx: number
-  vy: number
-  radius: number
-  color: string
-  charge?: number
-  friction?: number
-  trail: TrailPoint[]
-  prevX?: number
-  prevY?: number
-}
-
-export interface SegmentObject {
-  id: number
-  name: string
-  type: 'line_segment'
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-  normalX: number
-  normalY: number
-  restitution?: number
-  friction?: number
-  color?: string
-  groupId?: number
-  arc?: ArcMeta
-  velocity?: { x: number; y: number }
-  movable?: boolean
-  mass?: number
-}
-
-export interface SpringObject {
-  id: number
-  name: string
-  type: 'spring'
-  anchorX: number
-  anchorY: number
-  ballId: number
-  naturalLength: number
-  k: number
-  color?: string
-}
-
-export type PhysicsObject = ParticleObject | SegmentObject | SpringObject
+// ParticleObject / SegmentObject / PhysicsObject 从 usePhysics.ts 导入，避免重复定义
 
 interface NormalResult {
   normalX: number
@@ -246,6 +198,39 @@ function isAngleInRange(angle: number, startAngle: number, endAngle: number): bo
 }
 
 /**
+ * 计算点到弧线的最近点及距离
+ * 正向弧（endAngle > startAngle）覆盖角度区间 [startAngle, endAngle]
+ * 反向弧（endAngle < startAngle，Shift 绘制）覆盖角度区间 [endAngle, startAngle] 的反向走法
+ */
+function closestPointOnArc(
+  px: number, py: number,
+  cx: number, cy: number, r: number,
+  startAngle: number, endAngle: number
+): { x: number; y: number; dist: number } {
+  const TWO_PI = Math.PI * 2
+  let delta = endAngle - startAngle
+  while (delta <= -TWO_PI) delta += TWO_PI
+  while (delta > TWO_PI) delta -= TWO_PI
+
+  const pointAngle = Math.atan2(py - cy, px - cx)
+  let rel = pointAngle - startAngle
+  let clampedRel: number
+  if (delta >= 0) {
+    while (rel < 0) rel += TWO_PI
+    while (rel >= TWO_PI) rel -= TWO_PI
+    clampedRel = rel > delta ? delta : rel
+  } else {
+    while (rel > 0) rel -= TWO_PI
+    while (rel <= -TWO_PI) rel += TWO_PI
+    clampedRel = rel < delta ? delta : rel
+  }
+  const arcAngle = startAngle + clampedRel
+  const ax = cx + r * Math.cos(arcAngle)
+  const ay = cy + r * Math.sin(arcAngle)
+  return { x: ax, y: ay, dist: Math.hypot(px - ax, py - ay) }
+}
+
+/**
  * 线段-圆相交参数解（返回最早的 t ∈ [0,1]，若无交点返回 -1）
  */
 function lineCircleIntersect(
@@ -306,17 +291,28 @@ export function detectArcCollision(
   } else if (tOuter >= 0) { t = tOuter; fromOutside = true }
   else if (tInner >= 0) { t = tInner; fromOutside = false }
 
-  if (t < 0) return false // 无交点
-
-  // 计算交点位置
-  const hitX = prevX + (obj.x - prevX) * t
-  const hitY = prevY + (obj.y - prevY) * t
-
-  // 检查交点角度是否在弧范围内
-  const angle = Math.atan2(hitY - cy, hitX - cx)
-  if (!isAngleInRange(angle, startAngle, endAngle)) return false // 从缺口穿过
+  let isCCDHit = false // 标记是否为 CCD 路径命中（高速冲击场景）
+  if (t >= 0) {
+    // CCD 路径交点：校验角度在弧范围内（从缺口穿过则放弃）
+    const ccdX = prevX + (obj.x - prevX) * t
+    const ccdY = prevY + (obj.y - prevY) * t
+    const angle = Math.atan2(ccdY - cy, ccdX - cx)
+    if (!isAngleInRange(angle, startAngle, endAngle)) return false
+    isCCDHit = true
+  }
+  // 统一用 closestPointOnArc 计算碰撞点：角度限制在弧线范围内，
+  // 避免球滑到端点时因角度越界被位置修正推到弧线外导致震荡；
+  // 同时碰撞点随球位置动态变化，避免 CCD t≈0 时碰撞点固定为起点导致停滞
+  const closest = closestPointOnArc(obj.x, obj.y, cx, cy, r, startAngle, endAngle)
+  if (closest.dist > radius && !isCCDHit) return false
+  const hitX = closest.x
+  const hitY = closest.y
+  // 球心在弧线圆外 → 从外向内接触；在圆内 → 从内向外接触
+  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
+  fromOutside = objDist > r
 
   // 计算碰撞点对应的法线（径向）
+  // 碰撞点已由 closestPointOnArc 限制在弧线角度范围内，位置修正不会把球推到弧线外
   const hitDx = hitX - cx
   const hitDy = hitY - cy
   const hitDist = Math.hypot(hitDx, hitDy)
@@ -336,11 +332,18 @@ export function detectArcCollision(
   obj.x = cx + (hitDx / hitDist) * targetRadius
   obj.y = cy + (hitDy / hitDist) * targetRadius
 
-  // 速度反射
+  // 法向速度处理
   const v_normal = obj.vx * nx + obj.vy * ny
-  if (v_normal < 0) {
-    obj.vx -= (1 + restitution) * v_normal * nx
-    obj.vy -= (1 + restitution) * v_normal * ny
+  if (fromOutside) {
+    // 从外侧冲击：弹性反射（仅 CCD 命中时，高速反弹）
+    if (isCCDHit && v_normal < 0) {
+      obj.vx -= (1 + restitution) * v_normal * nx
+      obj.vy -= (1 + restitution) * v_normal * ny
+    }
+  } else {
+    // 从内侧接触：清零法向速度（非弹性），避免反弹震荡导致 v_normal 反号后跳过反射造成能量陷阱
+    obj.vx -= v_normal * nx
+    obj.vy -= v_normal * ny
   }
 
   // 切向摩擦（优先取线段摩擦系数）

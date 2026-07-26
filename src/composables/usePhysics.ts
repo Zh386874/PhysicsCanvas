@@ -1,5 +1,8 @@
-import { reactive, ref } from 'vue'
+import { reactive } from 'vue'
 import { checkCollision } from './useCollision'
+import { snapshots, currentFrame, keyframeIndices, recordSnapshot, clearSnapshots } from './useSnapshotManager'
+import { calculateTotalForce } from './useForces'
+import { MAX_SUBSTEPS, MAX_STEP_DIST, TRAIL_LENGTH, GROUND_DISABLED } from '../constants'
 
 // ===== 类型定义 =====
 
@@ -103,7 +106,7 @@ export interface SpringObject {
 export type PhysicsObject = ParticleObject | SegmentObject | SpringObject
 
 /** 快照中的物体精简结构 */
-interface SnapshotObject {
+export interface SnapshotObject {
   id: number
   x: number
   y: number
@@ -139,7 +142,6 @@ export interface PhysicsState {
 const PIXELS_PER_METER: number = 50 // 1 米 = 50 像素（全局尺度常量）
 const GRAVITY_SI: number = 9.8 // m/s^2
 const GRAVITY: number = GRAVITY_SI * PIXELS_PER_METER // 像素/s^2 = 490
-const MAX_SNAPSHOTS: number = 1200 // 20秒 × 60fps（扩容自 600）
 
 // 初始物体数据
 const initialObjects: ParticleObject[] = [
@@ -163,30 +165,12 @@ const state = reactive<PhysicsState>({
   gravity: GRAVITY
 })
 
-// 回放快照
-const snapshots = ref<SnapshotFrame[]>([])
-const currentFrame = ref<number>(0)
-const keyframeIndices = ref<number[]>([])
-
 // 初始快照（reset 恢复点）
 let snapshot: PhysicsObject[] = JSON.parse(JSON.stringify(initialObjects))
 let fieldSnapshot: FieldState = JSON.parse(JSON.stringify(state.field))
 let gravitySnapshot: number = GRAVITY
 
 // ===== 核心函数 =====
-
-/**
- * 检测关键帧：速度分量符号变化
- */
-function detectKeyframe(prevFrame: SnapshotObject[], curFrame: SnapshotObject[]): boolean {
-  for (let i = 0; i < curFrame.length; i++) {
-    const prev = prevFrame[i]
-    const cur = curFrame[i]
-    if (!prev) continue
-    if (prev.vx * cur.vx < 0 || prev.vy * cur.vy < 0) return true
-  }
-  return false
-}
 
 /**
  * 单次子步物理更新（供子步循环调用）
@@ -205,48 +189,9 @@ function subStepPhysics(subDt: number): boolean {
     if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
 
-    // 合力 = 重力 + 自定义力 + 场力 + 弹簧力
-    let fx = 0
-    let fy = p.mass * state.gravity
-
-    for (const force of state.forces) {
-      if (force.targetId === p.id) {
-        fx += force.fx
-        fy += force.fy
-      }
-    }
-
-    const charge = p.charge || 0
-    if (charge !== 0) {
-      // 多场同时支持：电场力 qE 和洛伦兹力 qv×B 可同时存在
-      // 根据 E 和 B 值是否非零判断，而非 type 字段
-      if (state.field.E.x !== 0 || state.field.E.y !== 0) {
-        fx += charge * state.field.E.x
-        fy += charge * state.field.E.y
-      }
-      if (state.field.B !== 0) {
-        fx += charge * p.vy * state.field.B
-        fy += -charge * p.vx * state.field.B
-      }
-    }
-
-    // 弹簧力 F = -k·x（x 为形变量，k 为劲度系数）
-    for (const s of state.objects) {
-      if (s.type !== 'spring') continue
-      const spring = s as SpringObject
-      if (spring.ballId !== p.id) continue
-      const dx = p.x - spring.anchorX
-      const dy = p.y - spring.anchorY
-      const currentLen = Math.hypot(dx, dy)
-      if (currentLen < 1e-6) continue
-      const deformation = currentLen - spring.naturalLength
-      // k 为 SI 单位 N/m，形变用像素。F_px = -k * x_px
-      // 推导：a_px = F_SI/m * scale = (-k * x_m / m) * scale = -k * (x_px/scale) / m * scale = -k * x_px / m
-      // 故 F_px = a_px * m = -k * x_px，k 无需额外转换
-      const forceMag = -spring.k * deformation
-      fx += forceMag * dx / currentLen
-      fy += forceMag * dy / currentLen
-    }
+    // 合力计算委托给力注册表（策略模式，遵循 OCP）
+    // 添加新力只需在 useForces.ts 中调用 registerForce，无需修改此函数
+    const { fx, fy } = calculateTotalForce(state, p)
 
     const ax = fx / p.mass
     const ay = fy / p.mass
@@ -276,10 +221,8 @@ function subStepPhysics(subDt: number): boolean {
 function updatePhysics(dt: number): void {
   if (!state.isPlaying) return
 
-  // 子步循环：每次移动距离不超过 maxStepDist，防止隧穿
+  // 子步循环：每次移动距离不超过 MAX_STEP_DIST，防止隧穿
   // 设置上限避免微观粒子（高速度）导致计算量爆炸
-  const MAX_SUBSTEPS = 200
-  const maxStepDist = 10 // 像素（假设最小半径约 10）
   let maxVelMag = 0
   for (const obj of state.objects) {
     if (obj.type === '质点' || obj.type === '刚体') {
@@ -289,7 +232,7 @@ function updatePhysics(dt: number): void {
     }
   }
 
-  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(maxVelMag * dt / maxStepDist)))
+  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(maxVelMag * dt / MAX_STEP_DIST)))
   const subDt = dt / steps
 
   for (let i = 0; i < steps; i++) {
@@ -301,7 +244,7 @@ function updatePhysics(dt: number): void {
     if (obj.type === '质点' || obj.type === '刚体') {
       const p = obj as ParticleObject
       p.trail.push({ x: p.x, y: p.y })
-      if (p.trail.length > 80) p.trail.shift()
+      if (p.trail.length > TRAIL_LENGTH) p.trail.shift()
     }
   }
 
@@ -314,17 +257,7 @@ function updatePhysics(dt: number): void {
     gravity: state.gravity,
     timestamp: Date.now()
   }
-  const prevFrame = snapshots.value[snapshots.value.length - 1]
-  if (prevFrame && detectKeyframe(prevFrame.objects, frame.objects)) {
-    keyframeIndices.value.push(snapshots.value.length)
-  }
-  snapshots.value.push(frame)
-  if (snapshots.value.length > MAX_SNAPSHOTS) {
-    snapshots.value.shift()
-    keyframeIndices.value = keyframeIndices.value
-      .map(i => i - 1)
-      .filter(i => i >= 0)
-  }
+  recordSnapshot(frame)
 
   state.time += dt
 }
@@ -336,9 +269,7 @@ function reset(): void {
   state.time = 0
   state.isPlaying = false
   state.forces = []
-  snapshots.value = []
-  currentFrame.value = 0
-  keyframeIndices.value = []
+  clearSnapshots()
 }
 
 function addForce(force: CustomForce): void {
@@ -387,7 +318,7 @@ function loadScene(
   state.field = field ? JSON.parse(JSON.stringify(field)) : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
   state.gravity = gravity !== undefined ? gravity : GRAVITY
   if (groundY === null) {
-    state.groundY = 100000
+    state.groundY = GROUND_DISABLED
   } else if (groundY !== undefined) {
     state.groundY = groundY
   }
@@ -396,9 +327,7 @@ function loadScene(
   snapshot = JSON.parse(JSON.stringify(objects))
   fieldSnapshot = JSON.parse(JSON.stringify(state.field))
   gravitySnapshot = state.gravity
-  snapshots.value = []
-  currentFrame.value = 0
-  keyframeIndices.value = []
+  clearSnapshots()
 }
 
 export {

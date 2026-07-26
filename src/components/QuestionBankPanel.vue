@@ -66,7 +66,7 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref } from 'vue'
 import { useQuestionBank } from '../composables/useQuestionBank'
 
@@ -91,7 +91,7 @@ function handleApply() {
   emit('load-question', selectedQuestion.value)
 }
 
-function handleLoad(q: typeof selectedQuestion.value) {
+function handleLoad(q) {
   if (!q) return
   selectQuestion(q.id)
   emit('load-question', q)

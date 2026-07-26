@@ -6,7 +6,57 @@ import { ref, watch } from 'vue'
 import { autoComputeNormal } from './useCollision'
 import type { PhysicsObject, SegmentObject, ParticleObject, SpringObject } from './usePhysics'
 
-type ToolType = 'ball' | 'platform' | 'arc' | 'spring'
+export type ToolType = 'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | 'arc' | 'spring'
+
+/** 平台类工具：共用拖拽绘制流程，仅生成物体属性不同 */
+const PLATFORM_TOOLS: ToolType[] = ['platform', 'conveyor', 'plate']
+
+/** 判断工具是否属于平台类（platform/conveyor/plate 共用绘制流程） */
+export function isPlatformTool(t: string): boolean {
+  return (PLATFORM_TOOLS as string[]).includes(t)
+}
+
+/**
+ * 创建平台类物体（platform / conveyor / plate 共用工厂）
+ * 根据 toolType 差异化设置属性：
+ * - platform：普通线段
+ * - conveyor：传送带，带默认速度（2m/s 沿 x 正向 = 100px/s，与 PIXELS_PER_METER=50 一致）
+ * - plate：板块，可移动，默认质量 1kg
+ * 序号按子类型分别计数（平台/传送带/板块 各自从 1 开始），避免"板块2"等不直观命名
+ */
+function createPlatformLikeObject(
+  toolType: 'platform' | 'conveyor' | 'plate',
+  x1: number, y1: number, x2: number, y2: number,
+  objects: PhysicsObject[]
+): SegmentObject {
+  const normal = autoComputeNormal({ x1, y1, x2, y2 })
+  // 按子类型属性（velocity/movable）统计同类物体数量，避免依赖 name 前缀（用户可能重命名）
+  const sameTypeCount = objects.filter(o => {
+    if (o.type !== 'line_segment') return false
+    const seg = o as SegmentObject
+    if (toolType === 'conveyor') return !!seg.velocity
+    if (toolType === 'plate') return !!seg.movable
+    return !seg.velocity && !seg.movable
+  }).length
+  const index = sameTypeCount + 1
+  const base: SegmentObject = {
+    id: genId(),
+    name: '',
+    type: 'line_segment',
+    x1, y1, x2, y2,
+    normalX: normal.normalX,
+    normalY: normal.normalY,
+    restitution: 0.3,
+    friction: 0.5
+  }
+  if (toolType === 'conveyor') {
+    return { ...base, name: `传送带${index}`, color: '#0891b2', velocity: { x: 100, y: 0 } }
+  }
+  if (toolType === 'plate') {
+    return { ...base, name: `板块${index}`, color: '#dc2626', movable: true, mass: 1 }
+  }
+  return { ...base, name: `平台${index}`, color: '#475569' }
+}
 
 /** 工具状态 */
 const tool = ref<ToolType>('ball')
@@ -29,9 +79,10 @@ const previewLine = ref<{ x1: number; y1: number; x2: number; y2: number } | nul
 /** 弹簧绘制状态：第一次点击设置固定端，第二次点击选择连接的球 */
 let springAnchor: { x: number; y: number } | null = null
 
-/** 工具切换时重置弹簧状态 */
+/** 工具切换时重置弹簧与圆弧绘制状态，避免中途切换残留 */
 watch(tool, (newTool) => {
   if (newTool !== 'spring') resetSpringState()
+  if (newTool !== 'arc') resetArcState()
 })
 
 /** Shift 闪烁反馈状态 */
@@ -124,13 +175,13 @@ function generateArcSegments(
   onAddObject: (obj: SegmentObject) => void,
   objects: PhysicsObject[]
 ): void {
-  const numSegments = 8
+  const numSegments = 20
   let delta = endAngle - startAngle
   while (delta <= 0) delta += Math.PI * 2
   if (reverse) delta = delta - Math.PI * 2
   const step = delta / numSegments
   const groupId = genId()
-  const arcName = '弧线' + (Math.floor(objects.filter(o => o.name?.startsWith('弧线')).length / 8) + 1)
+  const arcName = '弧线' + (Math.floor(objects.filter(o => o.name?.startsWith('弧线')).length / numSegments) + 1)
   for (let i = 0; i < numSegments; i++) {
     const a1 = startAngle + i * step
     const a2 = startAngle + (i + 1) * step
@@ -311,6 +362,7 @@ export {
   previewArc,
   previewLine,
   genId,
+  createPlatformLikeObject,
   resetArcState,
   getArcPhase,
   getArcCenter,
