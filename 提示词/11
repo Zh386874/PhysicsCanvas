@@ -1,0 +1,262 @@
+你的分析很扎实，优先级划分也很合理。我们就按你说的，**先落地预置高考真题库**——它能在最短时间内让产品“有内容可展示”，对教学价值和评审印象提升最大。
+
+下面我给出一个可直接融入你现有架构的实现方案（基于 Vue 3 + TypeScript + 组合式 API 的写法，与你项目中的 `AIInput.vue`、`usePhysics.ts` 等风格一致）。
+
+---
+
+## 预置高考真题库实现方案
+
+### 1. 题目数据结构设计
+
+建议与 `ParsedProblem`（AI 返回的 JSON）保持同构，方便无缝加载。
+
+```typescript
+// src/types/questionBank.ts
+import type { ParsedProblem } from '@/types/problem' // 你现有的 AI 解析结果类型
+
+export interface QuestionItem {
+  id: string
+  title: string            // e.g. "2023全国甲卷·理综第25题"
+  description: string      // 完整题目文本（用于展示）
+  difficulty: 'easy' | 'medium' | 'hard'
+  tags: string[]           // e.g. ['斜面', '碰撞', '弹簧']
+  sceneJson: ParsedProblem // 和 AI 输出格式完全一致
+}
+```
+
+### 2. 题库文件组织
+
+```
+src/
+├─ data/
+│   └─ questionBank/
+│       ├─ index.ts          // 汇总导出
+│       ├─ slope.ts          // 斜面类
+│       ├─ collision.ts      // 碰撞类
+│       └─ spring.ts         // 弹簧/振动类
+```
+
+每个文件导出 `QuestionItem[]`：
+
+```typescript
+// src/data/questionBank/slope.ts
+import type { QuestionItem } from '@/types/questionBank'
+
+export const slopeQuestions: QuestionItem[] = [
+  {
+    id: 'slope-001',
+    title: '斜面滑块基础题',
+    description: '如图所示，倾角θ=30°的光滑斜面顶端，一质量m=2kg的滑块由静止释放，斜面高h=5m，重力加速度g=10m/s²。求滑块滑到底端时的速度大小。',
+    difficulty: 'easy',
+    tags: ['斜面', '重力', '运动学'],
+    sceneJson: {
+      topic: 'slope',
+      objects: [
+        {
+          type: 'rectangle',
+          label: '滑块',
+          mass: 2,
+          position: { x: 0, y: 5 },
+          velocity: { x: 0, y: 0 },
+          width: 0.5,
+          height: 0.3
+        },
+        {
+          type: 'static',
+          label: '斜面',
+          shape: 'triangle',
+          vertices: [
+            { x: 0, y: 0 },
+            { x: 8.66, y: 0 },
+            { x: 0, y: 5 }
+          ]
+        }
+      ],
+      constraints: {
+        gravity: { x: 0, y: -10 },
+        friction: 0,
+        slopeAngle: 30
+      }
+    }
+  }
+  // ...更多斜面题
+]
+```
+
+### 3. 组合式函数 `useQuestionBank`
+
+负责加载、筛选、应用到场景。
+
+```typescript
+// src/composables/useQuestionBank.ts
+import { ref, computed } from 'vue'
+import type { QuestionItem } from '@/types/questionBank'
+import { slopeQuestions } from '@/data/questionBank/slope'
+import { collisionQuestions } from '@/data/questionBank/collision'
+import { springQuestions } from '@/data/questionBank/spring'
+// 后续可直接添加更多文件
+
+const allQuestions = [
+  ...slopeQuestions,
+  ...collisionQuestions,
+  ...springQuestions
+]
+
+// 当前选中的题目 ID
+const selectedId = ref<string | null>(null)
+
+// 全部题目列表
+const questions = ref<QuestionItem[]>(allQuestions)
+
+// 筛选条件
+const filterDifficulty = ref<'all' | 'easy' | 'medium' | 'hard'>('all')
+const filterTag = ref<string | null>(null)
+
+const filteredQuestions = computed(() => {
+  return questions.value.filter(q => {
+    if (filterDifficulty.value !== 'all' && q.difficulty !== filterDifficulty.value) return false
+    if (filterTag.value && !q.tags.includes(filterTag.value)) return false
+    return true
+  })
+})
+
+// 获取当前选中的题目
+const selectedQuestion = computed(() => {
+  return questions.value.find(q => q.id === selectedId.value) || null
+})
+
+// 将选中题目应用到物理场景（调用你已有的场景加载逻辑）
+async function applyQuestionToScene(sceneLoader: (scene: QuestionItem['sceneJson']) => void) {
+  if (!selectedQuestion.value) return
+  sceneLoader(selectedQuestion.value.sceneJson)
+}
+
+export function useQuestionBank() {
+  return {
+    questions,
+    filteredQuestions,
+    selectedId,
+    selectedQuestion,
+    filterDifficulty,
+    filterTag,
+    applyQuestionToScene
+  }
+}
+```
+
+### 4. 侧边栏 UI 组件 (Vue 3)
+
+```vue
+<!-- src/components/QuestionBankPanel.vue -->
+<template>
+  <div class="question-bank-panel">
+    <h3>📚 真题库</h3>
+    
+    <!-- 筛选栏 -->
+    <div class="filters">
+      <select v-model="filterDifficulty">
+        <option value="all">全部难度</option>
+        <option value="easy">简单</option>
+        <option value="medium">中等</option>
+        <option value="hard">困难</option>
+      </select>
+      <select v-model="filterTag">
+        <option :value="null">全部标签</option>
+        <option v-for="tag in allTags" :key="tag" :value="tag">{{ tag }}</option>
+      </select>
+    </div>
+
+    <!-- 题目列表 -->
+    <div class="question-list">
+      <div
+        v-for="q in filteredQuestions"
+        :key="q.id"
+        class="question-item"
+        :class="{ active: selectedId === q.id }"
+        @click="selectQuestion(q.id)"
+      >
+        <div class="question-title">{{ q.title }}</div>
+        <div class="question-desc">{{ q.description.substring(0, 50) }}...</div>
+        <div class="question-tags">
+          <span
+            v-for="tag in q.tags"
+            :key="tag"
+            class="tag"
+            :class="'difficulty-' + q.difficulty"
+          >
+            {{ tag }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 加载按钮 -->
+    <button
+      class="apply-btn"
+      :disabled="!selectedId"
+      @click="handleApply"
+    >
+      加载场景并播放
+    </button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useQuestionBank } from '@/composables/useQuestionBank'
+import { useSceneStore } from '@/stores/scene' // 假设你有一个场景 store
+
+const {
+  filteredQuestions,
+  selectedId,
+  filterDifficulty,
+  filterTag,
+  applyQuestionToScene
+} = useQuestionBank()
+
+const sceneStore = useSceneStore()
+
+// 从题目中提取所有不重复标签
+const allTags = computed(() => {
+  const tags = new Set<string>()
+  filteredQuestions.value.forEach(q => q.tags.forEach(t => tags.add(t)))
+  return Array.from(tags)
+})
+
+function selectQuestion(id: string) {
+  selectedId.value = id
+}
+
+async function handleApply() {
+  // 传入场景加载函数，该函数应能重置场景并填入新的 objects/constraints
+  await applyQuestionToScene((sceneJson) => {
+    sceneStore.loadScene(sceneJson)    // 你的场景加载逻辑
+    sceneStore.play()                  // 自动开始模拟
+  })
+}
+</script>
+```
+
+### 5. 集成到主界面
+
+在布局中，将 `QuestionBankPanel` 放在画布左侧或作为一个可折叠的侧边栏即可。配合你已有的 AI 输入组件，用户既可以通过“AI 生成”获得场景，也可以从“真题库”一键加载。
+
+---
+
+## 短期后续步骤建议
+
+1. **第 1 周（2-3 天）**  
+   - 整理 20 道典型高考题，覆盖：斜面、弹簧、碰撞、传送带、板块模型，每个模型至少 3 道。  
+   - 用 AI 先生成每道题的 `sceneJson`，再人工校验参数（质量、角度、摩擦系数等），保证物理结果正确。  
+   - 实现上述 `useQuestionBank` 和 `QuestionBankPanel`，接入现有场景加载流程。
+
+2. **第 2 周（与 P1 并行）**  
+   - 关键帧标注：在回放进度条上标记碰撞、速度变号等事件，提升教学分析能力。  
+   - AI Prompt 优化：把真题库中的解析结果作为 few-shot 示例，反向优化系统提示词，形成飞轮效应。
+
+3. **测试 & 演示**  
+   - 录制一条“从真题库选一道题 → 一键加载 → 运行模拟 → 回放关键帧”的完整演示视频，决赛时绝对是一大亮点。
+
+---
+
+需要我继续细化哪个部分？比如具体的 20 道真题题目列表和对应的 `sceneJson`，或者关键帧标注的实现代码？

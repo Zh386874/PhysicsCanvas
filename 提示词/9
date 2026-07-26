@@ -1,0 +1,148 @@
+要让 AI 直接读懂高考题并生成可运行的物理模型，核心挑战在于高考题的复杂性和非结构化：多物体、多过程、隐含条件、图像信息、以及需要自动适配坐标比例。下面给出一个可直接落地的增强方案。
+
+一、高考题的特点与解析难点
+特征	示例	难点
+多物体多过程	滑块在木板上滑动，然后碰撞弹簧	需分阶段模拟或同时模拟多个物体
+隐含量与条件	“光滑”“轻绳”“刚好通过最高点”	AI 要推断出 μ=0、v=√(gR) 等
+示意图	题目自带物理场景图	需 OCR + 几何信息提取，或人工转文字
+数值范围差异大	速度 0.1m/s～10⁶m/s，距离 0.01m～100m	需自适应缩放像素坐标，否则物体飞出画布
+组合场	电场+磁场，或重力场+电场	需支持多场同时存在（项目目前只支持单一场？）
+实际问题	测重力加速度、汽车刹车	有时不需要“小球模型”，而要定制几何体
+二、增强版 AI 解析 Prompt 设计
+需要让模型输出一个包含多阶段、多物体、场、约束的结构化 JSON。以下是一个可直接用的 System Prompt 模板（可存为 system_prompt.txt）：
+
+text
+你是一个高考物理题解析引擎。从题目中提取物理情景，并输出严格JSON。
+- 所有物理量使用SI单位（米、千克、秒、库仑、特斯拉、牛顿/库仑）。
+- 如果题目中没有明确给出某量，用合理的默认值（如重力加速度9.8，质量1kg）。
+- 物体类型：ball（圆形质点）, platform（线段形障碍物）, arc（圆弧障碍物）。
+- 坐标系：以地面为y=0，向上为正。x轴向右。初始时刻所有物体位置和速度需明确。
+- 如果需要多阶段模拟，请用 stages 数组描述，每个阶段可改变物体的受力或约束（但我们在一个场景中尽量用初始条件和场来体现全程）。
+
+输出格式：
+{
+  "title": "题目标题或简短描述",
+  "description": "完整题目文本（用于显示）",
+  "objects": [
+    {
+      "id": "A",
+      "type": "ball",
+      "mass": 1.0,
+      "charge": 0.0,
+      "radius": 0.2,
+      "initialPosition": { "x": 0, "y": 5 },
+      "initialVelocity": { "x": 3, "y": 0 },
+      "fixed": false
+    },
+    {
+      "id": "platform1",
+      "type": "platform",
+      "startPoint": { "x": 2, "y": 0 },
+      "endPoint": { "x": 6, "y": 0 },
+      "friction": 0.3
+    }
+  ],
+  "fields": [
+    { "type": "gravity", "value": 9.8 },
+    { "type": "electric", "E": { "x": 0, "y": -500 } },
+    { "type": "magnetic", "B": 0.5 }
+  ],
+  "global": {
+    "groundY": 0,
+    "worldWidth": 20,   // 建议的世界显示宽度(米)，便于自动缩放
+    "simulationTime": 5  // 预计模拟时长(秒)
+  }
+}
+提示词技巧：
+
+添加 few-shot 示例（一道斜面题、一道碰撞题、一道磁场题），显著提高准确率。
+
+温度设为 0.1，并使用支持 JSON mode 的模型。
+
+三、场景生成器增强
+你需要扩展 useSceneBuilder 来处理更复杂的情况。
+
+3.1 自动缩放适配画布
+高考题中的数值尺度可能与画布像素差距极大。实现一个自适应缩放算法：
+
+typescript
+// 计算所需的世界坐标范围
+const minX = min(...objects.map(obj => obj.initialPosition.x));
+const maxX = max(...);
+const minY = min(...);
+const maxY = max(...);
+// 设定画布尺寸 (canvasWidth, canvasHeight)
+const worldWidth = maxX - minX;
+const worldHeight = maxY - minY;
+const scale = Math.min(canvasWidth / worldWidth, canvasHeight / worldHeight);
+// 将世界坐标映射到像素坐标时： pixelX = (worldX - minX) * scale + margin
+在 buildScene 中，所有位置、速度、重力等涉及长度的值都乘以 scale * PIXELS_PER_METER（或直接重新定义 PIXELS_PER_METER = scale * 50）。
+
+3.2 多场支持
+目前你的 FieldState 可能是单一类型。建议改为：
+
+typescript
+interface FieldState {
+  gravity: number;   // 重力加速度 (m/s^2)
+  electricE: { x: number; y: number }; // 电场
+  magneticB: number; // 磁场（垂直屏幕）
+}
+然后在 updatePhysics 里同时计算重力、电场力、洛伦兹力。这是最常见的组合。
+
+3.3 自定义几何体生成
+platform 线段：直接根据 startPoint/endPoint 生成带 friction 属性的线段物体。
+
+arc 弧线：加上圆心、半径、起始角度、结束角度。
+
+3.4 处理“多过程”的两种策略
+策略A（简单）：只模拟初始时刻和全局受力，让过程自然演化。比如“物体先在斜面上滑下，然后落在弹簧上”，只需设置斜面线段+地面+弹簧（可用一个 high-restition 的线段表示），让物理引擎自己完成。
+
+策略B（复杂）：如果题目过程复杂到必须分阶段改变约束，可在 AI 输出中增加 stages，每一阶段定义新的物体位置/速度或移除某些物体。但实现成本高。建议当前阶段用策略A，并完善碰撞和约束处理，足以覆盖80%高考题。
+
+四、与现有系统的集成流程
+text
+用户输入题目文本
+    ↓
+调用 AI API (useAIParser.ts)
+    ↓ 返回结构化 JSON
+useSceneBuilder.buildScene(json)
+    ↓
+  - 自动缩放世界
+  - 清除现有物体
+  - 创建物体 (小球/线段/弧线)
+  - 设置全局场和重力
+  - 更新 PIXELS_PER_METER（可选动态值）
+    ↓
+自动开始模拟（或显示“点击运行”按钮）
+同时，界面上要显示题目的原始文本，并高亮 AI 提取的参数，允许用户手动修正（这对教育场景很重要，因为 AI 可能误读）。
+
+五、处理图形题（示意图）
+很多高考题有配图。简单方案：让用户手动描述图中的几何关系（“斜面倾角30°，小球在顶端”）。高级方案：集成 GPT-4V 的多模态能力，传入题目截图，直接返回 JSON。Prompt 类似：
+
+text
+请分析这张高考物理示意图，提取所有物体的位置、速度、场等信息，按指定JSON格式输出。
+实现成本较高，但效果惊艳。可以作为后续迭代目标。
+
+六、测试题目升级
+除了之前的三道简单题，建议增加两道高考难度的测试题来验证 AI 生成的场景能否跑通：
+
+测试题4：斜面+弹簧
+
+倾角37°的光滑斜面，底端固定一劲度系数 k=200N/m 的轻弹簧。质量 1kg 的滑块从斜面顶端距弹簧自由端 0.5m 处静止释放。求滑块的最大速度。（重力加速度取 10m/s²）
+
+测试题5：带电粒子在复合场中
+
+空间存在水平向右的电场 E=1000N/C 和垂直纸面向里的磁场 B=0.2T。一个带正电粒子（m=2e-10kg, q=1.6e-19C）以水平初速 400m/s 进入该区域。画出粒子轨迹。
+
+如果 AI 能正确生成以上场景的 JSON，且物理模拟出合理结果，就说明系统可用。
+
+七、下一步行动清单
+修改 usePhysics 使其支持同时存在重力、电场、磁场（若尚未支持）。
+
+编写增强版 System Prompt，加入 few-shot 示例，并在 useAIParser 中接入真实的 API。
+
+实现 useSceneBuilder，包含自动缩放逻辑和物体创建映射。
+
+在 UI 中添加“AI生成”按钮，展示解析结果，允许参数编辑。
+
+用 5 道测试题验证，并微调 Prompt。

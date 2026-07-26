@@ -1,0 +1,250 @@
+{
+  "steps": {
+    "_shots": [
+      "01-initial.png",
+      "02-custom-toolbar.png",
+      "03-platform-draw.png",
+      "04-conveyor-draw.png",
+      "05-plate-draw.png",
+      "06-object-list.png",
+      "07-question-arcs.png"
+    ],
+    "step1_initial": {
+      "screenshot": "01-initial.png",
+      "loaded": true,
+      "activeScene": "抛体运动"
+    },
+    "step2_toolbar": {
+      "screenshot": "02-custom-toolbar.png",
+      "toolbarVisible": true,
+      "toolButtons": [
+        "🖱️ 选择/移动",
+        "⚽ 小球",
+        "➖ 平台",
+        "📦 传送带",
+        "🟫 板块",
+        "⤵ 圆弧",
+        "🌀 弹簧",
+        "⚡ 带电",
+        "↶ 撤销",
+        "↷ 重做",
+        "💾 导出",
+        "📂 导入"
+      ],
+      "hasConveyor": true,
+      "hasPlate": true,
+      "hasSelect": true,
+      "hasBall": true,
+      "hasPlatform": true,
+      "hasArc": true,
+      "hasSpring": true,
+      "hasCharge": true
+    },
+    "step3_platform_draw": {
+      "screenshot": "03-platform-draw.png",
+      "listItems": [
+        {
+          "name": "平台1",
+          "subtype": "线段",
+          "isGroup": false
+        }
+      ],
+      "platformItemName": "平台1",
+      "platformItemSubtype": "线段",
+      "platformNameExpected": "平台1",
+      "platformNamePass": true
+    },
+    "step4_conveyor_draw": {
+      "screenshot": "04-conveyor-draw.png",
+      "listItems": [
+        {
+          "name": "平台1",
+          "subtype": "线段",
+          "isGroup": false
+        },
+        {
+          "name": "传送带1",
+          "subtype": "传送带",
+          "isGroup": false
+        }
+      ],
+      "conveyorItemName": "传送带1",
+      "conveyorItemSubtype": "传送带",
+      "conveyorNameExpected": "传送带1",
+      "conveyorNamePass": true
+    },
+    "step5_plate_draw": {
+      "screenshot": "05-plate-draw.png",
+      "listItems": [
+        {
+          "name": "平台1",
+          "subtype": "线段",
+          "isGroup": false
+        },
+        {
+          "name": "传送带1",
+          "subtype": "传送带",
+          "isGroup": false
+        },
+        {
+          "name": "板块1",
+          "subtype": "板块",
+          "isGroup": false
+        }
+      ],
+      "plateItemName": "板块1",
+      "plateItemSubtype": "板块",
+      "plateNameExpected": "板块1",
+      "plateNamePass": true
+    },
+    "step6_object_list": {
+      "screenshot": "06-object-list.png",
+      "listItems": [
+        {
+          "name": "平台1",
+          "subtype": "线段",
+          "isGroup": false
+        },
+        {
+          "name": "传送带1",
+          "subtype": "传送带",
+          "isGroup": false
+        },
+        {
+          "name": "板块1",
+          "subtype": "板块",
+          "isGroup": false
+        }
+      ],
+      "platformName": "平台1",
+      "conveyorName": "传送带1",
+      "plateName": "板块1",
+      "expectedNames": [
+        "平台1",
+        "传送带1",
+        "板块1"
+      ],
+      "namingPass": true
+    },
+    "step7_question_arcs": {
+      "screenshot": "07-question-arcs.png",
+      "questionTitleLoaded": "碰撞探究（2023年浙江6月选考第18题）",
+      "isTargetQuestion": true,
+      "listItems": [
+        {
+          "name": "滑块a",
+          "subtype": "小球",
+          "isGroup": false
+        },
+        {
+          "name": "传送带",
+          "subtype": "传送带",
+          "isGroup": false
+        },
+        {
+          "name": "圆弧DE-1",
+          "subtype": "弧线",
+          "isGroup": true
+        },
+        {
+          "name": "圆弧EF-1",
+          "subtype": "弧线",
+          "isGroup": true
+        },
+        {
+          "name": "水平轨道FG",
+          "subtype": "线段",
+          "isGroup": false
+        },
+        {
+          "name": "滑块b",
+          "subtype": "小球",
+          "isGroup": false
+        },
+        {
+          "name": "滑块c",
+          "subtype": "小球",
+          "isGroup": false
+        },
+        {
+          "name": "弹簧",
+          "subtype": "弹簧",
+          "isGroup": false
+        }
+      ],
+      "conveyorEntryCount": 1,
+      "conveyorEntries": [
+        {
+          "name": "传送带",
+          "subtype": "传送带",
+          "isGroup": false
+        }
+      ],
+      "arcGroupEntryCount": 2,
+      "arcGroupEntries": [
+        {
+          "name": "圆弧DE-1",
+          "subtype": "弧线",
+          "isGroup": true
+        },
+        {
+          "name": "圆弧EF-1",
+          "subtype": "弧线",
+          "isGroup": true
+        }
+      ],
+      "arcPixelInfo": {
+        "minX": 196,
+        "minY": 369,
+        "maxX": 255,
+        "maxY": 401,
+        "count": 354,
+        "w": 862,
+        "h": 781,
+        "xSpan": 59,
+        "ySpan": 32,
+        "leftMinY": 389,
+        "midMinY": 369,
+        "rightMinY": 388,
+        "leftCount": 93,
+        "midCount": 165,
+        "rightCount": 96,
+        "nShape": true
+      },
+      "arcColorExpected": "#7c3aed",
+      "arcVisible": true,
+      "nShapePass": true
+    },
+    "step8_conveyor_color": {
+      "cyanPixels": {
+        "minX": 135,
+        "minY": 398,
+        "maxX": 195,
+        "maxY": 401,
+        "count": 240,
+        "w": 862,
+        "h": 781,
+        "xSpan": 60,
+        "ySpan": 3
+      },
+      "cyanColorExpected": "#0891b2",
+      "cyanPass": true,
+      "notGray": true
+    },
+    "step9_console": {
+      "errorCount": 0,
+      "warningCount": 1,
+      "pageErrorCount": 0,
+      "errors": [],
+      "warnings": [
+        "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+      ],
+      "pageErrors": []
+    }
+  },
+  "consoleErrors": [],
+  "consoleWarnings": [
+    "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+  ],
+  "pageErrors": []
+}

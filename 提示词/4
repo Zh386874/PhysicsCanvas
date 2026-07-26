@@ -1,0 +1,113 @@
+分步实施提示词（直接喂给 Trae）
+第 1 步：添加“自定义”场景标签，并创建空白场景状态
+text
+在 SceneTabs.vue 中，给 tabs 数组增加一项 { key: 'custom', label: '自定义' }。
+在 usePresets.js 中，导出一个新的预设函数 customPreset，返回一个 objects 为空数组、groundY 为 null、field 为 null、gravity 为 490 的场景对象。
+在 App.vue 中，处理场景切换为 'custom' 时，调用 loadScene(customPreset())，并将 isPlaying 设为 false，进入编辑模式。
+在 PhysicsCanvas.vue 中，暴露一个 prop: editMode（Boolean），默认 false。当 editMode 为 true 时，跳过物理更新循环（但仍渲染物体）。
+App.vue 传给 PhysicsCanvas 一个 editMode prop，当当前场景为 'custom' 且控制栏未播放时，editMode = true。
+完成后，点击“自定义”标签应展示空白画布（无物体），物理暂停，物体列表为空。
+检验方法：
+
+启动项目，点击顶部的“自定义”标签，画布变为空白（只有网格/背景）。
+
+下方的控制栏播放按钮处于暂停状态（或按下播放后应有物体？暂时无物体）。
+
+控制台无报错。
+
+第 2 步：实现点击画布添加小球
+text
+在 PhysicsCanvas.vue 中，为 canvas 绑定 click 事件。
+当 editMode 为 true 且当前工具为 'ball'（先默认工具为 ball）时，在点击位置创建一个新质点对象：
+  { id: 唯一ID（可用 Date.now() + 随机数）, type: 'circle', x, y, vx: 0, vy: 0, radius: 15, mass: 1, charge: 0 }
+通过 emit('add-object', newObj) 通知 App.vue。
+在 App.vue 中，定义函数 handleAddObject(obj)，将 obj 追加到 state.objects 中（使用 usePhysics 暴露的 addObject 方法，如果没有则直接 push 并更新）。
+确保 usePhysics.js 暴露 addObject 方法：将对象添加到 state.objects，并触发响应式更新。
+完成后，在自定义场景下，点击画布任意位置，应出现一个蓝色小球（或默认颜色）。
+检验方法：
+
+进入自定义场景，点击画布不同位置，依次出现多个小球。
+
+物体列表中同步显示添加的小球。
+
+选中一个小球，属性面板可以修改其参数。
+
+第 3 步：实现绘制线段平台
+text
+在 PhysicsCanvas.vue 中，增加工具切换状态，目前支持 'ball' 和 'platform'。可以在画布上方或右侧加两个小按钮（或复用 ControlBar 区域），默认选中 'ball'。当点击 'platform' 按钮时，工具切换。
+监听 mousedown、mousemove、mouseup 事件：
+  - 当工具为 'platform' 且 editMode 为 true 时：
+    mousedown：记录起点 (startX, startY)，标记 drawing = true。
+    mousemove：如果 drawing 为 true，记录当前鼠标位置作为终点，临时绘制一条预览线段（用虚线表示）。
+    mouseup：确认终点，创建一个线段对象 { id, type: 'segment', x1, y1, x2, y2, friction: 0.5, normal: null }，然后 emit('add-object', obj)。重置 drawing 状态。
+    （注意：线段碰撞检测需要 normal，可在 useCollision.js 的 autoComputeNormal 中自动计算。）
+确保预览线段在渲染循环中绘制（在绘制完物体后额外绘制一条半透明线段）。
+完成后，选择“平台”工具，在画布上按住鼠标拖动，松开后生成一条固定线段，可被后续小球碰撞。
+检验方法：
+
+选择平台工具，在画布上拖拽，松手后出现一条线段。
+
+重复操作可以绘制多条线段（可搭建斜坡、台阶等）。
+
+切换到小球工具，添加小球，然后播放物理（需完成第 5 步），小球应能与线段发生碰撞。
+
+第 4 步：实现物体的拖拽移动
+text
+在 PhysicsCanvas.vue 中，增加编辑模式下的拖拽逻辑：
+  - 当 editMode 为 true 时，为 canvas 绑定 mousedown，判断鼠标是否点击在某个物体上：
+    * 对于 circle：计算鼠标到圆心的距离 <= radius。
+    * 对于 segment：计算鼠标到线段两个端点的距离，若 <= 8px 则选中该端点；或者点击在线段附近（距离 <= 5px）则选中整条线段（后续可整体平移）。
+  - 记录拖拽目标（object id 和端点索引，或整体）。
+  - mousemove 时更新目标位置：
+    * 拖拽圆：更新其 x, y。
+    * 拖拽线段端点：更新对应 x1,y1 或 x2,y2，并调用 autoComputeNormal 重新计算法线。
+    * 整体拖拽线段：同时偏移 x1,x2 和 y1,y2。
+  - mouseup 时释放拖拽状态。
+  - 拖拽过程中应阻止物理更新（editMode 已经处理），并且实时反映位置变化。
+更新物体位置时通过 emit('update-object', { id, newProps }) 通知 App.vue，调用 usePhysics 的 updateObjectProperty 方法（已有）。
+为了提升体验，拖拽时可以将鼠标样式改为 grabbing。
+完成后，在自定义场景下，可以拖拽小球移动位置，拖动线段端点改变线段形态，拖动线段中间整体移动。
+检验方法：
+
+进入自定义场景，添加一个小球和一条线段。
+
+鼠标按住小球拖动，小球跟随鼠标移动，松开后停在目标位置。
+
+鼠标按住线段一端点拖动，线段形状改变，法线自动更新。
+
+鼠标按住线段中部拖动，整条线段平移。
+
+第 5 步：编辑/播放模式切换与物理运行
+text
+在 App.vue 中，当场景为自定义时，控制栏的播放/暂停按钮应控制 editMode 的切换：
+  - 点击“播放”时，设置 editMode = false，启动物理循环（isPlaying = true）。
+  - 点击“暂停”时，设置 editMode = true，停止物理（isPlaying = false）。
+确保 usePhysics 中的物理循环只在 isPlaying 为 true 时运行。
+在播放模式下，禁用编辑交互（点击添加和拖拽），只允许查看。
+播放时物体按自定义初始状态运动，碰撞、分步回放等功能保持正常。
+回放系统需要支持自定义场景的快照记录，因为状态结构一致，无需额外修改。
+检验方法：
+
+搭建一个简单场景：一个平台 + 一个小球放在平台上方。
+
+点击播放，小球下落并与平台碰撞，行为符合物理规律。
+
+暂停后可重新编辑（如移动平台），再播放时按新位置运动。
+
+回放功能可查看历史帧，关键帧识别正常。
+
+第 6 步：体验优化（可选但建议）
+text
+- 在画布右上角显示当前工具指示（小球/平台）。
+- 添加物体时给予视觉反馈（如短暂的缩放动画，可用简单的 requestAnimationFrame 效果，或仅改变透明度）。
+- 支持键盘删除：选中物体后按 Delete 键移除该物体（emit('remove-object', id)）。
+- 在 ObjectList 中增加删除按钮。
+- 为自定义场景的线段编辑提供吸附提示（如按住 Shift 绘制水平/垂直线段）。
+- 保存/加载场景：通过 JSON 导出 state.objects 到剪贴板或文件，提供“导出场景”“导入场景”按钮。
+检验方法：
+
+选中物体，按 Delete 可从列表和画布中移除。
+
+绘制线段时按住 Shift 可约束角度（需自行实现，非必须）。
+
+导出场景为文本，清空后导入，场景重现。

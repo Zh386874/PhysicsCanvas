@@ -1,0 +1,43 @@
+build 成功但 deploy 失败，这是典型的 Pages 未启用问题。让我查看具体的失败原因。
+        
+            
+toolName: web_search
+            
+status: success
+          
+query: https://api.github.com/repos/Zh386874/PhysicsCanvas/actions/runs?per_page=1
+          
+获取到了 run ID，现在查看 deploy job 的具体失败日志。
+        
+            
+toolName: web_search
+            
+status: success
+          
+query: https://api.github.com/repos/Zh386874/PhysicsCanvas/actions/runs/28503223028/jobs
+          
+定位到问题了：**build 成功，deploy 步骤在 `actions/deploy-pages@v4` 失败**。这是典型的 Pages 未配置为 "GitHub Actions" 源导致的。
+
+## 解决方法（2 步）
+
+**第 1 步：配置 Pages 源**
+
+打开：https://github.com/Zh386874/PhysicsCanvas/settings/pages
+
+在 **"Build and deployment"** 下的 **"Source"** 下拉框中，选择 **"GitHub Actions"**（如果当前是 "Deploy from a branch"，需要切换）。
+
+> 选完后页面顶部会出现绿色提示 "GitHub Actions" 已保存。
+
+**第 2 步：重新运行失败的 deploy**
+
+打开：https://github.com/Zh386874/PhysicsCanvas/actions/runs/28503223028
+
+点击右上角的 **"Re-run failed jobs"** 按钮 → 确认。
+
+等待约 1 分钟，deploy 变绿色对勾后，访问：
+
+```
+https://zh386874.github.io/PhysicsCanvas/
+```
+
+完成这两步后告诉我，我帮你确认链接是否可访问。
