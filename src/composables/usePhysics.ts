@@ -33,6 +33,12 @@ export interface CustomForce {
   targetId: number
 }
 
+/** 弧线缺口定义（螺旋圆轨动态缺口） */
+interface ArcGap {
+  centerAngle: number
+  halfWidth: number
+}
+
 /** 弧线元数据 */
 interface ArcMeta {
   cx: number
@@ -40,6 +46,10 @@ interface ArcMeta {
   r: number
   startAngle: number
   endAngle: number
+  /** 螺旋圆轨入口缺口（B点），运行时由 arcGateState 控制开关 */
+  entryGap?: ArcGap
+  /** 螺旋圆轨出口缺口（E点），运行时由 arcGateState 控制开关 */
+  exitGap?: ArcGap
 }
 
 /** 质点/刚体物体 */
@@ -83,6 +93,18 @@ export interface SegmentObject {
   movable?: boolean
   /** 可移动线段质量（板块模型） */
   mass?: number
+  /** 视觉厚度（像素），仅渲染用，板块模型可选；未设置时渲染回退默认值 */
+  thickness?: number
+  /** 上表面摩擦系数（板块模型，板块定义法线指向侧）；未设置回退 friction */
+  frictionTop?: number
+  /** 下表面摩擦系数（板块模型，板块定义法线反向侧）；未设置回退 friction */
+  frictionBottom?: number
+  /** 螺旋圆轨动态缺口运行时状态（不序列化，运行时由 useSceneBuilder 初始化） */
+  arcGateState?: {
+    entryOpen: boolean
+    exitOpen: boolean
+    hasPassedTop: boolean
+  }
 }
 
 /** 弹簧物体 */
@@ -202,14 +224,72 @@ function subStepPhysics(subDt: number): boolean {
     p.y += p.vy * subDt
   }
 
-  // 更新可移动线段位置（板块模型，仅水平平移）
+  // 更新可移动线段位置
   for (const obj of state.objects) {
     if (obj.type !== 'line_segment') continue
     const seg = obj as SegmentObject
-    if (!seg.movable || !seg.velocity) continue
-    const dx = seg.velocity.x * subDt
-    seg.x1 += dx
-    seg.x2 += dx
+    // 传送带（有 velocity 且非 movable）：保持恒速水平平移
+    if (seg.velocity && !seg.movable) {
+      const dx = seg.velocity.x * subDt
+      seg.x1 += dx
+      seg.x2 += dx
+      continue
+    }
+    // 板块（movable）：经典板块模型 —— 受重力、位置更新、地面/平台支撑、摩擦阻尼
+    if (!seg.movable) continue
+    // 1. 受重力
+    if (seg.velocity) seg.velocity.y += state.gravity * subDt
+    // 2. 位置更新（x、y 同步平移，保持形状不旋转）
+    const vx = seg.velocity?.x ?? 0
+    const vy = seg.velocity?.y ?? 0
+    seg.x1 += vx * subDt; seg.x2 += vx * subDt
+    seg.y1 += vy * subDt; seg.y2 += vy * subDt
+    // 3. 地面/平台支撑检测（板块中心 y 用 (y1+y2)/2）
+    const segMidY = (seg.y1 + seg.y2) / 2
+    const segMidX = (seg.x1 + seg.x2) / 2
+    const segHalfLen = Math.abs(seg.x2 - seg.x1) / 2
+    let supportY: number | null = null
+    let supportFriction = 0
+    let supportVx = 0
+    // 3a. 地面支撑
+    if (state.groundY < GROUND_DISABLED && segMidY >= state.groundY) {
+      supportY = state.groundY
+      supportFriction = 0.5  // 地面摩擦常量（state 无此字段，内联默认值）
+    }
+    // 3b. 平台/传送带支撑（水平非 movable 线段）
+    if (supportY === null) {
+      for (const o2 of state.objects) {
+        if (o2.id === seg.id || o2.type !== 'line_segment') continue
+        const s2 = o2 as SegmentObject
+        if (s2.movable || s2.arc) continue
+        // 仅当水平线段（|y1-y2| < 3px 视为水平）且 x 范围重叠时作为支撑
+        if (Math.abs(s2.y1 - s2.y2) > 3) continue
+        const s2MidY = (s2.y1 + s2.y2) / 2
+        const s2MidX = (s2.x1 + s2.x2) / 2
+        const s2HalfLen = Math.abs(s2.x2 - s2.x1) / 2
+        if (Math.abs(segMidX - s2MidX) < segHalfLen + s2HalfLen && segMidY >= s2MidY) {
+          supportY = s2MidY
+          supportFriction = s2.friction ?? 0.5
+          supportVx = s2.velocity?.x ?? 0  // 传送带速度
+          break
+        }
+      }
+    }
+    // 4. 应用支撑：y 归位 + vy 清零 + 摩擦减速 vx（相对支撑面速度）
+    if (supportY !== null && seg.velocity) {
+      const dy = supportY - segMidY
+      seg.y1 += dy; seg.y2 += dy
+      seg.velocity.y = 0
+      if (supportFriction > 0) {
+        const vRel = seg.velocity.x - supportVx
+        const a = supportFriction * state.gravity * subDt
+        if (Math.abs(vRel) <= a) {
+          seg.velocity.x = supportVx  // 与支撑面共速
+        } else {
+          seg.velocity.x -= Math.sign(vRel) * a
+        }
+      }
+    }
   }
 
   return checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution, subDt, state.gravity)

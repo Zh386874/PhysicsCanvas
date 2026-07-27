@@ -141,8 +141,16 @@ export function detectSegmentCollision(
     obj.vx -= (1 + restitution) * v_normal * nx
     obj.vy -= (1 + restitution) * v_normal * ny
   }
-  // 摩擦力源：优先取线段摩擦系数，兼容物体自身摩擦系数
-  const friction = segment.friction ?? obj.friction ?? 0
+  // 摩擦力源：板块上下表面摩擦系数不同（法线同向=上表面，反向=下表面），其他线段取 friction
+  let friction: number
+  const segDefNdotN = (segment.normalX || 0) * nx + (segment.normalY || 0) * ny
+  if (segment.movable && (segment.frictionTop !== undefined || segment.frictionBottom !== undefined)) {
+    friction = segDefNdotN >= 0
+      ? (segment.frictionTop ?? segment.friction ?? obj.friction ?? 0)
+      : (segment.frictionBottom ?? segment.friction ?? obj.friction ?? 0)
+  } else {
+    friction = segment.friction ?? obj.friction ?? 0
+  }
   if (friction > 0) {
     const tx = -ny, ty = nx
     // 传送带/板块：摩擦力基于物体相对线段的速度
@@ -195,6 +203,19 @@ function isAngleInRange(angle: number, startAngle: number, endAngle: number): bo
   const minA = Math.min(startAngle, endAngle)
   const maxA = Math.max(startAngle, endAngle)
   return normAngle >= minA && normAngle <= maxA
+}
+
+/**
+ * 判断角度是否在缺口范围内（缺口以 centerAngle 为中心，半宽 halfWidth）
+ * 处理角度环绕：将 diff 归一化到 [-π, π]
+ */
+function isAngleInGap(angle: number, centerAngle: number, halfWidth: number): boolean {
+  const PI = Math.PI
+  const TWO_PI = PI * 2
+  let diff = angle - centerAngle
+  while (diff > PI) diff -= TWO_PI
+  while (diff < -PI) diff += TWO_PI
+  return Math.abs(diff) <= halfWidth
 }
 
 /**
@@ -300,6 +321,17 @@ export function detectArcCollision(
     if (!isAngleInRange(angle, startAngle, endAngle)) return false
     isCCDHit = true
   }
+  // 缺口动态放行：小球在"已打开"的缺口范围内时跳过碰撞
+  // entryOpen 时入口缺口放行（小球从 AB 进入圆轨），exitOpen 时出口缺口放行（小球从圆轨穿出到 EF）
+  const objAngle = Math.atan2(obj.y - cy, obj.x - cx)
+  if (seg.arcGateState) {
+    if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
+        isAngleInGap(objAngle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth)) return false
+    if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
+        isAngleInGap(objAngle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth)) return false
+  }
+  // 完整圆（2π）isAngleInRange 恒 true，不会触发；非完整弧仍保留静态缺口放行
+  if (!isAngleInRange(objAngle, startAngle, endAngle)) return false
   // 统一用 closestPointOnArc 计算碰撞点：角度限制在弧线范围内，
   // 避免球滑到端点时因角度越界被位置修正推到弧线外导致震荡；
   // 同时碰撞点随球位置动态变化，避免 CCD t≈0 时碰撞点固定为起点导致停滞
@@ -408,6 +440,61 @@ function closestPointOnSegment(
 }
 
 /**
+ * 更新螺旋圆轨动态缺口状态（基于小球当前位置自动触发）
+ * - 小球在圆外且未过高点 → 入口开（等待进入）
+ * - 小球在圆内且未过高点 → 全关（绕圈中）
+ * - 小球在圆内且已过高点C → 出口开（准备穿出）
+ * - 小球在圆外且已过高点 → 全关（已离开）
+ */
+function updateArcGates(objects: PhysicsObject[]): void {
+  const processedGroups = new Set<number>()
+  for (const seg of objects) {
+    if (seg.type !== 'line_segment') continue
+    const s = seg as SegmentObject
+    if (!s.arc || !s.arcGateState) continue
+    if (s.groupId && processedGroups.has(s.groupId)) continue
+    if (s.groupId) processedGroups.add(s.groupId)
+
+    const { cx, cy, r } = s.arc
+    const gate = s.arcGateState
+
+    // 检测圆轨内的小球
+    let ballInside = false
+    for (const obj of objects) {
+      if (obj.type !== '质点' && obj.type !== '刚体') continue
+      const p = obj as ParticleObject
+      const dist = Math.hypot(p.x - cx, p.y - cy)
+      // 小球球心在圆内（dist < r）视为"在圆轨内"
+      if (dist < r) {
+        ballInside = true
+        const angle = Math.atan2(p.y - cy, p.x - cx)
+        // 画布坐标系（y向下）：高点 C 在角度 -π/2（上方），小球从 B(2.614) 顺时针绕到 C(-π/2)，角度递减
+        // 角度归一化到 [-π, π]，达到 -π/2 + 0.3 视为已过高点
+        const TOP_THRESHOLD = -Math.PI / 2 + 0.3
+        let normAngle = angle
+        while (normAngle < -Math.PI) normAngle += Math.PI * 2
+        while (normAngle >= Math.PI) normAngle -= Math.PI * 2
+        if (normAngle <= TOP_THRESHOLD) gate.hasPassedTop = true
+      }
+    }
+
+    // 状态机更新
+    if (ballInside) {
+      gate.entryOpen = false
+      gate.exitOpen = gate.hasPassedTop
+    } else if (gate.hasPassedTop) {
+      // 小球已离开圆轨
+      gate.entryOpen = false
+      gate.exitOpen = false
+    } else {
+      // 小球还未进入圆轨（在 AB 上）
+      gate.entryOpen = true
+      gate.exitOpen = false
+    }
+  }
+}
+
+/**
  * 统一碰撞检测入口
  * @param groundRestitution 地面碰撞恢复系数
  * @param particleRestitution 质点间碰撞恢复系数
@@ -423,6 +510,9 @@ export function checkCollision(
   gravity = 490
 ): boolean {
   let collided = false
+
+  // 更新螺旋圆轨动态缺口状态（基于小球当前位置自动触发）
+  updateArcGates(objects)
 
   // 地面碰撞（仅质点/刚体）
   for (const obj of objects) {

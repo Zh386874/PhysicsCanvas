@@ -11,6 +11,9 @@ export type ToolType = 'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | '
 /** 平台类工具：共用拖拽绘制流程，仅生成物体属性不同 */
 const PLATFORM_TOOLS: ToolType[] = ['platform', 'conveyor', 'plate']
 
+/** Shift 拖拽小球吸附到线段表面的阈值（世界像素，圆心到线段最近点距离上限为 SNAP_THRESHOLD + r） */
+const SNAP_THRESHOLD = 20
+
 /** 判断工具是否属于平台类（platform/conveyor/plate 共用绘制流程） */
 export function isPlatformTool(t: string): boolean {
   return (PLATFORM_TOOLS as string[]).includes(t)
@@ -53,7 +56,17 @@ function createPlatformLikeObject(
     return { ...base, name: `传送带${index}`, color: '#0891b2', velocity: { x: 100, y: 0 } }
   }
   if (toolType === 'plate') {
-    return { ...base, name: `板块${index}`, color: '#dc2626', movable: true, mass: 1 }
+    return {
+      ...base,
+      name: `板块${index}`,
+      color: '#dc2626',
+      movable: true,
+      mass: 1,
+      thickness: 20,
+      frictionTop: 0.5,
+      frictionBottom: 0.3,
+      velocity: { x: 0, y: 0 }  // 初始静止，使物理更新分支能进入
+    }
   }
   return { ...base, name: `平台${index}`, color: '#475569' }
 }
@@ -341,6 +354,39 @@ function pushOutOfOverlap(x: number, y: number, r: number, objects: PhysicsObjec
   return { x: cx, y: cy }
 }
 
+/**
+ * Shift 拖拽吸附：将小球圆心 (x,y) 吸附到最近的线段表面
+ * 沿法线方向（指向小球一侧）推出 r 距离，使小球边缘正好接触线段
+ * 排除弧线子段（arc）。返回吸附后圆心坐标，无吸附返回 null
+ */
+function snapToSegmentSurface(
+  x: number, y: number, r: number, objects: PhysicsObject[]
+): { x: number; y: number } | null {
+  let best: { x: number; y: number; dist: number } | null = null
+  for (const obj of objects) {
+    if (obj.type !== 'line_segment') continue
+    const seg = obj as SegmentObject
+    if (seg.arc) continue
+    // 求圆心到线段的最近点（垂足，t 参数化，与 pointToSegmentDistance 内部一致）
+    const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1
+    const len2 = dx * dx + dy * dy
+    if (len2 < 1e-10) continue
+    let t = ((x - seg.x1) * dx + (y - seg.y1) * dy) / len2
+    t = Math.max(0, Math.min(1, t))
+    const closestX = seg.x1 + t * dx
+    const closestY = seg.y1 + t * dy
+    const dist = Math.hypot(x - closestX, y - closestY)
+    if (dist > SNAP_THRESHOLD + r) continue
+    if (best && dist >= best.dist) continue
+    // 法线方向调整为指向小球一侧（与 findOverlap 一致）
+    let nx = seg.normalX || 0, ny = seg.normalY || 0
+    const cx = (seg.x1 + seg.x2) / 2, cy = (seg.y1 + seg.y2) / 2
+    if (nx * (x - cx) + ny * (y - cy) < 0) { nx = -nx; ny = -ny }
+    best = { x: closestX + nx * r, y: closestY + ny * r, dist }
+  }
+  return best ? { x: best.x, y: best.y } : null
+}
+
 /** 触发 Shift 闪烁反馈 */
 function triggerShiftFlash(pos: { x: number; y: number }): void {
   shiftFlashPos = pos
@@ -374,6 +420,7 @@ export {
   updateSpringPreview,
   findOverlap,
   pushOutOfOverlap,
+  snapToSegmentSurface,
   triggerShiftFlash,
   getShiftFlashState
 }

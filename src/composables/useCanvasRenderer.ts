@@ -241,7 +241,7 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
     if (seg.arc) continue // 弧线子段由 drawArcsVisually 统一绘制
     const { x1, y1, x2, y2, normalX, normalY } = seg
     const nx = normalX || 0, ny = normalY || 0
-    const offset = 30
+    const offset = seg.thickness ?? 30
     ctx.fillStyle = 'rgba(148, 163, 184, 0.12)'
     ctx.beginPath()
     ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)

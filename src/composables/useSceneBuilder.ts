@@ -61,7 +61,7 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
 
   if (obj.type === 'ball') {
     const radiusM = obj.radius ?? 0.2
-    const radiusPx = Math.max(radiusM * scale, 8)
+    const radiusPx = Math.max(radiusM * scale, 4)
     // initialPosition.y 语义为"球底高度"（球与下方表面的接触点高度），球心 = 球底 + 半径
     const bottomY = obj.initialPosition?.y ?? 0
     const ball: ParticleObject = {
@@ -111,11 +111,11 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       restitution: 0.2,
       // 颜色按语义区分：传送带（青）/ 板块（红）/ 普通平台（灰），与 useEditTools 工厂保持一致
       color: obj.beltVelocity ? '#0891b2' : obj.movable ? '#dc2626' : '#94a3b8',
-      // 传送带速度（SI m/s → 像素/s，y 需翻转）
+      // 传送带速度（SI m/s → 像素/s，y 需翻转）；板块需初始 velocity 才能受重力下落
       velocity: obj.beltVelocity ? {
         x: obj.beltVelocity.x * scale,
         y: -obj.beltVelocity.y * scale
-      } : undefined,
+      } : obj.movable ? { x: 0, y: 0 } : undefined,
       // 板块模型：可移动线段
       movable: obj.movable ?? false,
       mass: obj.movable ? (obj.mass ?? 1) : undefined
@@ -170,11 +170,25 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
   // 弧线圆心 y 翻转
   const cy = GROUND_BASELINE - (obj.center?.y ?? 0) * scale
   const r = Math.max((obj.arcRadius ?? 1) * scale, 10)
-  const startA = obj.startAngle ?? 0
-  const endA = obj.endAngle ?? Math.PI
+  // 角度从数学坐标系（y向上）转为画布坐标系（y向下）：取反
+  // questionBank/useAIParser 中的角度是数学坐标系下的，
+  // 需转为画布坐标系与 detectArcCollision/updateArcGates 的 atan2(obj.y-cy, obj.x-cx) 一致
+  const startA = -(obj.startAngle ?? 0)
+  const endA = -(obj.endAngle ?? Math.PI)
   const segments = 20
   const arcGroupId = nextId++
   const result: SegmentObject[] = []
+
+  // 螺旋圆轨动态缺口定义：角度同样取反转为画布坐标系（halfWidth 无方向性，不取反）
+  const entryGap = obj.entryGap
+    ? { centerAngle: -obj.entryGap.centerAngle, halfWidth: obj.entryGap.halfWidth }
+    : undefined
+  const exitGap = obj.exitGap
+    ? { centerAngle: -obj.exitGap.centerAngle, halfWidth: obj.exitGap.halfWidth }
+    : undefined
+  const hasGates = !!(entryGap || exitGap)
+  // 仅第一段携带 arcGateState（detectArcCollision/updateArcGates 通过 groupId 去重，只处理第一段）
+  const arcGateState = hasGates ? { entryOpen: false, exitOpen: false, hasPassedTop: false } : undefined
 
   for (let i = 0; i < segments; i++) {
     const a1 = startA + (endA - startA) * (i / segments)
@@ -186,10 +200,12 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
     const dx = x2 - x1
     const dy = y2 - y1
     const len = Math.hypot(dx, dy) || 1
-    // 法线：确保指向上方（normalY < 0）
+    // 法线：弧线默认指向上方（normalY < 0）；完整圆轨物体在内侧绕圈，法线应指向圆心（不翻转）
+    const angleSpan = Math.abs(endA - startA)
+    const isFullCircle = Math.abs(angleSpan - 2 * Math.PI) < 0.01
     let nx = -dy / len
     let ny = dx / len
-    if (ny > 0) { nx = -nx; ny = -ny }
+    if (!isFullCircle && ny > 0) { nx = -nx; ny = -ny }
     result.push({
       id: nextId++,
       name: `${obj.id || `弧线${index + 1}`}-${i + 1}`,
@@ -201,7 +217,9 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
       restitution: 0.2,
       color: '#a78bfa',
       groupId: arcGroupId,
-      arc: { cx, cy, r, startAngle: startA, endAngle: endA }
+      arc: { cx, cy, r, startAngle: startA, endAngle: endA, entryGap, exitGap },
+      // 仅第一段携带运行时状态
+      ...(i === 0 && arcGateState ? { arcGateState } : {})
     })
   }
   return result

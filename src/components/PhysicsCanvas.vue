@@ -26,6 +26,10 @@
       @contextmenu.prevent
       :style="{ cursor: cursorStyle }"
     ></canvas>
+    <!-- Shift 吸附提示（仅选择/移动工具时显示） -->
+    <div v-if="editMode && tool === 'select'" class="shift-hint">
+      按住 Shift 键可快速贴合线段
+    </div>
     <!-- 重置视图按钮（所有场景常驻右下角） -->
     <button class="reset-view-btn" title="重置视图（平移与缩放归位）" @click="resetView">🎯 重置视图</button>
   </div>
@@ -264,6 +268,21 @@ canvas {
   background: rgba(34, 211, 238, 0.18);
   border-color: rgba(34, 211, 238, 0.7);
   color: #a5f3fc;
+}
+
+.shift-hint {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fbbf24;
+  font-size: 0.8rem;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  pointer-events: none;
 }
 
 .tool-btn {

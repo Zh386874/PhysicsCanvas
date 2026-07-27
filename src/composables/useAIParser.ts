@@ -50,6 +50,10 @@ export interface ParsedArc extends BaseParsedObject {
   startAngle?: number
   endAngle?: number
   friction?: number
+  /** 螺旋圆轨动态入口缺口（B点），运行时由状态机控制开关 */
+  entryGap?: { centerAngle: number; halfWidth: number }
+  /** 螺旋圆轨动态出口缺口（E点），运行时由状态机控制开关 */
+  exitGap?: { centerAngle: number; halfWidth: number }
 }
 
 /** 弹簧 */

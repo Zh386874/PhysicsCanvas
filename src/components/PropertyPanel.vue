@@ -127,8 +127,8 @@
             @input="update('restitution', parseFloat($event.target.value))"
           />
         </div>
-        <!-- 传送带速度（仅当线段带 velocity 时显示） -->
-        <template v-if="object.velocity">
+        <!-- 传送带速度（仅当线段带 velocity 且非板块时显示） -->
+        <template v-if="object.velocity && !object.movable">
           <div class="field-group">
             <div class="field">
               <label>传送带速度 Vx (m/s)</label>
@@ -150,7 +150,7 @@
             </div>
           </div>
         </template>
-        <!-- 板块质量（仅当线段 movable 为 true 时显示） -->
+        <!-- 板块属性（仅当线段 movable 为 true 时显示） -->
         <template v-if="object.movable">
           <div class="field">
             <label>板块质量 (kg)</label>
@@ -160,6 +160,47 @@
               min="0.1"
               :value="object.mass || 1"
               @input="update('mass', parseFloat($event.target.value))"
+            />
+          </div>
+          <div class="field">
+            <label>厚度 (像素)</label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              :value="object.thickness || 20"
+              @input="update('thickness', parseFloat($event.target.value))"
+            />
+          </div>
+          <div class="field">
+            <label>上表面摩擦系数</label>
+            <input
+              type="number"
+              step="0.05"
+              min="0"
+              max="2"
+              :value="object.frictionTop !== undefined ? object.frictionTop : 0.5"
+              @input="update('frictionTop', parseFloat($event.target.value))"
+            />
+          </div>
+          <div class="field">
+            <label>下表面摩擦系数</label>
+            <input
+              type="number"
+              step="0.05"
+              min="0"
+              max="2"
+              :value="object.frictionBottom !== undefined ? object.frictionBottom : 0.3"
+              @input="update('frictionBottom', parseFloat($event.target.value))"
+            />
+          </div>
+          <div class="field">
+            <label>当前速度 Vx (m/s)</label>
+            <input
+              type="number"
+              step="0.1"
+              readonly
+              :value="((object.velocity?.x || 0) / PIXELS_PER_METER).toFixed(2)"
             />
           </div>
         </template>

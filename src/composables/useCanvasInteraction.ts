@@ -13,7 +13,7 @@ import {
   isPlatformTool, createPlatformLikeObject,
   handleArcClick, updateArcPreview,
   getSpringAnchor, handleSpringClick, updateSpringPreview,
-  pushOutOfOverlap, triggerShiftFlash
+  pushOutOfOverlap, snapToSegmentSurface, triggerShiftFlash
 } from './useEditTools'
 import { pointToSegmentDistance } from './useCanvasRenderer'
 import type { PhysicsObject, ParticleObject, SegmentObject } from './usePhysics'
@@ -424,7 +424,19 @@ function onMouseMove(e: MouseEvent): void {
     const obj = stateAccess.objects.find(o => o.id === target.id)
     if (!obj) return
     if (target.mode === 'circle') {
-      emitFn('update-object', { id: obj.id, props: { x: pos.x - target.offsetX!, y: pos.y - target.offsetY! } })
+      let targetX = pos.x - target.offsetX!
+      let targetY = pos.y - target.offsetY!
+      // Shift 吸附：精准落到最近线段表面（边缘接触）
+      if (shiftPressed) {
+        const p = obj as ParticleObject
+        const snapped = snapToSegmentSurface(targetX, targetY, p.radius || 10, stateAccess.objects)
+        if (snapped) {
+          targetX = snapped.x
+          targetY = snapped.y
+          triggerShiftFlash({ x: targetX, y: targetY })
+        }
+      }
+      emitFn('update-object', { id: obj.id, props: { x: targetX, y: targetY } })
     } else if (target.mode === 'endpoint') {
       const newProps: { x1?: number; y1?: number; x2?: number; y2?: number; normalX?: number; normalY?: number } = target.endpointIdx === 0
         ? { x1: pos.x, y1: pos.y }
