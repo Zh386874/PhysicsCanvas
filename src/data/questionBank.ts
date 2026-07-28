@@ -38,8 +38,8 @@ export const questionBank: QuestionItem[] = [
         // 缺口由 arcGateState 动态控制：小球在 AB 上→入口开；进入圆轨→入口关；过高点C→出口开；离开→全关。
         // 角度无量纲不放大；缺口弧长=0.8×0.8=0.64m > 小球直径0.16m，小球可穿过。
         { id: '圆轨BCDE', type: 'arc', center: { x: 6.88, y: 1.6 }, arcRadius: 0.8, startAngle: -2.214, endAngle: 4.069, friction: 0,
-          entryGap: { centerAngle: -2.614, halfWidth: 0.4 },
-          exitGap: { centerAngle: -1.814, halfWidth: 0.4 } },
+          entryGap: { centerAngle: -2.614, halfWidth: 0.4, initiallyOpen: true, triggerType: 'enterRing', triggerAction: 'close' },
+          exitGap: { centerAngle: -1.814, halfWidth: 0.4, initiallyOpen: false, triggerType: 'angleCross', triggerAngle: Math.PI / 2, triggerAction: 'open' } },
         // 直轨道EF：倾角37°，光滑，E(6.688,0.824)（E分离到角度-1.814处） → F(7.68,0)（坐标×1.6）
         { id: '直轨道EF', type: 'platform', startPoint: { x: 6.688, y: 0.824 }, endPoint: { x: 7.68, y: 0 }, friction: 0 },
         // 水平轨道FG：L=2.5m，阻力=0.2mg → μ=0.2，F(7.68,0) → G(11.68,0)（坐标×1.6）

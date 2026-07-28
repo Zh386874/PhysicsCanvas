@@ -215,7 +215,9 @@ function generateArcSegments(
       normalY: normal.normalY,
       restitution: 0.3,
       friction: 0.5,
-      color: '#7c3aed'
+      color: '#7c3aed',
+      // 仅首段携带约束动力学开关
+      ...(i === 0 ? { constraintEnabled: true } : {})
     }
     onAddObject(newObj)
   }

@@ -51,9 +51,9 @@ export interface ParsedArc extends BaseParsedObject {
   endAngle?: number
   friction?: number
   /** 螺旋圆轨动态入口缺口（B点），运行时由状态机控制开关 */
-  entryGap?: { centerAngle: number; halfWidth: number }
+  entryGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
   /** 螺旋圆轨动态出口缺口（E点），运行时由状态机控制开关 */
-  exitGap?: { centerAngle: number; halfWidth: number }
+  exitGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
 }
 
 /** 弹簧 */

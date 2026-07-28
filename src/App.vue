@@ -67,10 +67,12 @@
         <ControlBar
           :isPlaying="isPlaying"
           :showForce="showForce"
+          :showGateColors="showGateColors"
           :mode="mode"
           @toggle-play="onTogglePlay"
           @reset="onReset"
           @toggle-force="state.showForce = !state.showForce"
+          @toggle-gate-colors="state.showGateColors = !state.showGateColors"
           @toggle-replay="onToggleReplay"
         />
       </div>
@@ -110,6 +112,7 @@ const {
   currentQuestionDesc,
   editMode,
   saveCustomScene,
+  refreshCustomSnapshot,
   onSceneSwitch,
   onTogglePlay,
   onReset,
@@ -139,7 +142,8 @@ const {
   aiToast,
   selectedId,
   selectedIds,
-  saveCustomScene
+  saveCustomScene,
+  refreshCustomSnapshot
 })
 
 // ===== 场景 IO（导出/导入） =====
@@ -169,6 +173,7 @@ function onApiKeyCleared() {
 // ===== 计算属性（绑定到 usePhysics 的 state） =====
 const isPlaying = computed(() => state.isPlaying)
 const showForce = computed(() => state.showForce)
+const showGateColors = computed(() => state.showGateColors)
 </script>
 
 <style scoped>

@@ -179,16 +179,40 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
   const arcGroupId = nextId++
   const result: SegmentObject[] = []
 
-  // 螺旋圆轨动态缺口定义：角度同样取反转为画布坐标系（halfWidth 无方向性，不取反）
+  // 弧线缺口定义：角度取反转为画布坐标系（halfWidth 无方向性，不取反）；触发器配置透传
   const entryGap = obj.entryGap
-    ? { centerAngle: -obj.entryGap.centerAngle, halfWidth: obj.entryGap.halfWidth }
+    ? {
+        centerAngle: -obj.entryGap.centerAngle,
+        halfWidth: obj.entryGap.halfWidth,
+        initiallyOpen: obj.entryGap.initiallyOpen,
+        triggerType: obj.entryGap.triggerType,
+        triggerAngle: obj.entryGap.triggerAngle !== undefined
+          ? -obj.entryGap.triggerAngle
+          : undefined,
+        triggerAction: obj.entryGap.triggerAction
+      }
     : undefined
   const exitGap = obj.exitGap
-    ? { centerAngle: -obj.exitGap.centerAngle, halfWidth: obj.exitGap.halfWidth }
+    ? {
+        centerAngle: -obj.exitGap.centerAngle,
+        halfWidth: obj.exitGap.halfWidth,
+        initiallyOpen: obj.exitGap.initiallyOpen,
+        triggerType: obj.exitGap.triggerType,
+        triggerAngle: obj.exitGap.triggerAngle !== undefined
+          ? -obj.exitGap.triggerAngle
+          : undefined,
+        triggerAction: obj.exitGap.triggerAction
+      }
     : undefined
   const hasGates = !!(entryGap || exitGap)
   // 仅第一段携带 arcGateState（detectArcCollision/updateArcGates 通过 groupId 去重，只处理第一段）
-  const arcGateState = hasGates ? { entryOpen: false, exitOpen: false, hasPassedTop: false } : undefined
+  // 初始开关状态由 gap.initiallyOpen 决定（默认 false = 关闭）
+  const arcGateState = hasGates ? {
+    entryOpen: entryGap?.initiallyOpen ?? false,
+    exitOpen: exitGap?.initiallyOpen ?? false,
+    prevAngle: undefined,
+    wasInside: undefined
+  } : undefined
 
   for (let i = 0; i < segments; i++) {
     const a1 = startA + (endA - startA) * (i / segments)
@@ -218,8 +242,11 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
       color: '#a78bfa',
       groupId: arcGroupId,
       arc: { cx, cy, r, startAngle: startA, endAngle: endA, entryGap, exitGap },
-      // 仅第一段携带运行时状态
-      ...(i === 0 && arcGateState ? { arcGateState } : {})
+      // 仅第一段携带运行时状态 + 约束动力学开关
+      ...(i === 0 ? {
+        ...(arcGateState ? { arcGateState } : {}),
+        constraintEnabled: true
+      } : {})
     })
   }
   return result

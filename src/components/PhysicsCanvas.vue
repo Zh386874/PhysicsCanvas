@@ -157,7 +157,7 @@ function draw() {
   drawField(rc, field)
   drawGround(rc, groundY)
   drawSegments(rc, objects)
-  drawArcsVisually(rc, objects, props.selectedIds)
+  drawArcsVisually(rc, objects, props.selectedIds, state.showGateColors)
   drawTrails(rc, objects, props.mode === 'replay')
   drawObjects(rc, objects)
   drawSprings(rc, objects)

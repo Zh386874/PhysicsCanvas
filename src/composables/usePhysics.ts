@@ -33,10 +33,18 @@ export interface CustomForce {
   targetId: number
 }
 
-/** 弧线缺口定义（螺旋圆轨动态缺口） */
+/** 弧线缺口定义（含触发器配置） */
 interface ArcGap {
   centerAngle: number
   halfWidth: number
+  /** 初始开关状态（默认 false = 关闭） */
+  initiallyOpen?: boolean
+  /** 触发类型：'angleCross' 角度穿越 / 'enterRing' 进入圆环 */
+  triggerType?: 'angleCross' | 'enterRing'
+  /** 触发角度（画布坐标系弧度）。triggerType='angleCross' 时使用 */
+  triggerAngle?: number
+  /** 触发动作：'open' 打开缺口 / 'close' 关闭缺口 */
+  triggerAction?: 'open' | 'close'
 }
 
 /** 弧线元数据 */
@@ -69,6 +77,8 @@ export interface ParticleObject {
   trail: TrailPoint[]
   prevX?: number
   prevY?: number
+  /** 当前约束的弧线 groupId（undefined = 未约束）。运行时状态，不序列化 */
+  constrainedArcGroupId?: number
 }
 
 /** 线段物体 */
@@ -99,12 +109,17 @@ export interface SegmentObject {
   frictionTop?: number
   /** 下表面摩擦系数（板块模型，板块定义法线反向侧）；未设置回退 friction */
   frictionBottom?: number
-  /** 螺旋圆轨动态缺口运行时状态（不序列化，运行时由 useSceneBuilder 初始化） */
+  /** 弧线触发器运行时状态（不序列化，运行时由 useSceneBuilder 初始化） */
   arcGateState?: {
     entryOpen: boolean
     exitOpen: boolean
-    hasPassedTop: boolean
+    /** 上一帧小球角度（画布坐标系），用于检测角度穿越触发。undefined = 尚未跟踪 */
+    prevAngle?: number
+    /** 上一帧小球是否在环内（enterRing 触发检测）。undefined = 尚未跟踪 */
+    wasInside?: boolean
   }
+  /** 弧线约束动力学开关（仅首段，true=约束模式，false=碰撞模式）。未设置视为 true */
+  constraintEnabled?: boolean
 }
 
 /** 弹簧物体 */
@@ -153,6 +168,7 @@ export interface PhysicsState {
   time: number
   isPlaying: boolean
   showForce: boolean
+  showGateColors: boolean
   groundY: number
   groundRestitution: number
   particleRestitution: number
@@ -181,6 +197,7 @@ const state = reactive<PhysicsState>({
   time: 0,
   isPlaying: false,
   showForce: true,
+  showGateColors: true,
   groundY: 400,
   groundRestitution: 0.6,
   particleRestitution: 1.0,

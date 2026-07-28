@@ -13,11 +13,11 @@ import { GROUND_DISABLED, SCENE_VERSION } from '../constants'
 const VALID_OBJECT_TYPES = ['质点', '刚体', 'line_segment', 'spring'] as const
 
 /**
- * 深拷贝物体数组，剥离运行时字段（trail/prevX/prevY）
+ * 深拷贝物体数组，剥离运行时字段（trail/prevX/prevY/arcGateState/constrainedArcGroupId）
  */
 export function deepCopyObjects(objs: PhysicsObject[]): PhysicsObject[] {
   return JSON.parse(JSON.stringify(objs.map(o => {
-    const { trail, prevX, prevY, ...rest } = o as unknown as Record<string, unknown>
+    const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } = o as unknown as Record<string, unknown>
     return rest
   })))
 }

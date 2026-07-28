@@ -12,6 +12,8 @@ interface ArcMeta {
   r: number
   startAngle: number
   endAngle: number
+  entryGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  exitGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
 }
 
 // ParticleObject / SegmentObject / PhysicsObject 从 usePhysics.ts 导入，避免重复定义
@@ -197,6 +199,9 @@ function cross(ax: number, ay: number, bx: number, by: number, px: number, py: n
 
 function isAngleInRange(angle: number, startAngle: number, endAngle: number): boolean {
   const TWO_PI = Math.PI * 2
+  // 完整圆（角度跨度≈2π）恒为 true：所有角度都在范围内
+  const span = Math.abs(endAngle - startAngle)
+  if (Math.abs(span - TWO_PI) < 0.01) return true
   let normAngle = angle
   while (normAngle < startAngle) normAngle += TWO_PI
   while (normAngle >= startAngle + TWO_PI) normAngle -= TWO_PI
@@ -216,6 +221,26 @@ function isAngleInGap(angle: number, centerAngle: number, halfWidth: number): bo
   while (diff > PI) diff -= TWO_PI
   while (diff < -PI) diff += TWO_PI
   return Math.abs(diff) <= halfWidth
+}
+
+/**
+ * 检测角度是否从 prev 到 curr 跨越了 target（双向，处理 ±π 环绕）
+ * 用于触发器：小球经过 triggerAngle 时返回 true
+ */
+function didAngleCross(prev: number, curr: number, target: number): boolean {
+  const TWO_PI = Math.PI * 2
+  // 归一化角度差到 [-π, π]
+  let diff = curr - prev
+  while (diff > Math.PI) diff -= TWO_PI
+  while (diff < -Math.PI) diff += TWO_PI
+  if (Math.abs(diff) < 1e-9) return false
+  // target 相对 prev 的归一化偏移
+  let targetRel = target - prev
+  while (targetRel > Math.PI) targetRel -= TWO_PI
+  while (targetRel < -Math.PI) targetRel += TWO_PI
+  // 判断 target 是否在 prev→curr 的角路径上
+  if (diff > 0) return targetRel > 0 && targetRel < diff
+  else return targetRel < 0 && targetRel > diff
 }
 
 /**
@@ -405,6 +430,166 @@ export function detectArcCollision(
   return true
 }
 
+/**
+ * 弧线约束动力学：将小球锁定在弧面，投影位置与速度，检查脱离条件。
+ * 仅当小球已激活约束（constrainedArcGroupId 已设置）时调用。
+ * 返回 true 表示约束仍生效，false 表示已脱离。
+ *
+ * 与 detectArcCollision（碰撞响应）的区别：
+ * - 无恢复系数损失：速度仅去法向分量，切向完全保留 → 能量守恒
+ * - 位置每帧投影到弧面（非穿透后才修正）→ 无 snap-back 离散误差
+ * - 摩擦用圆周运动法向力 |v²/R + g·sinθ|（非平面斜坡 g·cosA）
+ */
+function applyArcConstraint(
+  obj: ParticleObject,
+  seg: SegmentObject,
+  dt: number,
+  gravity: number
+): boolean {
+  if (!seg.arc || !seg.groupId) return false
+  const { cx, cy, r, startAngle, endAngle } = seg.arc
+  const radius = obj.radius || 10
+
+  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
+  const isInside = objDist < r
+  const surfaceR = isInside ? (r - radius) : (r + radius)
+  if (surfaceR <= 0) return false  // 弧线半径过小，无法约束
+
+  const angle = Math.atan2(obj.y - cy, obj.x - cx)
+
+  // —— 结构性脱离：角度超出弧线范围（轨道结束，沿切线飞出）——
+  if (!isAngleInRange(angle, startAngle, endAngle)) {
+    obj.constrainedArcGroupId = undefined
+    return false
+  }
+
+  // —— 结构性脱离：进入开启的缺口（题库场景出口 E）——
+  if (seg.arcGateState) {
+    if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
+        isAngleInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth)) {
+      obj.constrainedArcGroupId = undefined
+      return false
+    }
+    if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
+        isAngleInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth)) {
+      obj.constrainedArcGroupId = undefined
+      return false
+    }
+  }
+
+  // —— 自然脱离：法向力 N 降为 0 ——
+  // 屏幕坐标 y 向下，gravity > 0。angle = atan2(y-cy, x-cx)。
+  // 重力沿"球→圆心"方向分量 = -g·sin(angle)（顶部 sin=-1 → 分量 = +g 向心）
+  // 内侧 N/m = v²/R + g·sin(angle)，顶部(angle=-π/2): N=m·v²/R - m·g ✓
+  // 外侧 N/m = -(v²/R + g·sin(angle))，顶部: N=m·g - m·v²/R ✓
+  const v2 = obj.vx * obj.vx + obj.vy * obj.vy
+  const threshold = -gravity * surfaceR * Math.sin(angle)
+  let shouldDepart = false
+  if (isInside) {
+    if (v2 < threshold) shouldDepart = true   // 速度不足，坠落
+  } else {
+    if (v2 > threshold) shouldDepart = true    // 速度过大，飞出
+  }
+  if (shouldDepart) {
+    obj.constrainedArcGroupId = undefined
+    return false
+  }
+
+  // —— 约束投影：位置归位到弧面（保持角度，修正半径）——
+  obj.x = cx + Math.cos(angle) * surfaceR
+  obj.y = cy + Math.sin(angle) * surfaceR
+
+  // —— 切向速度保留 + 摩擦减速 ——
+  // subStepPhysics 已施加重力（vy += g·dt），切向分量已包含在 v_tangent 中
+  // 此处不再额外施加重力切向分量，避免双重计数
+  // 切向方向 t = (-sin(angle), cos(angle))（n 逆时针旋转 90°）
+  const tx = -Math.sin(angle)
+  const ty = Math.cos(angle)
+  const v_tangent = obj.vx * tx + obj.vy * ty
+
+  // 法向力 |N|/m = |v²/R + g·sin(angle)|（用于摩擦计算）
+  const normalForcePerMass = Math.abs(v2 / surfaceR + gravity * Math.sin(angle))
+  const friction = seg.friction ?? obj.friction ?? 0
+
+  // 切向速度更新：仅摩擦减速（重力已由 subStepPhysics 施加）
+  let newVt = v_tangent
+  if (friction > 0) {
+    const a_friction = friction * normalForcePerMass
+    const dVt = a_friction * dt
+    if (Math.abs(newVt) <= dVt) {
+      newVt = 0
+    } else {
+      newVt -= Math.sign(newVt) * dVt
+    }
+  }
+
+  // 重建速度：纯切向（法向为 0，满足约束）
+  obj.vx = newVt * tx
+  obj.vy = newVt * ty
+
+  return true
+}
+
+/**
+ * 尝试激活弧线约束：小球接近弧面时将其锁定。
+ * 复用 closestPointOnArc 的距离判定（与碰撞检测一致的触发条件）。
+ * 激活后立即投影位置与速度，避免一帧偏移导致视觉跳跃。
+ */
+function tryActivateArcConstraint(
+  obj: ParticleObject,
+  seg: SegmentObject
+): boolean {
+  if (!seg.arc || !seg.groupId) return false
+  if (obj.constrainedArcGroupId !== undefined) return false
+
+  const { cx, cy, r, startAngle, endAngle } = seg.arc
+  const radius = obj.radius || 10
+
+  const closest = closestPointOnArc(obj.x, obj.y, cx, cy, r, startAngle, endAngle)
+  const angle = Math.atan2(obj.y - cy, obj.x - cx)
+
+  // 角度范围判定
+  if (!isAngleInRange(angle, startAngle, endAngle)) return false
+
+  // 缺口区域不激活（让球穿过缺口进入/离开）
+  if (seg.arcGateState) {
+    if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
+        isAngleInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth)) return false
+    if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
+        isAngleInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth)) return false
+  }
+
+  // 距离判定
+  // 带缺口的弧线特例：球在环内且所有门已关闭时，跳过距离判定强制激活约束
+  // 场景：球从缺口进入后门关闭，球离弧面较远（> radius），但应在弧面上
+  // 无此特例时，球会穿过圆环底部（closest.dist > radius 导致约束和碰撞都失效）
+  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
+  const isInside = objDist < r
+  const allGatesClosed = !!seg.arcGateState && !seg.arcGateState.entryOpen && !seg.arcGateState.exitOpen
+  const isGatedArcInsideCatchUp = allGatesClosed && isInside
+  if (!isGatedArcInsideCatchUp && closest.dist > radius) return false
+
+  // 激活约束
+  obj.constrainedArcGroupId = seg.groupId
+
+  // 立即投影位置与速度（避免一帧偏移导致视觉跳跃）
+  // objDist/isInside 已在距离判定中计算，此处复用
+  const surfaceR = isInside ? (r - radius) : (r + radius)
+  if (surfaceR <= 0) {
+    obj.constrainedArcGroupId = undefined
+    return false
+  }
+  obj.x = cx + Math.cos(angle) * surfaceR
+  obj.y = cy + Math.sin(angle) * surfaceR
+  const nx = Math.cos(angle)
+  const ny = Math.sin(angle)
+  const v_normal = obj.vx * nx + obj.vy * ny
+  obj.vx -= v_normal * nx
+  obj.vy -= v_normal * ny
+
+  return true
+}
+
 function segmentIntersection(
   x1: number, y1: number, x2: number, y2: number,
   x3: number, y3: number, x4: number, y4: number
@@ -440,11 +625,8 @@ function closestPointOnSegment(
 }
 
 /**
- * 更新螺旋圆轨动态缺口状态（基于小球当前位置自动触发）
- * - 小球在圆外且未过高点 → 入口开（等待进入）
- * - 小球在圆内且未过高点 → 全关（绕圈中）
- * - 小球在圆内且已过高点C → 出口开（准备穿出）
- * - 小球在圆外且已过高点 → 全关（已离开）
+ * 更新弧线触发器状态（基于小球角度穿越检测）
+ * 通用可配置机制：当小球经过 gap.triggerAngle 时，按 gap.triggerAction 打开/关闭缺口
  */
 function updateArcGates(objects: PhysicsObject[]): void {
   const processedGroups = new Set<number>()
@@ -455,41 +637,48 @@ function updateArcGates(objects: PhysicsObject[]): void {
     if (s.groupId && processedGroups.has(s.groupId)) continue
     if (s.groupId) processedGroups.add(s.groupId)
 
-    const { cx, cy, r } = s.arc
+    const { cx, cy, r, entryGap, exitGap } = s.arc
     const gate = s.arcGateState
 
-    // 检测圆轨内的小球
-    let ballInside = false
     for (const obj of objects) {
       if (obj.type !== '质点' && obj.type !== '刚体') continue
       const p = obj as ParticleObject
       const dist = Math.hypot(p.x - cx, p.y - cy)
-      // 小球球心在圆内（dist < r）视为"在圆轨内"
-      if (dist < r) {
-        ballInside = true
-        const angle = Math.atan2(p.y - cy, p.x - cx)
-        // 画布坐标系（y向下）：高点 C 在角度 -π/2（上方），小球从 B(2.614) 顺时针绕到 C(-π/2)，角度递减
-        // 角度归一化到 [-π, π]，达到 -π/2 + 0.3 视为已过高点
-        const TOP_THRESHOLD = -Math.PI / 2 + 0.3
-        let normAngle = angle
-        while (normAngle < -Math.PI) normAngle += Math.PI * 2
-        while (normAngle >= Math.PI) normAngle -= Math.PI * 2
-        if (normAngle <= TOP_THRESHOLD) gate.hasPassedTop = true
-      }
-    }
+      const isInside = dist < r
 
-    // 状态机更新
-    if (ballInside) {
-      gate.entryOpen = false
-      gate.exitOpen = gate.hasPassedTop
-    } else if (gate.hasPassedTop) {
-      // 小球已离开圆轨
-      gate.entryOpen = false
-      gate.exitOpen = false
-    } else {
-      // 小球还未进入圆轨（在 AB 上）
-      gate.entryOpen = true
-      gate.exitOpen = false
+      // 远离弧线时重置跟踪（避免误触发）
+      if (dist > r * 1.5) {
+        gate.prevAngle = undefined
+        gate.wasInside = undefined
+        continue
+      }
+
+      // enterRing 触发：小球从环外进入环内
+      if (gate.wasInside === false && isInside) {
+        if (entryGap?.triggerType === 'enterRing' && entryGap.triggerAction) {
+          gate.entryOpen = entryGap.triggerAction === 'open'
+        }
+        if (exitGap?.triggerType === 'enterRing' && exitGap.triggerAction) {
+          gate.exitOpen = exitGap.triggerAction === 'open'
+        }
+      }
+
+      // angleCross 触发：小球角度穿越 triggerAngle
+      const angle = Math.atan2(p.y - cy, p.x - cx)
+      if (gate.prevAngle !== undefined) {
+        if (entryGap?.triggerType === 'angleCross' && entryGap.triggerAngle !== undefined && entryGap.triggerAction) {
+          if (didAngleCross(gate.prevAngle, angle, entryGap.triggerAngle)) {
+            gate.entryOpen = entryGap.triggerAction === 'open'
+          }
+        }
+        if (exitGap?.triggerType === 'angleCross' && exitGap.triggerAngle !== undefined && exitGap.triggerAction) {
+          if (didAngleCross(gate.prevAngle, angle, exitGap.triggerAngle)) {
+            gate.exitOpen = exitGap.triggerAction === 'open'
+          }
+        }
+      }
+      gate.prevAngle = angle
+      gate.wasInside = isInside
     }
   }
 }
@@ -521,18 +710,49 @@ export function checkCollision(
     }
   }
 
-  // 线段/弧线碰撞
+  // 约束维持：对已约束小球施加弧线约束投影（可能脱离）
+  for (const obj of objects) {
+    if (obj.type !== '质点' && obj.type !== '刚体') continue
+    const p = obj as ParticleObject
+    if (p.constrainedArcGroupId === undefined) continue
+    const seg = objects.find(
+      s => s.type === 'line_segment' && s.groupId === p.constrainedArcGroupId
+    ) as SegmentObject | undefined
+    if (!seg || !seg.arc) {
+      p.constrainedArcGroupId = undefined  // 弧线已被删除
+      continue
+    }
+    if (seg.constraintEnabled === false) {
+      p.constrainedArcGroupId = undefined  // 用户关闭了约束
+      continue
+    }
+    applyArcConstraint(p, seg, dt, gravity)
+  }
+
+  // 线段/弧线碰撞 + 约束激活
   const processedArcs = new Set<number>()
   for (const obj of objects) {
     if (obj.type !== '质点' && obj.type !== '刚体') continue
+    const p = obj as ParticleObject
     for (const seg of objects) {
       if (seg.type !== 'line_segment') continue
       if (seg.arc && seg.groupId) {
         if (processedArcs.has(seg.groupId)) continue
         processedArcs.add(seg.groupId)
-        if (detectArcCollision(obj, seg, dt, gravity)) collided = true
+        // 已约束小球跳过弧线碰撞/激活（约束维持遍历已处理）
+        if (p.constrainedArcGroupId !== undefined) continue
+        if (seg.constraintEnabled !== false) {
+            // 约束开启：尝试激活；激活失败则回退到碰撞检测（防止小球穿过弧线）
+            // detectArcCollision 内部已处理缺口放行（gate 开 + 在缺口范围 → return false），回退安全
+            if (!tryActivateArcConstraint(p, seg)) {
+              if (detectArcCollision(p, seg, dt, gravity)) collided = true
+            }
+          } else {
+            // 约束关闭：走原有碰撞检测
+            if (detectArcCollision(p, seg, dt, gravity)) collided = true
+          }
       } else {
-        if (detectSegmentCollision(obj, seg, dt, gravity)) collided = true
+        if (detectSegmentCollision(p, seg, dt, gravity)) collided = true
       }
     }
   }

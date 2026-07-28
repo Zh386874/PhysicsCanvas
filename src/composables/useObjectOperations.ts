@@ -26,13 +26,14 @@ export interface ObjectOpsContext {
   selectedId: Ref<number | null>
   selectedIds: Ref<number[]>
   saveCustomScene: () => void
+  refreshCustomSnapshot: () => void
 }
 
 /**
  * 创建物体操作集合
  */
 export function useObjectOperations(ctx: ObjectOpsContext) {
-  const { activeScene, mode, aiToast, selectedId, selectedIds, saveCustomScene } = ctx
+  const { activeScene, mode, aiToast, selectedId, selectedIds, saveCustomScene, refreshCustomSnapshot } = ctx
 
   /** 当前选中物体（基于 selectedId） */
   const selectedObject = computed(() =>
@@ -42,7 +43,10 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
   /** 属性面板更新物体 */
   function onObjectUpdate(updated: Partial<PhysicsObject> & { id: number }): void {
     const idx = state.objects.findIndex(o => o.id === updated.id)
-    if (idx !== -1) Object.assign(state.objects[idx], updated)
+    if (idx !== -1) {
+      Object.assign(state.objects[idx], updated)
+      refreshCustomSnapshot()
+    }
   }
 
   /** 选中物体：单击时清空多选，仅选中单个 */

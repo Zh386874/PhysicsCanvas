@@ -182,6 +182,15 @@ export function useSceneManager() {
     mode.value = 'live'
   }
 
+  /**
+   * 刷新自定义场景快照（PropertyPanel 修改后调用，确保重置能恢复最新状态）
+   */
+  function refreshCustomSnapshot(): void {
+    if (activeScene.value === '自定义' && !state.isPlaying) {
+      customSnapshot = deepCopyObjects(state.objects)
+    }
+  }
+
   /** 切换回放模式 */
   function onToggleReplay(): void {
     if (mode.value === 'live') {
@@ -261,6 +270,7 @@ export function useSceneManager() {
     editMode,
     // 操作
     saveCustomScene,
+    refreshCustomSnapshot,
     onSceneSwitch,
     onTogglePlay,
     onReset,

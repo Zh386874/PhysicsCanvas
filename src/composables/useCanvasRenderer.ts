@@ -274,7 +274,8 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
 export function drawArcsVisually(
   rc: RenderContext,
   objects: PhysicsObject[],
-  selectedIds: number[] = []
+  selectedIds: number[] = [],
+  showGateColors: boolean = true
 ): void {
   const { ctx } = rc
   const selectedSet = new Set(selectedIds)
@@ -288,24 +289,48 @@ export function drawArcsVisually(
   }
   for (const [, segs] of groups) {
     if (segs.length === 0) continue
-    const { cx, cy, r, startAngle, endAngle } = segs[0].arc!
+    const firstSeg = segs[0]
+    const arc = firstSeg.arc!
+    const { cx, cy, r, startAngle, endAngle, entryGap, exitGap } = arc
     const isSelected = segs.some(s => selectedSet.has(s.id))
+    // 检测是否有触发器配置（任一缺口定义了 triggerType 或 triggerAngle）
+    const hasTrigger = !!(entryGap?.triggerType || exitGap?.triggerType || entryGap?.triggerAngle !== undefined || exitGap?.triggerAngle !== undefined)
+    const gate = firstSeg.arcGateState
+
+    // 基色：选中蓝 > 触发琥珀(showGateColors时) > 普通紫
     if (isSelected) {
       ctx.strokeStyle = 'rgba(96, 165, 250, 0.95)'
       ctx.lineWidth = 5
       ctx.shadowColor = 'rgba(96, 165, 250, 0.7)'
       ctx.shadowBlur = 10
+    } else if (hasTrigger && showGateColors) {
+      ctx.strokeStyle = '#f59e0b'
+      ctx.lineWidth = 3
     } else {
       ctx.strokeStyle = 'rgba(124, 58, 237, 0.9)'
       ctx.lineWidth = 3
     }
     // 根据 endAngle - startAngle 符号选择绘制方向，避免 startAngle > endAngle 时画成 3/4 圆
-    // 与 expandArcToSegments 的线性插值方向保持一致，确保视觉与碰撞检测重合
     const anticlockwise = (endAngle - startAngle) < 0
     ctx.beginPath()
     ctx.arc(cx, cy, r, startAngle, endAngle, anticlockwise)
     ctx.stroke()
     ctx.shadowBlur = 0
+
+    // 绘制缺口状态叠加（仅触发器弧线且有运行时状态且开启颜色显示时）
+    if (hasTrigger && gate && showGateColors) {
+      ctx.lineWidth = 6
+      const drawGapOverlay = (gap: typeof entryGap, isOpen: boolean) => {
+        if (!gap) return
+        ctx.beginPath()
+        ctx.strokeStyle = isOpen ? '#22c55e' : '#ef4444'
+        ctx.arc(cx, cy, r, gap.centerAngle - gap.halfWidth, gap.centerAngle + gap.halfWidth, false)
+        ctx.stroke()
+      }
+      drawGapOverlay(entryGap, gate.entryOpen)
+      drawGapOverlay(exitGap, gate.exitOpen)
+      ctx.lineWidth = 3
+    }
   }
 }
 
