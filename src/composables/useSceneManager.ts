@@ -1,12 +1,12 @@
 /**
  * 场景管理层：场景切换 + 播放/重置 + 自定义场景持久化 + AI/题库加载
  * 从 App.vue 拆分，遵循 SRP
- * 拥有共享状态：activeScene / mode / aiToast / selectedId / selectedIds / customSnapshot
+ * 拥有共享状态：activeScene / mode / aiToast / selectedId / selectedIds
  * 通过 watch 监听 field/gravity 变化自动持久化
  */
 import { ref, computed, watch } from 'vue'
 import {
-  state, loadScene, reset, snapshots, currentFrame, keyframeIndices
+  state, loadScene, reset, capturePlayStart, snapshots, currentFrame, keyframeIndices
 } from './usePhysics'
 import type { PhysicsObject, FieldState } from './usePhysics'
 import type { ParsedProblem } from './useAIParser'
@@ -38,8 +38,8 @@ export interface QuestionPayload {
  */
 export function useSceneManager() {
   // ===== 共享 UI 状态 =====
-  const activeScene = ref('抛体运动')
-  const selectedId = ref<number | null>(1)
+  const activeScene = ref('自定义')
+  const selectedId = ref<number | null>(null)
   const selectedIds = ref<number[]>([])  // 多选（框选）
   const mode = ref<'live' | 'replay'>('live')
   const aiToast = ref('')
@@ -50,12 +50,12 @@ export function useSceneManager() {
     activeScene.value === '自定义' && mode.value === 'live' && !state.isPlaying
   )
 
-  // 自定义场景：播放前快照（重置时恢复到此状态，而非空白）
-  let customSnapshot: PhysicsObject[] | null = null
-
-  // 初始化默认场景
-  const initialPreset = getPreset('抛体运动')
+  // 初始化默认场景：自定义（首屏即自定义页面，尝试恢复上次保存的自定义场景）
+  const initialPreset = getPreset('自定义')
   loadScene(initialPreset.objects, initialPreset.forces, initialPreset.field, initialPreset.gravity, initialPreset.groundY)
+  state.isPlaying = false
+  restoreCustomScene()
+  capturePlayStart()
 
   /**
    * 保存自定义场景到 localStorage
@@ -145,50 +145,29 @@ export function useSceneManager() {
     if (sceneName === '自定义') {
       state.isPlaying = false
       restoreCustomScene()
-      // 初始化重置基线：未播放过时重置应回到进入场景时的状态，而非空白
-      customSnapshot = deepCopyObjects(state.objects)
+      // restoreCustomScene 绕过 loadScene，须显式捕获重置基线
+      capturePlayStart()
     }
   }
 
   /**
-   * 播放/暂停切换：播放开始时保存自定义场景快照
+   * 播放/暂停切换：播放开始时捕获重置基线（所有场景）
    */
   function onTogglePlay(): void {
-    if (activeScene.value === '自定义' && !state.isPlaying) {
-      // 即将播放：保存当前 objects 作为重置恢复点
-      customSnapshot = deepCopyObjects(state.objects)
+    if (!state.isPlaying) {
+      // 即将播放：捕获当前物体作为重置的位置恢复点
+      capturePlayStart()
     }
     state.isPlaying = !state.isPlaying
   }
 
   /**
-   * 重置：自定义场景恢复到播放前快照，预设场景调用 reset
+   * 重置：统一调用 usePhysics.reset()（合并重置——保留用户配置，物理状态恢复到播放起始）
    */
   function onReset(): void {
-    if (activeScene.value === '自定义' && customSnapshot) {
-      state.objects.splice(0, state.objects.length)
-      for (const o of customSnapshot) {
-        state.objects.push({ ...o, trail: [] } as never)
-      }
-      state.time = 0
-      state.isPlaying = false
-      snapshots.value.splice(0, snapshots.value.length)
-      currentFrame.value = 0
-      selectedId.value = state.objects[0]?.id ?? null
-      mode.value = 'live'
-      return
-    }
     reset()
+    selectedId.value = state.objects[0]?.id ?? null
     mode.value = 'live'
-  }
-
-  /**
-   * 刷新自定义场景快照（PropertyPanel 修改后调用，确保重置能恢复最新状态）
-   */
-  function refreshCustomSnapshot(): void {
-    if (activeScene.value === '自定义' && !state.isPlaying) {
-      customSnapshot = deepCopyObjects(state.objects)
-    }
   }
 
   /** 切换回放模式 */
@@ -214,6 +193,7 @@ export function useSceneManager() {
     loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
     selectedId.value = preset.objects[0]?.id ?? null
     mode.value = 'live'
+    capturePlayStart()  // 自动播放前捕获重置基线
     state.isPlaying = true
     aiToast.value = 'AI 已解析：' + sceneName + '场景'
     setTimeout(() => { aiToast.value = '' }, 3000)
@@ -228,7 +208,7 @@ export function useSceneManager() {
     selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
     selectedIds.value = []
     mode.value = 'live'
-    customSnapshot = deepCopyObjects(state.objects)
+    capturePlayStart()  // 自动播放前捕获重置基线
     state.isPlaying = true
     aiToast.value = `AI 已生成：${info.title}（${info.objectCount} 个物体）`
     setTimeout(() => { aiToast.value = '' }, 3000)
@@ -248,7 +228,7 @@ export function useSceneManager() {
     selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
     selectedIds.value = []
     mode.value = 'live'
-    customSnapshot = deepCopyObjects(state.objects)
+    capturePlayStart()  // 自动播放前捕获重置基线
     state.isPlaying = true
     currentQuestionDesc.value = question.description || ''
     aiToast.value = `已加载：${question.title}`
@@ -270,7 +250,6 @@ export function useSceneManager() {
     editMode,
     // 操作
     saveCustomScene,
-    refreshCustomSnapshot,
     onSceneSwitch,
     onTogglePlay,
     onReset,

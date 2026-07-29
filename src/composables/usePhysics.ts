@@ -210,10 +210,10 @@ const state = reactive<PhysicsState>({
   gravity: GRAVITY
 })
 
-// 初始快照（reset 恢复点）
+// 初始快照（loadScene 时捕获，reset 的回退基线）
 let snapshot: PhysicsObject[] = JSON.parse(JSON.stringify(initialObjects))
-let fieldSnapshot: FieldState = JSON.parse(JSON.stringify(state.field))
-let gravitySnapshot: number = GRAVITY
+// 播放起始基线（按下播放时捕获，reset 优先使用）。null 时回退到 snapshot
+let playStartSnapshot: PhysicsObject[] | null = null
 
 // ===== 核心函数 =====
 
@@ -403,13 +403,87 @@ function updatePhysics(dt: number): void {
   state.time += dt
 }
 
+/**
+ * 捕获播放起始基线（按下播放时调用），作为重置的位置恢复点。
+ * 重置时物理状态从此基线恢复，配置参数保留当前值。
+ */
+function capturePlayStart(): void {
+  // JSON 深拷贝（避免引入 useSceneIO 运行时循环依赖；运行时字段保留无害，merge 不读取）
+  playStartSnapshot = JSON.parse(JSON.stringify(state.objects)) as PhysicsObject[]
+}
+
+/**
+ * 重置合并：物理状态（位置/速度/几何/运行时字段）从 baseline 恢复，配置参数保留 current。
+ * 用于 reset() —— 重置物理但保留用户配置修改（缺口/摩擦/质量等）。
+ */
+export function mergeResetState(current: PhysicsObject[], baseline: PhysicsObject[]): PhysicsObject[] {
+  const baselineById = new Map<number, PhysicsObject>()
+  for (const o of baseline) baselineById.set(o.id, o)
+
+  return current.map(obj => {
+    const b = baselineById.get(obj.id)
+    if (!b) {
+      // 无基线（防御性，播放期间不会新增物体）：保留当前状态，质点清轨迹
+      if (obj.type === '质点' || obj.type === '刚体') return { ...obj, trail: [] } as ParticleObject
+      return { ...obj } as PhysicsObject
+    }
+
+    if (obj.type === '质点' || obj.type === '刚体') {
+      const p = obj as ParticleObject
+      const bp = b as ParticleObject
+      return {
+        ...p,                       // 配置(mass/charge/radius/friction/color/name)保留 current
+        x: bp.x, y: bp.y,           // 位置从 baseline 恢复
+        vx: bp.vx, vy: bp.vy,       // 速度从 baseline 恢复
+        trail: [],                  // 运行时重置
+        prevX: undefined,
+        prevY: undefined,
+        constrainedArcGroupId: undefined
+      } as ParticleObject
+    }
+
+    if (obj.type === 'line_segment') {
+      const s = obj as SegmentObject
+      const bs = b as SegmentObject
+      const merged: SegmentObject = { ...s }  // 配置保留 current
+      if (s.velocity || s.movable) {
+        // 传送带/板块：物理会平移，几何与法线从 baseline 恢复
+        merged.x1 = bs.x1; merged.y1 = bs.y1
+        merged.x2 = bs.x2; merged.y2 = bs.y2
+        merged.normalX = bs.normalX; merged.normalY = bs.normalY
+      }
+      // 静态线段：几何保留 current（用户可能编辑过端点）
+      if (s.movable) {
+        // 板块速度=物理状态，从 baseline 恢复
+        merged.velocity = bs.velocity ? { ...bs.velocity } : undefined
+      }
+      // 传送带 velocity=belt speed=config，保留 current（已在 ...s 中）
+      // 触发器运行时状态重置为初始（修复 deepCopyObjects 剥离导致的丢失）
+      merged.arcGateState = s.arc
+        ? {
+            entryOpen: s.arc.entryGap?.initiallyOpen ?? false,
+            exitOpen: s.arc.exitGap?.initiallyOpen ?? false,
+            prevAngle: undefined,
+            wasInside: undefined
+          }
+        : undefined
+      return merged
+    }
+
+    // spring：无物理状态，保留 current
+    return { ...obj } as PhysicsObject
+  })
+}
+
 function reset(): void {
-  state.objects = JSON.parse(JSON.stringify(snapshot)).map((o: PhysicsObject) => ({ ...o, trail: [] }))
-  state.field = JSON.parse(JSON.stringify(fieldSnapshot))
-  state.gravity = gravitySnapshot
+  // 基线：优先播放起始快照（保留用户配置 + 重置物理状态），回退 loadScene 快照
+  const baseline = playStartSnapshot ?? snapshot
+  const merged = mergeResetState(state.objects, baseline)
+  state.objects.splice(0, state.objects.length)
+  for (const o of merged) state.objects.push(o)
   state.time = 0
   state.isPlaying = false
-  state.forces = []
+  // forces/field/gravity/groundY 保留（用户配置）
   clearSnapshots()
 }
 
@@ -466,8 +540,7 @@ function loadScene(
   state.time = 0
   state.isPlaying = false
   snapshot = JSON.parse(JSON.stringify(objects))
-  fieldSnapshot = JSON.parse(JSON.stringify(state.field))
-  gravitySnapshot = state.gravity
+  playStartSnapshot = null  // 新场景：重置回退到 loadScene 快照
   clearSnapshots()
 }
 
@@ -478,6 +551,7 @@ export {
   keyframeIndices,
   updatePhysics,
   reset,
+  capturePlayStart,
   addForce,
   removeForce,
   clearForces,

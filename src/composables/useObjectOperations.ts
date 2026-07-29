@@ -26,14 +26,13 @@ export interface ObjectOpsContext {
   selectedId: Ref<number | null>
   selectedIds: Ref<number[]>
   saveCustomScene: () => void
-  refreshCustomSnapshot: () => void
 }
 
 /**
  * 创建物体操作集合
  */
 export function useObjectOperations(ctx: ObjectOpsContext) {
-  const { activeScene, mode, aiToast, selectedId, selectedIds, saveCustomScene, refreshCustomSnapshot } = ctx
+  const { activeScene, mode, aiToast, selectedId, selectedIds, saveCustomScene } = ctx
 
   /** 当前选中物体（基于 selectedId） */
   const selectedObject = computed(() =>
@@ -45,7 +44,6 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
     const idx = state.objects.findIndex(o => o.id === updated.id)
     if (idx !== -1) {
       Object.assign(state.objects[idx], updated)
-      refreshCustomSnapshot()
     }
   }
 

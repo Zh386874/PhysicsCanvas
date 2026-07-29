@@ -6,6 +6,15 @@
         <span class="logo-text">物理解模</span>
       </div>
       <SceneTabs :activeScene="activeScene" @switch="onSceneSwitch" />
+      <div class="qbank-trigger" ref="qbankTriggerRef">
+        <button class="qbank-btn" :class="{ active: showQBank }" @click="showQBank = !showQBank">
+          <span>📚</span>
+          <span>真题库</span>
+        </button>
+        <div v-if="showQBank" class="qbank-popover">
+          <QuestionBankPanel embedded @load-question="onLoadQuestion" />
+        </div>
+      </div>
       <button class="api-config-btn" :class="{ configured: isAIConfigured }" @click="showApiKeyDialog = true">
         <span class="api-icon">🔑</span>
         <span class="api-text">{{ isAIConfigured ? configuredModelName : 'AI 配置' }}</span>
@@ -76,16 +85,12 @@
           @toggle-replay="onToggleReplay"
         />
       </div>
-
-      <div class="right-panel">
-        <QuestionBankPanel @load-question="handleLoadQuestion" />
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import SceneTabs from './components/SceneTabs.vue'
 import ObjectList from './components/ObjectList.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
@@ -112,7 +117,6 @@ const {
   currentQuestionDesc,
   editMode,
   saveCustomScene,
-  refreshCustomSnapshot,
   onSceneSwitch,
   onTogglePlay,
   onReset,
@@ -142,8 +146,7 @@ const {
   aiToast,
   selectedId,
   selectedIds,
-  saveCustomScene,
-  refreshCustomSnapshot
+  saveCustomScene
 })
 
 // ===== 场景 IO（导出/导入） =====
@@ -170,6 +173,28 @@ function onApiKeyCleared() {
   setTimeout(() => aiToast.value = '', 2000)
 }
 
+// ===== 真题库浮层（本地 UI 状态） =====
+const showQBank = ref(false)
+const qbankTriggerRef = ref(null)
+
+// 加载题目后关闭浮层
+function onLoadQuestion(question) {
+  handleLoadQuestion(question)
+  showQBank.value = false
+}
+
+// 点击外部关闭真题库浮层
+function onDocClick(e) {
+  if (!showQBank.value) return
+  const el = qbankTriggerRef.value
+  if (el && !el.contains(e.target)) {
+    showQBank.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', onDocClick))
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+
 // ===== 计算属性（绑定到 usePhysics 的 state） =====
 const isPlaying = computed(() => state.isPlaying)
 const showForce = computed(() => state.showForce)
@@ -194,6 +219,7 @@ const showGateColors = computed(() => state.showGateColors)
   background: rgba(15, 23, 42, 0.9);
   border-bottom: 1px solid rgba(59, 130, 246, 0.25);
   backdrop-filter: blur(10px);
+  z-index: 10;
 }
 
 .api-config-btn {
@@ -299,12 +325,57 @@ const showGateColors = computed(() => state.showGateColors)
   word-break: break-word;
 }
 
-.right-panel {
-  width: 280px;
+.qbank-trigger {
+  position: relative;
+}
+
+.qbank-btn {
   display: flex;
-  flex-direction: column;
-  background: rgba(15, 23, 42, 0.5);
-  border-left: 1px solid rgba(59, 130, 246, 0.2);
-  overflow-y: auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.qbank-btn:hover {
+  background: rgba(34, 211, 238, 0.08);
+  color: #cbd5e1;
+}
+
+.qbank-btn.active {
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(103, 232, 249, 0.1));
+  border-color: rgba(34, 211, 238, 0.5);
+  color: #67e8f9;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.2);
+}
+
+.qbank-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  max-height: 70vh;
+  overflow: auto;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 0.5rem;
+}
+
+.qbank-popover::-webkit-scrollbar {
+  width: 6px;
+}
+
+.qbank-popover::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
 }
 </style>
