@@ -35,3 +35,6 @@ dist-ssr
 
 # Trae AI workspace files
 .trae/
+
+# Temporary screenshots from local UI testing
+screenshots/
