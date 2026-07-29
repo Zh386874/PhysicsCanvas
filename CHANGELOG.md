@@ -8,7 +8,25 @@
 ## [Unreleased]
 
 ### Added
-- 补齐项目文档：README.md、API.md、ARCHITECTURE.md、PHYSICS.md、QUESTION_BANK.md、DEPLOYMENT.md、TESTING.md、CHANGELOG.md
+- **弧线约束动力学**：新增 `constraintEnabled`（SegmentObject）/ `constrainedArcGroupId`（ParticleObject）字段及 `applyArcConstraint` / `tryActivateArcConstraint`（useCollision.ts），小球进环后约束在弧面做无能量损耗圆周运动，满足自然脱离条件时解除
+- **弧线触发器缺口机制**：新增 `entryGap`/`exitGap`（ArcGap 类型，含 `triggerType: 'enterRing' | 'angleCross'`、`triggerAction: 'open' | 'close'`）与运行时 `arcGateState`，控制圆环动态缺口开闭
+- **触发器颜色可视化**：ControlBar 新增"🎨 触发器颜色"按钮，`showGateColors` 状态控制弧线缺口开关与触发器颜色显示
+- **常量集中管理**：新增 `src/constants.ts`，集中 GROUND_DISABLED/MAX_SUBSTEPS/MAX_STEP_DIST/TRAIL_LENGTH/MAX_SNAPSHOTS/画布常量/SCENE_VERSION，消除魔法数字散落
+- **App.vue 拆分**：按 SRP 拆出 useSceneManager / useObjectOperations / useSceneIO / useKeyboard（~600→~309 行）
+- **usePhysics 拆分**：快照/关键帧拆出 useSnapshotManager，合力计算拆出 useForces（力注册表 + 策略模式，遵循 OCP）
+- **DIP 改造**：useCanvasInteraction 改为通过 PhysicsStateAccess 接口注入依赖，不再直接 import state
+- **类型化改造**：ParsedObject 重构为判别联合（ParsedBall|ParsedPlatform|ParsedArc|ParsedSpring），DragTarget/BatchDragItem 类型化
+- **Vitest 测试体系**：新增 vitest ^4.1.10，12 个测试跨 unit/integration/regression 三层（collision.test.ts / ring-scene.test.ts / ball-through-ring.test.ts）+ tests/helpers/sceneBuilder.ts
+- **SegmentObject 新增字段**：thickness（视觉厚度）/ frictionTop / frictionBottom（板块上下表面摩擦分离）/ arcGateState / constraintEnabled
+- 补齐项目文档：README.md、API.md、ARCHITECTURE.md、PHYSICS.md、QUESTION_BANK.md、DEPLOYMENT.md、TESTING.md、CODE_QUALITY_REVIEW.md、REQUIREMENTS.md、CHANGELOG.md
+
+### Changed
+- **题库精简**：真题库由 21 道精简为 1 道（plate-2023-zj，2023 浙江圆环题），聚焦圆环穿越场景的完整还原；保留添加新题目的扩展指南
+- **板块模型摩擦**：上/下表面摩擦分离（frictionTop/frictionBottom），未设置时回退 friction
+
+### Fixed
+- **小球穿过圆环 bug**：tryActivateArcConstraint 与 detectArcCollision 均用 `closest.dist > radius`（4px）判定，球深入环内 >4px 时两者同时失效导致穿底。修复：添加 catch-up 逻辑，球在环内且所有缺口关闭时跳过距离判定强制激活约束
+- **isAngleInRange 完整圆误判**：完整弧（span≈2π）时返回 false，导致约束无法激活。修复：增加 2π 特判返回 true
 
 ---
 
@@ -88,4 +106,5 @@
 | 0.1.0 | 核心引擎 + 编辑器 | ✅ 完成 |
 | 0.2.0 | 真题库 + AI 解析 + 架构优化 | ✅ 完成 |
 | 0.3.0 | Bug 修复 + 弹簧工具 + 文档 | ✅ 完成 |
-| 未来 | 自动化测试 + 移动端适配 + 3D 模式 | 📋 规划中 |
+| Unreleased | 弧线约束动力学 + 触发器缺口 + 架构拆分 + Vitest 测试体系 | ✅ 完成 |
+| 未来 | 测试覆盖扩展 + 移动端适配 + 3D 模式 | 📋 规划中 |

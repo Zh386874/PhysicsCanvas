@@ -25,6 +25,19 @@ interface Vec2 { x: number; y: number }
 /** 运动轨迹点 */
 interface TrailPoint { x: number; y: number }
 
+/** 弧线缺口定义（含触发器配置） */
+interface ArcGap {
+  centerAngle: number       // 缺口中心角度（画布坐标系弧度）
+  halfWidth: number         // 缺口半宽（弧度）
+  initiallyOpen?: boolean   // 初始开关状态（默认 false = 关闭）
+  /** 触发类型：'angleCross' 角度穿越 / 'enterRing' 进入圆环 */
+  triggerType?: 'angleCross' | 'enterRing'
+  /** 触发角度（画布坐标系弧度）。triggerType='angleCross' 时使用 */
+  triggerAngle?: number
+  /** 触发动作：'open' 打开缺口 / 'close' 关闭缺口 */
+  triggerAction?: 'open' | 'close'
+}
+
 /** 弧线元数据 */
 interface ArcMeta {
   cx: number        // 圆心 x
@@ -32,6 +45,10 @@ interface ArcMeta {
   r: number         // 半径
   startAngle: number // 起始角度（弧度）
   endAngle: number   // 终止角度（弧度）
+  /** 螺旋圆轨入口缺口（运行时由 arcGateState 控制开关） */
+  entryGap?: ArcGap
+  /** 螺旋圆轨出口缺口（运行时由 arcGateState 控制开关） */
+  exitGap?: ArcGap
 }
 ```
 
@@ -56,6 +73,8 @@ interface ParticleObject {
   trail: TrailPoint[]    // 运动轨迹
   prevX?: number         // 上一帧位置 x（CCD 碰撞检测用）
   prevY?: number         // 上一帧位置 y
+  /** 当前约束的弧线 groupId（undefined = 未约束）。运行时状态，不序列化 */
+  constrainedArcGroupId?: number
 }
 ```
 
@@ -80,6 +99,18 @@ interface SegmentObject {
   velocity?: Vec2        // 传送带速度（像素/秒）
   movable?: boolean      // 是否可移动（板块模型）
   mass?: number          // 可移动线段质量（板块模型）
+  thickness?: number     // 视觉厚度（像素），仅渲染用（板块模型可选）
+  frictionTop?: number   // 上表面摩擦系数（板块模型）；未设置回退 friction
+  frictionBottom?: number // 下表面摩擦系数（板块模型）；未设置回退 friction
+  /** 弧线触发器运行时状态（不序列化，由 useSceneBuilder 初始化） */
+  arcGateState?: {
+    entryOpen: boolean
+    exitOpen: boolean
+    prevAngle?: number   // 上一帧小球角度（angleCross 触发检测）
+    wasInside?: boolean  // 上一帧小球是否在环内（enterRing 触发检测）
+  }
+  /** 弧线约束动力学开关（仅首段，true=约束模式，false=碰撞模式）。未设置视为 true */
+  constraintEnabled?: boolean
 }
 ```
 
@@ -138,7 +169,8 @@ interface PhysicsState {
   time: number                  // 模拟时间（秒）
   isPlaying: boolean            // 是否播放中
   showForce: boolean            // 是否显示受力
-  groundY: number               // 地面 y 坐标（像素，100000 表示禁用）
+  showGateColors: boolean       // 是否显示弧线触发器颜色与缺口开关
+  groundY: number               // 地面 y 坐标（像素，GROUND_DISABLED=100000 表示禁用）
   groundRestitution: number     // 地面恢复系数
   particleRestitution: number   // 质点间恢复系数
   gravity: number               // 重力加速度（像素/s²）
@@ -167,32 +199,59 @@ interface SnapshotFrame {
 
 ### 1.5 AI 解析类型
 
-> 定义在 `useAIParser.ts` 中，描述 AI 解析的结构化结果。
+> 定义在 `useAIParser.ts` 中，描述 AI 解析的结构化结果。`ParsedObject` 为判别联合（通过 `type` 字段收窄），遵循接口隔离原则（ISP）——每个类型只含自己需要的字段。
 
 ```typescript
-interface ParsedObject {
+interface ParsedVec2 { x: number; y: number }
+
+interface BaseParsedObject {
   id?: string
   type: 'ball' | 'platform' | 'arc' | 'spring'
+}
+
+interface ParsedBall extends BaseParsedObject {
+  type: 'ball'
   mass?: number
   charge?: number
   radius?: number
-  initialVelocity?: Vec2     // SI 单位 m/s
-  initialPosition?: Vec2     // SI 单位 m
-  startPoint?: Vec2
-  endPoint?: Vec2
-  center?: Vec2              // 弧线圆心
+  initialPosition?: ParsedVec2   // SI 单位 m（球底高度）
+  initialVelocity?: ParsedVec2   // SI 单位 m/s
+  fixed?: boolean
+  friction?: number
+}
+
+interface ParsedPlatform extends BaseParsedObject {
+  type: 'platform'
+  startPoint?: ParsedVec2
+  endPoint?: ParsedVec2
+  friction?: number
+  beltVelocity?: ParsedVec2      // 传送带速度（m/s）
+  movable?: boolean              // 板块模型
+  mass?: number
+}
+
+interface ParsedArc extends BaseParsedObject {
+  type: 'arc'
+  center?: ParsedVec2            // 弧线圆心（米）
   arcRadius?: number
   startAngle?: number
   endAngle?: number
   friction?: number
-  fixed?: boolean
-  anchor?: Vec2              // 弹簧固定端（米）
-  ballId?: string            // 弹簧连接物体 id
-  naturalLength?: number     // 弹簧自然长度（米）
-  k?: number                 // 劲度系数（N/m）
-  beltVelocity?: Vec2        // 传送带速度（m/s）
-  movable?: boolean
+  /** 螺旋圆轨动态入口缺口（运行时由状态机控制开关） */
+  entryGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  /** 螺旋圆轨动态出口缺口 */
+  exitGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
 }
+
+interface ParsedSpring extends BaseParsedObject {
+  type: 'spring'
+  anchor?: ParsedVec2            // 弹簧固定端（米）
+  ballId?: string                // 弹簧连接物体 id
+  naturalLength?: number         // 弹簧自然长度（米）
+  k?: number                     // 劲度系数（N/m）
+}
+
+type ParsedObject = ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring
 
 interface ParsedProblem {
   title?: string
@@ -307,9 +366,10 @@ interface PresetScene {
 |------|------|--------|------|
 | `isPlaying` | Boolean | `false` | 是否播放中 |
 | `showForce` | Boolean | `true` | 是否显示受力 |
+| `showGateColors` | Boolean | `true` | 是否显示弧线触发器颜色与缺口开关 |
 | `mode` | String | `'live'` | 运行模式 |
 
-**Emits**：`toggle-play`、`reset`、`toggle-force`、`toggle-replay`
+**Emits**：`toggle-play`、`reset`、`toggle-force`、`toggle-gate-colors`、`toggle-replay`
 
 ---
 
@@ -394,12 +454,16 @@ interface PresetScene {
 **Emits**：`update:object (newObj: PhysicsObject)`
 
 > 面板还包含场景设置（重力、场类型、场强），直接操作 `usePhysics` 的 `state`。
+>
+> 弧线物体的高级选项区：约束动力学开关（`constraintEnabled`）、触发器缺口配置（`entryGap`/`exitGap` 的 triggerType 下拉：angleCross/enterRing、triggerAngle、triggerAction）。
 
 ---
 
 ## 三、Composable 接口
 
 ### 3.1 usePhysics.ts — 物理引擎
+
+> 快照与关键帧状态（`snapshots`/`currentFrame`/`keyframeIndices`）已拆分到 `useSnapshotManager.ts`，此处为 re-export；合力计算委托给 `useForces.ts` 的 `calculateTotalForce`（策略注册表）。
 
 **导出状态**：
 
@@ -450,7 +514,7 @@ function loadScene(
 ): void
 ```
 
-**导出常量**：`PIXELS_PER_METER = 50`
+**导出常量**：`PIXELS_PER_METER = 50`（其余常量见 `src/constants.ts`：GROUND_DISABLED、MAX_SUBSTEPS、MAX_STEP_DIST、TRAIL_LENGTH、MAX_SNAPSHOTS 等）
 
 ---
 
@@ -485,7 +549,7 @@ function detectSegmentCollision(
   gravity: number
 ): boolean
 
-/** 弧线碰撞检测 */
+/** 弧线碰撞检测（含触发器缺口放行判断） */
 function detectArcCollision(
   obj: ParticleObject,
   seg: SegmentObject,
@@ -493,7 +557,30 @@ function detectArcCollision(
   gravity: number
 ): boolean
 
-/** 总碰撞检测（地面 + 线段 + 弧线 + 质点间） */
+/** 弧线约束动力学：约束期间将球投影到弧面、保留切向动能，满足自然脱离条件时解除 */
+function applyArcConstraint(
+  obj: ParticleObject,
+  seg: SegmentObject,
+  dt: number,
+  gravity: number
+): void
+
+/**
+ * 弧线约束激活：球触碰弧面或进入环内时设置 constrainedArcGroupId
+ * 含 catch-up 逻辑——球在环内且所有门关闭时强制激活（修复 4px 距离盲区）
+ */
+function tryActivateArcConstraint(
+  obj: ParticleObject,
+  seg: SegmentObject
+): boolean
+
+/** 角度是否在弧线范围内（完整圆 span≈2π 特判返回 true） */
+function isAngleInRange(angle: number, startAngle: number, endAngle: number): boolean
+
+/** 检测小球角度是否穿越目标角度（归一化到 [-π, π]，用于 angleCross 触发） */
+function didAngleCross(prev: number, curr: number, target: number): boolean
+
+/** 总碰撞检测（地面 + 线段 + 弧线 + 质点间 + 弧线约束激活/维护） */
 function checkCollision(
   objects: PhysicsObject[],
   groundY: number,
@@ -740,4 +827,148 @@ function redo(objects, gravity, groundY, field): HistorySnapshot | null
 function canUndo(): boolean
 function canRedo(): boolean
 function clearHistory(): void
+```
+
+---
+
+### 3.11 useForces.ts — 力计算策略层
+
+> 力注册表 + 策略模式，遵循 OCP。添加新力只需 `registerForce`，无需修改 `subStepPhysics`。模块加载时注册默认 4 种力：重力、自定义力、场力（qE + qvB）、弹簧力。
+
+```typescript
+interface ForceContext {
+  state: PhysicsState
+  particle: ParticleObject
+}
+
+type ForceCalculator = (ctx: ForceContext) => { fx: number; fy: number }
+
+/** 注册力计算策略 */
+function registerForce(calculator: ForceCalculator): void
+
+/** 计算粒子所受合力（遍历所有已注册的力计算器） */
+function calculateTotalForce(state: PhysicsState, particle: ParticleObject): { fx: number; fy: number }
+```
+
+---
+
+### 3.12 useSnapshotManager.ts — 快照管理
+
+```typescript
+const snapshots: Ref<SnapshotFrame[]>       // 回放快照序列
+const currentFrame: Ref<number>             // 当前回放帧索引
+const keyframeIndices: Ref<number[]>        // 关键帧索引（速度方向突变点）
+
+/** 录制一帧快照（含关键帧检测和容量上限裁剪） */
+function recordSnapshot(frame: SnapshotFrame): void
+
+/** 清空所有快照（场景切换/重置时调用） */
+function clearSnapshots(): void
+```
+
+> `usePhysics.ts` re-export `snapshots`/`currentFrame`/`keyframeIndices`，对外接口不变。
+
+---
+
+### 3.13 useSceneManager.ts — 场景管理
+
+```typescript
+interface SceneBuiltInfo { title: string; objectCount: number }
+interface QuestionPayload { title: string; description?: string; sceneJson: ParsedProblem }
+
+function useSceneManager(): {
+  // 状态
+  activeScene: Ref<string>                  // 当前场景名
+  selectedId: Ref<number | null>            // 单选 id
+  selectedIds: Ref<number[]>                // 多选 id 列表
+  mode: Ref<'live' | 'replay'>             // 运行模式
+  aiToast: Ref<string>                      // 画布提示文本
+  currentQuestionDesc: Ref<string>          // 当前题目描述
+  editMode: ComputedRef<boolean>            // 编辑模式（自定义+live+未播放）
+  // 操作
+  saveCustomScene(): void                   // 持久化自定义场景到 localStorage
+  refreshCustomSnapshot(): void             // 刷新自定义场景重置基线
+  onSceneSwitch(sceneName: string): void    // 场景切换
+  onTogglePlay(): void                      // 播放/暂停
+  onReset(): void                           // 重置
+  onToggleReplay(): void                    // 切换回放模式
+  handleLoadPreset(sceneName: string): void // 加载 AI 解析预设
+  handleSceneBuilt(info: SceneBuiltInfo): void  // AI buildScene 完成
+  handleLoadQuestion(question: QuestionPayload): void  // 加载题库题目
+}
+```
+
+---
+
+### 3.14 useObjectOperations.ts — 物体操作
+
+```typescript
+interface BatchUpdateItem { id: number; props: Record<string, unknown> }
+interface ObjectOpsContext {
+  activeScene: Ref<string>
+  mode: Ref<'live' | 'replay'>
+  aiToast: Ref<string>
+  selectedId: Ref<number | null>
+  selectedIds: Ref<number[]>
+  saveCustomScene: () => void
+  refreshCustomSnapshot: () => void
+}
+
+function useObjectOperations(ctx: ObjectOpsContext): {
+  selectedObject: ComputedRef<PhysicsObject | undefined>
+  onObjectUpdate(updated: Partial<PhysicsObject> & { id: number }): void
+  onSelectObject(id: number): void
+  onSelectGroup(ids: number[]): void        // 弧线整组选中
+  handleBatchUpdate(updates: BatchUpdateItem[]): void
+  handleAddObject(obj: PhysicsObject): void
+  handleUpdateObject(payload: { id: number; props: Record<string, unknown> }): void
+  handleRemoveObject(id: number): void      // 弧线整组删除 + 弹簧级联删除
+  handleUpdateParams(params: { mass?: number; vx?: number; charge?: number }): void
+  onDeleteKey(): void                       // Delete 键批量删除
+  onUndo(): void
+  onRedo(): void
+}
+```
+
+---
+
+### 3.15 useSceneIO.ts — 场景导入导出
+
+```typescript
+interface SceneIOContext {
+  state: PhysicsState
+  aiToast: Ref<string>
+  selectedId: Ref<number | null>
+  activeScene: Ref<string>
+  saveCustomScene: () => void
+}
+
+// 纯函数（直接导出）
+function deepCopyObjects(objs: PhysicsObject[]): PhysicsObject[]  // 剥离运行时字段
+function validateObject(o: unknown): PhysicsObject | null         // 校验并规范化物体
+
+// 有状态操作（工厂注入 context）
+function useSceneIO(ctx: SceneIOContext): {
+  handleExportScene(): Promise<void>  // 导出 JSON 到剪贴板（降级 prompt）
+  handleImportScene(): Promise<void>  // 从剪贴板导入（兼容旧/新格式，逐物体校验）
+}
+```
+
+---
+
+### 3.16 useKeyboard.ts — 键盘快捷键
+
+```typescript
+interface KeyboardContext {
+  onDeleteKey: () => void
+  onUndo: () => void
+  onRedo: () => void
+}
+
+/** 注册全局键盘快捷键（须在组件 setup 中调用以绑定生命周期） */
+function useKeyboard(ctx: KeyboardContext): void
+// Delete / Backspace → onDeleteKey
+// Ctrl+Z → onUndo
+// Ctrl+Y 或 Ctrl+Shift+Z → onRedo
+// 输入框聚焦时不触发
 ```

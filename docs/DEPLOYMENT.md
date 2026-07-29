@@ -46,7 +46,11 @@ npm run dev
 npm run build
 # → 输出到 dist/ 目录
 
-# 5. 本地预览构建结果
+# 5. 运行测试（可选，验证物理引擎核心逻辑）
+npm run test
+# → Vitest 单次运行，12 个测试跨 unit/integration/regression 三层
+
+# 6. 本地预览构建结果
 npm run preview
 # → 访问 http://localhost:4173/PhysicsCanvas/
 ```
@@ -65,6 +69,28 @@ export default defineConfig({
 ```
 
 > **重要**：`base` 必须设置为 `'/PhysicsCanvas/'`（仓库名），否则 GitHub Pages 上的资源路径会 404。
+
+### 2.4 Vitest 配置
+
+测试配置独立于 Vite，位于 `vitest.config.ts`：
+
+```typescript
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    environment: 'node',              // 物理引擎为纯计算，无需 DOM
+    include: ['tests/**/*.test.ts'],
+  },
+})
+```
+
+| 命令 | 说明 |
+|------|------|
+| `npm run test` | 单次运行全部测试（`vitest run`） |
+| `npm run test:watch` | 监听模式，文件变动自动重跑（`vitest`） |
+
+> 测试体系详见 [TESTING.md](TESTING.md)。当前测试未纳入 GitHub Actions CI，需本地手动运行。
 
 ---
 

@@ -174,6 +174,31 @@ prevPos ────────► curPos
 
 弧线由 20 个线段近似（`groupId` 标记同组），碰撞时整组检测一次，避免重复响应。
 
+#### 3.5.1 触发器缺口机制
+
+螺旋圆轨（如 2023 浙江题）在 2D 拓扑下无法真正实现"环"，通过动态缺口（`entryGap`/`exitGap`）模拟小球进出环：
+
+- **缺口定义**：`centerAngle`（中心角度）+ `halfWidth`（半宽），缺口角度范围内放行小球穿过
+- **运行时状态**：`SegmentObject.arcGateState.{entryOpen, exitOpen}` 控制开关，由 `useSceneBuilder` 初始化
+- **触发类型**（`triggerType`）：
+  - `enterRing`：小球从环外进入环内时触发（基于 `wasInside` 状态变化）
+  - `angleCross`：小球角度穿越 `triggerAngle` 时触发（`didAngleCross` 归一化到 [-π, π] 检测）
+- **触发动作**（`triggerAction`）：`open` 打开缺口 / `close` 关闭缺口
+- **完整圆特判**：`isAngleInRange` 对 span≈2π 的完整圆恒返回 true，避免全圆弧缺口误判
+
+#### 3.5.2 弧线约束动力学
+
+为避免小球在弧面上多次碰撞导致能量损失，启用约束模式（`constraintEnabled: true`，仅弧线首段）：
+
+- **激活**（`tryActivateArcConstraint`）：小球触碰弧面时设置 `constrainedArcGroupId`
+  - **catch-up 逻辑**：当小球已深入环内（距弧面 > 4px）且所有缺口关闭时，跳过距离判定强制激活约束——修复 `tryActivateArcConstraint` 与 `detectArcCollision` 共用 `closest.dist > radius` 判定造成的 4px 距离盲区（盲区会导致两者同时失效，球穿过环底）
+- **维护**（`applyArcConstraint`）：约束期间将小球位置投影回弧面，仅保留切向动能（消除法向速度分量），实现无能量损耗的圆周运动
+- **自然脱离**：当切向速度满足脱离条件时解除约束（`constrainedArcGroupId = undefined`）：
+  - 内侧掉落：`v² < g·R·(-sinθ)`
+  - 外侧飞出：`v² > g·R·(-sinθ)`（θ 为小球所在角度）
+
+> 约束模式与碰撞模式（`constraintEnabled: false`）互斥：约束模式适合圆环穿越场景，碰撞模式适合普通弧面弹跳场景。
+
 ---
 
 ## 四、力模型
@@ -310,21 +335,27 @@ if (seg.velocity) {
 
 ## 六、板块模型
 
-板块是可移动的线段（`movable: true`），具有质量和速度：
+板块是可移动的线段（`movable: true`），具有质量和速度。板块模型支持上下表面独立摩擦与视觉厚度：
 
 ```typescript
-// 更新可移动线段位置（仅水平平移）
-for (const obj of state.objects) {
-  if (obj.type !== 'line_segment') continue
-  const seg = obj as SegmentObject
-  if (!seg.movable || !seg.velocity) continue
-  const dx = seg.velocity.x * subDt
-  seg.x1 += dx
-  seg.x2 += dx
+// 板块字段
+interface SegmentObject {
+  movable?: boolean        // 板块标记
+  mass?: number            // 板块质量
+  velocity?: Vec2          // 板块速度（受重力、支撑、摩擦更新）
+  thickness?: number       // 视觉厚度（像素，仅渲染用）
+  frictionTop?: number     // 上表面摩擦系数（未设置回退 friction）
+  frictionBottom?: number  // 下表面摩擦系数（未设置回退 friction）
 }
 ```
 
-板块与滑块之间的摩擦力遵循牛顿第三定律——摩擦力同时对滑块和板块施加反作用冲量。
+板块运动模型（`subStepPhysics` 中）：
+1. 受重力更新 `velocity.y`
+2. 位置更新（x、y 同步平移，保持形状不旋转）
+3. 地面/平台支撑检测：y 归位、`vy` 清零；支撑面摩擦按相对速度减速 `vx`（与支撑面共速时停止）
+4. 传送带支撑：`supportVx` 取支撑线段 `velocity.x`，摩擦力驱动板块至传送带速度
+
+板块与滑块之间的摩擦力遵循牛顿第三定律——摩擦力同时对滑块和板块施加反作用冲量。`frictionTop`/`frictionBottom` 允许板块上下表面采用不同摩擦系数（如上表面粗糙、下表面光滑）。
 
 ---
 

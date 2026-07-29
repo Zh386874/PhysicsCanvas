@@ -25,9 +25,9 @@
 ├──────────┬──────────────────────────┬───────────────────────┤
 │  左面板   │       画布区域            │      右面板           │
 │          │                          │                       │
-│ AIInput  │   ┌──────────────────┐   │  QuestionBankPanel   │
+│  AIInput  │   ┌──────────────────┐   │  QuestionBankPanel   │
 │ ObjectList│   │  PhysicsCanvas   │   │                       │
-│ Property │   │  (渲染+事件分发)  │   │  (21道真题库)         │
+│ Property │   │  (渲染+事件分发)  │   │  (1道真题库)          │
 │ Panel    │   └────────┬─────────┘   │                       │
 │ ForceEdi │            │              │                       │
 │ tor      │     ControlBar            │                       │
@@ -37,9 +37,12 @@
 │                     Composable 层                            │
 ├──────────┬──────────┬──────────┬──────────┬─────────────────┤
 │usePhysics│useCollision│useCanvas│useCanvas │useEditTools     │
-│ (状态+   │ (碰撞检测) │Renderer │Interaction│(工具状态)       │
-│  积分)   │           │ (绘制)  │ (事件)    │                 │
+│ (状态+   │ (碰撞+   │Renderer │Interaction│(工具状态)       │
+│  积分)   │ 约束动力学)│ (绘制)  │ (事件)    │                 │
 ├──────────┴──────────┴──────────┴──────────┴─────────────────┤
+│   useForces  useSnapshotManager  useSceneManager             │
+│   useObjectOperations  useSceneIO  useKeyboard               │
+├──────────────────────────────────────────────────────────────┤
 │                     数据层                                    │
 ├──────────────────────────────────────────────────────────────┤
 │  useAIParser  useSceneBuilder  usePresets  useQuestionBank   │
@@ -109,20 +112,26 @@ QuestionBankPanel ──emit('load-question')──► App.vue
 
 | Composable | 职责 | 不负责 |
 |------------|------|--------|
-| `usePhysics` | 物理状态管理、欧拉积分、快照录制 | 碰撞检测、渲染 |
-| `useCollision` | 碰撞检测（地面/质点/线段/弧线） | 状态管理、渲染 |
+| `usePhysics` | 物理状态管理、欧拉积分、场景加载、物体增删 | 碰撞检测、渲染、快照录制、合力计算 |
+| `useCollision` | 碰撞检测（地面/质点/线段/弧线）+ 弧线约束动力学 + 触发器缺口 | 状态管理、渲染 |
+| `useForces` | 合力计算策略层（力注册表 + 策略模式，遵循 OCP） | 状态管理、积分 |
+| `useSnapshotManager` | 快照录制、关键帧检测、回放帧状态 | 物理积分 |
 | `useCanvasRenderer` | 所有 Canvas 绘制函数（纯函数） | 状态管理、事件处理 |
 | `useCanvasInteraction` | 鼠标事件、拖拽、框选、平移缩放 | 绘制、工具状态 |
 | `useEditTools` | 编辑工具状态（小球/平台/圆弧/弹簧） | 事件处理、绘制 |
 | `useAIParser` | AI 解析（DeepSeek + 本地回退） | 场景构建 |
 | `useSceneBuilder` | SI→像素转换、场景构建 | AI 解析 |
+| `useSceneManager` | 场景切换、播放/重置、自定义场景持久化、AI/题库加载 | 物体增删细节 |
+| `useObjectOperations` | 物体增删改、选中、AI 参数应用、撤销/重做、Delete 键 | 场景切换 |
+| `useSceneIO` | 场景导出/导入（剪贴板）、物体校验、深拷贝 | 状态管理 |
+| `useKeyboard` | 全局键盘快捷键（Delete/Ctrl+Z/Ctrl+Y） | 业务逻辑 |
 | `usePresets` | 预设场景数据 | 状态管理 |
 | `useQuestionBank` | 题库筛选/选中 | 场景构建 |
 | `useHistory` | 撤销/重做历史栈 | 状态管理 |
 
-### 3.2 PhysicsCanvas.vue 拆分原则
+### 3.2 组件拆分原则
 
-原 `PhysicsCanvas.vue` 曾有 1541 行，拆分为 3 个 composable：
+**PhysicsCanvas.vue** 曾有 1541 行，拆分为 3 个 composable：
 
 ```
 PhysicsCanvas.vue (1541行)
@@ -135,6 +144,26 @@ PhysicsCanvas.vue (1541行)
 - requestAnimationFrame 循环
 - 组合三个 composable
 - 组件 props/emit 声明
+
+**App.vue** 进一步按 SRP 拆分（从 ~600 行降至 ~310 行）：
+
+```
+App.vue (~600行)
+    ├── useSceneManager.ts        ← 场景切换/播放/重置/持久化
+    ├── useObjectOperations.ts    ← 物体增删改/撤销重做/Delete 键
+    ├── useSceneIO.ts             ← 导出/导入/物体校验
+    └── useKeyboard.ts            ← 键盘快捷键
+```
+
+**usePhysics.ts** 同步拆出职责：
+
+```
+usePhysics.ts (~420行)
+    ├── useSnapshotManager.ts  ← 快照录制 + 关键帧检测
+    └── useForces.ts           ← 合力计算（策略注册表，OCP）
+```
+
+usePhysics 现仅保留物理状态、欧拉积分、场景加载与物体增删，`snapshots`/`currentFrame`/`keyframeIndices` 从 useSnapshotManager re-export。
 
 ---
 
@@ -155,17 +184,25 @@ PhysicsCanvas.vue (1541行)
 
 ### 4.2 常量定义
 
+> 全局共享常量集中管理在 `src/constants.ts`（遵循 DRY，消除魔法数字）。`PIXELS_PER_METER`/`GRAVITY`/`GRAVITY_SI` 因与物理引擎强耦合仍保留在 usePhysics.ts。
+
 | 常量 | 值 | 位置 | 说明 |
 |------|-----|------|------|
 | `PIXELS_PER_METER` | 50 | usePhysics.ts | 1 米 = 50 像素 |
 | `GRAVITY_SI` | 9.8 | usePhysics.ts | 标准重力（m/s²） |
 | `GRAVITY` | 490 | usePhysics.ts | 像素重力（px/s²） |
-| `MAX_SNAPSHOTS` | 1200 | usePhysics.ts | 快照缓冲（20s × 60fps） |
-| `MAX_SUBSTEPS` | 200 | usePhysics.ts | 子步循环上限 |
+| `GROUND_DISABLED` | 100000 | constants.ts | 禁用地面标记值（groundY ≥ 此值表示禁用水平地面） |
+| `MAX_SUBSTEPS` | 200 | constants.ts | 子步循环上限 |
+| `MAX_STEP_DIST` | 10 | constants.ts | 单步最大移动距离（像素，防隧穿） |
+| `TRAIL_LENGTH` | 80 | constants.ts | 轨迹最大长度（帧数） |
+| `MAX_SNAPSHOTS` | 1200 | constants.ts | 快照缓冲（20s × 60fps） |
+| `DEFAULT_CANVAS_WIDTH` | 800 | constants.ts | 默认画布宽度 |
+| `DEFAULT_CANVAS_HEIGHT` | 500 | constants.ts | 默认画布高度 |
+| `CANVAS_MARGIN` | 60 | constants.ts | 画布边距 |
+| `GROUND_BASELINE` | 400 | constants.ts | 地面基准线 |
+| `PAN_LIMIT` | 3000 | constants.ts | 平移范围限制（像素） |
+| `SCENE_VERSION` | 2 | constants.ts | 场景导出 JSON 版本号 |
 | `MAX_HISTORY` | 50 | useHistory.ts | 撤销/重做上限 |
-| `GROUND_BASELINE` | 400 | useSceneBuilder.ts | 地面基准线 |
-| `CANVAS_MARGIN` | 60 | useSceneBuilder.ts | 画布边距 |
-| `DEFAULT_CANVAS_WIDTH` | 800 | useSceneBuilder.ts | 默认画布宽度 |
 
 ---
 
@@ -378,3 +415,37 @@ function screenToWorld(clientX, clientY) {
   }
 }
 ```
+
+---
+
+## 十、弧线约束与触发器
+
+为还原 2023 浙江高考题中小球穿越螺旋圆环的过程，引入弧线约束动力学与触发器缺口机制，跨三层协作：
+
+```
+数据层（usePhysics.ts 类型）        引擎层（useCollision.ts）          视图层（useCanvasRenderer.ts）
+─────────────────────────         ──────────────────────         ──────────────────────────
+ArcMeta.entryGap / exitGap   ──►  tryActivateArcConstraint  ──►  drawArcsVisually
+  (triggerType/triggerAction)      applyArcConstraint              (受 state.showGateColors 控制
+SegmentObject.arcGateState        isAngleInRange / didAngleCross    显示触发器颜色与缺口开关)
+SegmentObject.constraintEnabled   detectArcCollision
+ParticleObject.constrainedArcGroupId
+```
+
+### 10.1 数据层
+
+- `SegmentObject.constraintEnabled`（仅弧线首段，默认 true）：true=约束模式，false=碰撞模式
+- `SegmentObject.arcGateState`：运行时缺口开关状态（entryOpen/exitOpen/prevAngle/wasInside），不序列化，由 useSceneBuilder 初始化
+- `ParticleObject.constrainedArcGroupId`：当前约束的弧线组 ID（undefined=未约束），运行时状态
+- `ArcMeta.entryGap`/`exitGap`：缺口定义（centerAngle/halfWidth/initiallyOpen/triggerType/triggerAngle/triggerAction）
+
+### 10.2 引擎层
+
+- `tryActivateArcConstraint`：球触碰弧面或进入环内（catch-up 逻辑：球在环内且所有门关闭时强制激活，修复 4px 距离盲区）时，设置 `constrainedArcGroupId`
+- `applyArcConstraint`：约束期间将球位置投影到弧面，保留切向动能；满足自然脱离条件（v² 与 g·R·(-sinθ) 比较）时解除约束
+- 触发器：`enterRing`（球进环触发）、`angleCross`（角度穿越 triggerAngle 触发），动作 open/close 缺口
+- `isAngleInRange`：完整圆（span≈2π）特判返回 true，避免全圆弧缺口误判
+
+### 10.3 视图层
+
+`drawArcsVisually` 根据 `state.showGateColors`（ControlBar 🎨 触发器颜色按钮切换）决定是否渲染触发器弧段颜色（amber）与缺口开关叠加（green=开 / red=关）。

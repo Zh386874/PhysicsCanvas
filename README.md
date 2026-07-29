@@ -1,6 +1,6 @@
 # 物理解模
 
-> 基于 Vue 3 + Canvas 2D 的高中物理仿真教学工具，覆盖力学与电磁学常见题型，内置 21 道高考真题库与 AI 题目解析能力。
+> 基于 Vue 3 + Canvas 2D 的高中物理仿真教学工具，覆盖力学与电磁学常见题型，内置高考真题库与 AI 题目解析能力。
 
 [![Deploy Status](https://github.com/Zh386874/PhysicsCanvas/actions/workflows/deploy.yml/badge.svg)](https://github.com/Zh386874/PhysicsCanvas/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -15,20 +15,15 @@
 
 ### 1. 高考真题库
 
-内置 21 道高考常见题型场景，覆盖 8 大题型分类：
+当前内置 1 道高考真题场景：
 
-| 题型 | 题量 | 示例 |
-|------|------|------|
-| 斜面类 | 5 道 | 斜面滑块、粗糙斜面摩擦、双斜面对称、斜面弹簧 |
-| 抛体运动 | 3 道 | 平抛、斜抛最大高度、高处平抛落地角度 |
-| 碰撞 | 3 道 | 正面对心弹性碰撞、完全非弹性碰撞、多球连环碰撞 |
-| 磁场 | 3 道 | 圆周运动、不同电荷偏转对比、周期运动 |
-| 电场 | 3 道 | 电场偏转、电场加速、电场力与重力平衡 |
-| 弹簧 | 2 道 | 弹簧振子简谐运动、弹簧碰撞问题 |
-| 传送带 | 1 道 | 水平传送带摩擦力问题 |
-| 板块模型 | 1 道 | 板块模型相对滑动 |
+| ID | 题目 | 难度 | 核心知识点 |
+|----|------|------|------------|
+| plate-2023-zj | 2023·浙江·高考真题（游戏装置） | hard | 斜面 + 螺旋圆轨 + 板块模型 + 动量守恒 + 能量守恒 |
 
-每题支持一键加载、参数调节、过程回放。
+> 该题螺旋圆轨受 2D 拓扑限制简化为单圆弧，并采用动态缺口（entryGap/exitGap 触发器）+ 弧线约束动力学还原小球穿环过程；轨道等比例放大 ×1.6、小球半径缩至 0.08m 以缓解碰撞卡顿。详见 [题库文档](docs/QUESTION_BANK.md)。
+
+支持一键加载、参数调节、过程回放。
 
 ### 2. 自定义场景编辑器
 
@@ -39,6 +34,7 @@
 - 中键平移 + 滚轮缩放（0.3~5x）
 - 撤销 / 重做（50 步历史）
 - 场景导出 / 导入（剪贴板 JSON）
+- 弧线高级选项：约束动力学开关、触发器缺口配置、🎨 触发器颜色可视化
 
 ### 3. AI 题目解析
 
@@ -64,8 +60,9 @@
 | 构建工具 | Vite 6.3 |
 | 语言 | JavaScript + TypeScript（渐进式迁移） |
 | 渲染 | Canvas 2D + requestAnimationFrame |
-| 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 |
+| 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 + 弧线约束动力学 |
 | AI | DeepSeek API（可选） |
+| 测试 | Vitest 4（单元 / 集成 / 回归三层） |
 | 部署 | GitHub Actions → GitHub Pages |
 
 ## 📦 快速开始
@@ -120,35 +117,48 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 物理解模/
 ├── src/
 │   ├── main.js                      # 应用入口
-│   ├── App.vue                      # 主应用组件（状态管理 + 布局）
+│   ├── App.vue                      # 主应用组件（布局 + 组合 composables）
+│   ├── constants.ts                 # 全局共享常量（PIXELS_PER_METER 等）
 │   ├── components/                  # Vue 组件
 │   │   ├── PhysicsCanvas.vue        # 画布组件（渲染循环 + 事件分发）
 │   │   ├── AIInput.vue              # AI 题目解析输入
 │   │   ├── ApiKeyDialog.vue         # API Key 配置对话框
 │   │   ├── QuestionBankPanel.vue    # 真题库面板
 │   │   ├── ObjectList.vue           # 物体列表
-│   │   ├── PropertyPanel.vue        # 属性编辑面板
+│   │   ├── PropertyPanel.vue        # 属性编辑面板（含弧线高级选项）
 │   │   ├── ForceEditor.vue          # 附加力编辑器
-│   │   ├── ControlBar.vue           # 播放控制栏
+│   │   ├── ControlBar.vue           # 播放控制栏（含触发器颜色按钮）
 │   │   ├── Timeline.vue             # 回放时间轴
 │   │   └── SceneTabs.vue            # 场景切换标签
-│   ├── composables/                 # 组合式函数（核心逻辑）
-│   │   ├── usePhysics.ts            # 物理引擎（状态 + 积分 + 快照）
-│   │   ├── useCollision.ts          # 碰撞检测（地面/质点/线段/弧线）
+│   ├── composables/                 # 组合式函数（核心逻辑，共 16 个）
+│   │   ├── usePhysics.ts            # 物理引擎（状态 + 积分 + 场景加载）
+│   │   ├── useCollision.ts          # 碰撞检测（地面/质点/线段/弧线 + 约束动力学）
+│   │   ├── useForces.ts             # 力计算策略层（注册表 + OCP）
+│   │   ├── useSnapshotManager.ts    # 快照录制 + 关键帧检测
 │   │   ├── useCanvasRenderer.ts     # 画布渲染（所有绘制函数）
 │   │   ├── useCanvasInteraction.ts  # 画布交互（拖拽/框选/平移缩放）
 │   │   ├── useEditTools.ts          # 编辑工具（小球/平台/圆弧/弹簧）
 │   │   ├── useAIParser.ts           # AI 解析（DeepSeek + 本地回退）
 │   │   ├── useSceneBuilder.ts       # 场景构建（SI→像素转换）
+│   │   ├── useSceneManager.ts       # 场景切换/播放/重置/持久化
+│   │   ├── useObjectOperations.ts   # 物体增删改 + 撤销/重做 + Delete 键
+│   │   ├── useSceneIO.ts            # 场景导出/导入 + 物体校验
+│   │   ├── useKeyboard.ts           # 键盘快捷键（Delete/Ctrl+Z/Ctrl+Y）
 │   │   ├── usePresets.ts            # 预设场景
 │   │   ├── useQuestionBank.ts       # 题库状态管理
 │   │   └── useHistory.ts            # 撤销/重做历史
 │   └── data/
-│       └── questionBank.ts          # 21 道高考真题数据
+│       └── questionBank.ts          # 高考真题数据（当前 1 道）
+├── tests/                           # Vitest 测试
+│   ├── unit/collision.test.ts       # 单元测试（弧线碰撞与约束激活）
+│   ├── integration/ring-scene.test.ts    # 集成测试（圆环完整物理循环）
+│   ├── regression/ball-through-ring.test.ts  # 回归测试（球穿环 bug）
+│   └── helpers/sceneBuilder.ts      # 测试场景构建工具
 ├── .github/workflows/deploy.yml     # GitHub Actions 部署配置
 ├── docs/                            # 项目文档
 ├── index.html                       # HTML 入口
 ├── vite.config.js                   # Vite 配置
+├── vitest.config.ts                 # Vitest 测试配置
 ├── tsconfig.json                    # TypeScript 配置
 └── package.json
 ```
@@ -157,12 +167,14 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 
 | 文档 | 说明 |
 |------|------|
+| [需求文档](docs/REQUIREMENTS.md) | 功能需求、验收标准、发展路线图 |
 | [接口文档](docs/API.md) | 组件 props/emit、composable 导出函数、数据结构定义 |
 | [架构设计](docs/ARCHITECTURE.md) | 分层架构、单向数据流、模块职责划分 |
 | [物理模型](docs/PHYSICS.md) | 单位系统、积分方法、碰撞检测、力模型 |
-| [题库文档](docs/QUESTION_BANK.md) | 题库结构、题型分类、添加新题目 |
+| [题库文档](docs/QUESTION_BANK.md) | 题库结构、题目列表、添加新题目 |
 | [部署文档](docs/DEPLOYMENT.md) | GitHub Pages 部署流程、CI/CD 配置 |
 | [测试文档](docs/TESTING.md) | 测试策略与用例 |
+| [代码质量审查](docs/CODE_QUALITY_REVIEW.md) | SOLID 原则审查与现状评估 |
 | [变更日志](CHANGELOG.md) | 版本变更记录 |
 
 ## 🔑 核心常量

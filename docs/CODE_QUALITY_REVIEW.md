@@ -1,6 +1,7 @@
 # 代码质量审查报告
 
 > 基于 SOLID 原则、代码组织原则和架构原则检查项目代码
+> 本次为**现状审查**：基于当前代码重新评估既往问题并补充新发现，已解决项标注 ✅ 并简述实现。
 
 ---
 
@@ -12,30 +13,33 @@
 
 | 层 | 文件 | 职责 |
 |----|------|------|
-| 组件层 | 11 个 Vue 组件 | UI 渲染 + 用户交互 |
-| Composable 层 | 11 个 .ts 文件 | 业务逻辑封装 |
+| 组件层 | 10 个 Vue 组件 + App.vue | UI 渲染 + 用户交互 |
+| Composable 层 | 16 个 .ts 文件 | 业务逻辑封装（含本次拆分新增 6 个） |
 | 数据层 | questionBank.ts | 题库数据定义 |
+| 常量层 | constants.ts | 全局共享常量集中管理 |
+| 测试层 | tests/（unit/integration/regression） | Vitest 自动化测试 |
 
-PhysicsCanvas.vue 拆分为 3 个 composable 的设计符合 SRP：
-- `useCanvasRenderer` — 纯绘制函数，无状态
-- `useCanvasInteraction` — 事件处理 + 拖拽 + 平移缩放
-- `useEditTools` — 工具状态管理
+PhysicsCanvas.vue 拆分为 3 个 composable，App.vue 进一步按 SRP 拆分为 4 个 composable，usePhysics.ts 拆出快照与力计算两个 composable（详见 1.2）。
 
 ### 1.2 单一职责原则（良好）
 
-大部分 composable 职责清晰：
+经多轮拆分后，核心模块职责清晰：
 
-| Composable | 职责 | 行数 |
+| 模块 | 职责 | 现状 |
 |------------|------|------|
-| usePhysics | 物理状态 + 欧拉积分 + 快照 | ~420 |
-| useCollision | 碰撞检测（地面/质点/线段/弧线） | ~500 |
-| useCanvasRenderer | Canvas 绘制（纯函数） | ~600 |
-| useCanvasInteraction | 鼠标事件 + 拖拽 + 平移缩放 | ~500 |
-| useHistory | 撤销/重做历史栈 | ~90 |
+| App.vue | 组件编排 + 布局 | ~309 行，仅组装 4 个 composable（原 ~600 行） |
+| usePhysics | 物理状态 + 欧拉积分 + 场景加载 + 物体增删 | 快照/关键帧外移至 useSnapshotManager，合力计算外移至 useForces |
+| useCollision | 碰撞检测（地面/质点/线段/弧线）+ 弧线约束动力学 + 触发器缺口 | ~640 行，含 applyArcConstraint/tryActivateArcConstraint |
+| useForces | 合力计算策略层（力注册表 + 策略模式） | 遵循 OCP |
+| useSnapshotManager | 快照录制 + 关键帧检测 + 回放状态 | 从 usePhysics 拆出 |
+| useCanvasRenderer | Canvas 绘制（纯函数） | 无状态 |
+| useCanvasInteraction | 鼠标事件 + 拖拽 + 平移缩放 | 通过 PhysicsStateAccess 接口注入依赖（DIP） |
+| useHistory | 撤销/重做历史栈 | ~90 行 |
 
 ### 1.3 DRY 原则（良好）
 
-类型定义已统一在 `usePhysics.ts`，其他文件通过 `import type` 导入（已在本次会话修复）。
+- 类型定义统一在 `usePhysics.ts`，其他文件通过 `import type` 导入
+- 全局常量集中管理在 `src/constants.ts`（GROUND_DISABLED、MAX_SUBSTEPS、MAX_STEP_DIST、TRAIL_LENGTH、MAX_SNAPSHOTS、画布常量、SCENE_VERSION），消除魔法数字散落
 
 ### 1.4 组合优于继承（良好）
 
@@ -46,385 +50,176 @@ PhysicsCanvas.vue 拆分为 3 个 composable 的设计符合 SRP：
 
 ### 1.5 单向数据流（良好）
 
-架构设计文档明确约定：
 - `usePhysics.state` 是唯一数据源
 - 组件只读取，不直接修改
 - 所有修改通过 `loadScene`/`addObject`/`removeObject` 等函数
+- 交互层通过 `PhysicsStateAccess` 抽象接口访问状态，不直接 import state
+
+### 1.6 接口隔离原则（良好）
+
+`ParsedObject` 已拆分为判别联合（`ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring`），每个类型只含自己需要的字段，通过 `type` 字段收窄。
 
 ---
 
-## 二、不符合原则的部分 ⚠️
+## 二、既往问题重评
 
-### 2.1 【SRP 违规】App.vue 承担过多职责
+### 2.1 【SRP】App.vue 承担过多职责 → ✅ 已解决
 
-**问题**：App.vue（~600 行）同时负责：
-- 组件编排和布局
-- 场景切换逻辑（`onSceneSwitch`）
-- 播放/重置逻辑（`onTogglePlay`/`onReset`）
-- 自定义场景持久化（`saveCustomScene`/`restoreCustomScene`）
-- AI 解析回调（`handleLoadPreset`/`handleSceneBuilt`）
-- 真题库加载（`handleLoadQuestion`）
-- 物体操作（`handleAddObject`/`handleRemoveObject`）
-- 场景导出/导入（`handleExportScene`/`handleImportScene`）
-- 历史管理（`onUndo`/`onRedo`）
+**现状**：App.vue 已从 ~600 行降至 ~309 行，业务逻辑委托给 4 个 composable：
+- `useSceneManager` — 场景切换、播放/重置、自定义场景持久化、AI/题库加载
+- `useObjectOperations` — 物体增删改、选中、撤销/重做、Delete 键
+- `useSceneIO` — 导出/导入/剪贴板/物体验证
+- `useKeyboard` — 全局键盘快捷键
 
-**违反原则**：单一职责原则（SRP）— 一个模块只负责一件事。
+App.vue 现仅保留组件编排、布局与少量本地 UI 状态（API Key 对话框）。
 
-**建议**：拆分为多个 composable：
-- `useSceneManager` — 场景切换、预设加载、持久化
-- `useObjectOperations` — 物体增删改查
-- `useSceneIO` — 导入/导出/剪贴板
+### 2.2 【SRP】usePhysics.ts 职责混杂 → ✅ 已解决
 
----
+**现状**：usePhysics.ts 已拆分：
+- 快照录制 + 关键帧检测 + 回放状态 → `useSnapshotManager.ts`（usePhysics 通过 re-export 暴露 `snapshots`/`currentFrame`/`keyframeIndices`）
+- 合力计算 → `useForces.ts`（`calculateTotalForce` 策略注册表，遵循 OCP）
 
-### 2.2 【SRP 违规】usePhysics.ts 职责混杂
+usePhysics 现仅保留物理状态、欧拉积分、子步循环、场景加载与物体增删。
 
-**问题**：usePhysics.ts（~420 行）同时负责：
-- 物理状态管理（`state`）
-- 欧拉积分（`subStepPhysics`）
-- 子步循环（`updatePhysics`）
-- 快照录制（`snapshots`）
-- 关键帧检测（`detectKeyframe`）
-- 场景加载（`loadScene`）
-- 物体增删（`addObject`/`removeObject`）
+### 2.3 【SRP】useCanvasInteraction.ts 状态分散 → 🟡 部分改善（低优先级）
 
-**违反原则**：单一职责原则（SRP）— 物理引擎和快照系统混在一起。
+**现状**：模块级 `let` 变量仍存在（panning/drawing/dragging/selectionActive/batchDragging 等），但已按职责分组并加注释（平移/绘制/拖拽/框选/批量拖拽），且 `dragTarget`/`batchDragInitial` 已替换为类型化接口（`DragTarget`/`BatchDragItem`）。功能正常运行。
 
-**建议**：拆分为：
-- `usePhysicsCore` — 纯物理引擎（state + updatePhysics + subStepPhysics）
-- `useSnapshotManager` — 快照录制 + 关键帧检测 + 回放状态
-- `useSceneManager` — 场景加载 + 物体管理
+**残留**：未进一步归并为几个 reactive 对象。属可读性优化，非功能性问题，优先级低。
 
----
+### 2.4 【ISP】ParsedObject 接口过于庞大 → ✅ 已解决
 
-### 2.3 【SRP 违规】useCanvasInteraction.ts 状态分散
+**现状**：`ParsedObject` 已重构为判别联合，详见 [API.md - AI 解析类型](API.md#15-ai-解析类型)：
 
-**问题**：文件开头定义了 8 个模块级变量：
 ```typescript
-let panning = false
-let panStart = null
-let drawing = false
-let drawStart = null
-let dragging = false
-let dragTarget = null
-let selectionActive = false
-let selectionStart = null
-let batchDragging = false
-let batchDragStartPos = null
-```
-
-**违反原则**：SRP + 隐式状态 — 多个独立状态散落在文件中，难以追踪和维护。
-
-**建议**：将状态归类为几个 reactive 对象：
-```typescript
-const panState = reactive({ active: false, start: null })
-const dragState = reactive({ active: false, target: null, justDragged: false })
-const selectionState = reactive({ active: false, start: null, end: null })
-```
-
----
-
-### 2.4 【ISP 违规】ParsedObject 接口过于庞大
-
-**问题**：`ParsedObject` 接口（useAIParser.ts:9-37）包含 19 个可选字段：
-```typescript
-export interface ParsedObject {
-  id?: string
-  type: 'ball' | 'platform' | 'arc' | 'spring'
-  mass?: number
-  charge?: number
-  radius?: number
-  initialVelocity?: Vec2
-  initialPosition?: Vec2
-  startPoint?: Vec2
-  endPoint?: Vec2
-  center?: Vec2
-  arcRadius?: number
-  startAngle?: number
-  endAngle?: number
-  friction?: number
-  fixed?: boolean
-  anchor?: Vec2
-  ballId?: string
-  naturalLength?: number
-  k?: number
-  beltVelocity?: Vec2
-  movable?: boolean
-}
-```
-
-但每个类型实际只使用其中几个字段：
-- `ball` 使用：id, mass, charge, radius, initialPosition, initialVelocity
-- `platform` 使用：id, startPoint, endPoint, friction, beltVelocity, movable
-- `spring` 使用：id, anchor, ballId, naturalLength, k
-
-**违反原则**：接口隔离原则（ISP）— 类被强迫依赖它不需要的接口。
-
-**建议**：拆分为多个类型：
-```typescript
-interface BaseParsedObject {
-  id?: string
-  type: 'ball' | 'platform' | 'arc' | 'spring'
-}
-
-interface ParsedBall extends BaseParsedObject {
-  type: 'ball'
-  mass?: number
-  charge?: number
-  radius?: number
-  initialPosition?: Vec2
-  initialVelocity?: Vec2
-}
-
-interface ParsedPlatform extends BaseParsedObject {
-  type: 'platform'
-  startPoint?: Vec2
-  endPoint?: Vec2
-  friction?: number
-  beltVelocity?: Vec2
-  movable?: boolean
-}
-
+interface BaseParsedObject { id?: string; type: 'ball' | 'platform' | 'arc' | 'spring' }
+interface ParsedBall extends BaseParsedObject { type: 'ball'; mass?; charge?; radius?; initialPosition?; initialVelocity?; ... }
+interface ParsedPlatform extends BaseParsedObject { type: 'platform'; startPoint?; endPoint?; friction?; beltVelocity?; movable?; mass? }
+interface ParsedArc extends BaseParsedObject { type: 'arc'; center?; arcRadius?; ...; entryGap?; exitGap? }
+interface ParsedSpring extends BaseParsedObject { type: 'spring'; anchor?; ballId?; naturalLength?; k? }
 type ParsedObject = ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring
 ```
 
----
+`convertToSceneParams` 中通过 `obj.type === 'ball'` 判别收窄，类型安全。
 
-### 2.5 【OCP 违规】subStepPhysics 函数硬编码力计算
+### 2.5 【OCP】subStepPhysics 硬编码力计算 → ✅ 已解决
 
-**问题**：`usePhysics.ts` 的 `subStepPhysics` 函数（lines 193-257）硬编码了所有力计算：
+**现状**：合力计算已抽离至 `useForces.ts`，采用力注册表 + 策略模式：
+
 ```typescript
-// 合力 = 重力 + 自定义力 + 场力 + 弹簧力
-let fx = 0
-let fy = p.mass * state.gravity
-
-for (const force of state.forces) { ... }
-if (charge !== 0) { ... }
-for (const s of state.objects) { if (s.type === 'spring') ... }
+const forceCalculators: ForceCalculator[] = []
+export function registerForce(calculator: ForceCalculator): void { ... }
+export function calculateTotalForce(state, particle): { fx, fy } { ... }
 ```
 
-**违反原则**：开闭原则（OCP）— 添加新力（如空气阻力、浮力）需修改核心函数。
+默认注册 4 种力（重力、自定义力、场力 qE+qvB、弹簧力 -kx）。添加新力（如空气阻力）只需调用 `registerForce` 注册新策略，无需修改 subStepPhysics 核心逻辑，符合 OCP。
 
-**建议**：使用策略模式 + 力注册表：
+### 2.6 【DIP】useCanvasInteraction 直接依赖具体实现 → ✅ 已解决
+
+**现状**：useCanvasInteraction 不再 `import { state } from './usePhysics'`，改为通过 `PhysicsStateAccess` 接口注入：
+
 ```typescript
-// usePhysics.ts
-const forceCalculators = new Map<string, ForceCalculator>()
-
-function registerForce(type: string, calculator: ForceCalculator) {
-  forceCalculators.set(type, calculator)
+export interface PhysicsStateAccess {
+  readonly objects: PhysicsObject[]
+  groundY: number
 }
-
-function subStepPhysics(subDt: number): boolean {
-  for (const [type, calc] of forceCalculators) {
-    const { fx, fy } = calc(obj, state)
-    totalFx += fx
-    totalFy += fy
-  }
-}
-
-// 注册默认力
-registerForce('gravity', gravityCalculator)
-registerForce('field', fieldForceCalculator)
-registerForce('spring', springForceCalculator)
+export function initCanvasInteraction(canvas, propsGetter, emitter, state: PhysicsStateAccess): void
 ```
 
----
+仅 `import type` 类型与 `constants`，运行时依赖由 `initCanvasInteraction` 注入，便于测试和替换状态源。
 
-### 2.6 【DIP 违规】useCanvasInteraction 直接依赖具体实现
+### 2.7 【显式优于隐式】any 类型滥用 → ✅ 基本解决
 
-**问题**：`useCanvasInteraction.ts` 直接导入并调用 `usePhysics.state`：
-```typescript
-import { state } from './usePhysics'
-```
+**现状**：useCanvasInteraction 的 `dragTarget`/`batchDragInitial` 已替换为类型化接口（`DragTarget`/`BatchDragItem`），App.vue 的 `handleBatchUpdate` 已移至 useObjectOperations 并类型化。
 
-在事件处理函数中直接修改状态：
-```typescript
-function onMouseDown(e) {
-  const pos = getMousePos(e)
-  if (tool.value === 'ball') {
-    const newBall = { ... }
-    emitFn('add-object', newBall)  // 依赖 emitFn
-  }
-}
-```
+**残留**：`useHistory.ts:27` 仍有一处 `o as any`（剥离运行时字段 trail/prevX/prevY 时）。useSceneIO.ts 同类操作已改用更安全的 `as unknown as Record<string, unknown>`，useHistory 可对齐此写法（见三、新发现）。
 
-**违反原则**：依赖倒置原则（DIP）— 高层模块（交互层）直接依赖低层模块（状态层）。
+### 2.8 【KISS】handleImportScene 函数过长 → ✅ 已解决
 
-**建议**：通过依赖注入传入状态访问接口：
-```typescript
-interface PhysicsStateAccess {
-  objects: PhysicsObject[]
-  isPlaying: boolean
-}
+**现状**：导入逻辑已移至 `useSceneIO.ts` 并拆分为：
+- `deepCopyObjects(objs)` — 纯函数，深拷贝并剥离运行时字段
+- `validateObject(o)` — 纯函数，校验并规范化单个物体
+- `handleImportScene()` — ~50 行，读取剪贴板 → 解析 → 校验 → 加载 → 错误提示
 
-function initCanvasInteraction(
-  canvas: Ref<HTMLCanvasElement>,
-  stateAccess: PhysicsStateAccess,  // 抽象接口
-  emitter: EventEmitter
-) {
-  // 通过 stateAccess 访问，而非直接 import
-}
-```
+原 150 行长函数已分解，可读性与可测试性提升。
+
+### 2.9 【DRY】魔法数字散落 → ✅ 已解决
+
+**现状**：全局共享常量集中管理在 `src/constants.ts`，详见 [ARCHITECTURE.md - 核心常量体系](ARCHITECTURE.md#四核心常量体系)。各 composable 通过 `import` 使用，无重复定义。
+
+### 2.10 【YAGNI】预留的 prevX/prevY 字段 → ✅ 非问题（重新评估）
+
+**现状**：`prevX`/`prevY` 是 CCD（连续碰撞检测）的核心字段，**正在被积极使用**：
+- `usePhysics.ts:222-223`（subStepPhysics 开头赋值上一帧位置）
+- `useCollision.ts:113-127`（detectSegmentCollision 线段 CCD 路径求交）
+- `useCollision.ts:321-344`（detectArcCollision 弧线 CCD 路径求交）
+
+CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI 担忧不成立，字段合理保留。
 
 ---
 
-### 2.7 【显式优于隐式】any 类型滥用
+## 三、新发现的问题
 
-**问题**：多处使用 `any` 类型：
+### 3.1 【一致性】useHistory.ts 残留 `as any`（🟢 P2）
 
-`useCanvasInteraction.ts:39`：
-```typescript
-let dragTarget: any = null
-let batchDragInitial: any[] | null = null
-```
+`useHistory.ts:27` 剥离运行时字段时使用 `o as any`，而 `useSceneIO.ts:20` 同类操作已改用 `as unknown as Record<string, unknown>`。建议对齐写法以保持一致性。
 
-`App.vue:353`：
-```typescript
-function handleBatchUpdate(updates) {  // updates 无类型
-  for (const { id, props } of updates) {
-    const obj = state.objects.find(o => o.id === id)
-    if (obj) Object.assign(obj, props)  // props 无类型
-  }
-}
-```
+### 3.2 【测试覆盖】物理引擎核心逻辑测试缺口（🟡 P1）
 
-**违反原则**：显式优于隐式 — 失去类型安全保护。
+当前 Vitest 12 个测试集中在**弧线碰撞与约束**（collision.test.ts / ring-scene.test.ts / ball-through-ring.test.ts）。以下核心逻辑仍无自动化测试覆盖：
+- `usePhysics.ts` 欧拉积分（自由落体、平抛、弹簧周期）
+- `useForces.ts` 合力计算策略（重力、场力、弹簧力）
+- `useCollision.ts` 地面碰撞、质点间碰撞、线段 CCD 碰撞
 
-**建议**：定义明确类型：
-```typescript
-interface DragTarget {
-  type: 'particle' | 'segment' | 'endpoint'
-  object: PhysicsObject
-  endpointType?: 'start' | 'end'
-}
+详见 [TESTING.md - 未来测试计划](TESTING.md#十未来测试计划) 第二阶段。
 
-interface BatchUpdate {
-  id: number
-  props: Partial<PhysicsObject>
-}
-```
+### 3.3 【SRP 残留】useCanvasInteraction 模块级状态（🟢 P2）
+
+见 2.3，模块级 `let` 状态可归并为几个 reactive 对象以提升可追踪性，属可选优化。
+
+### 3.4 【类型】emit 桥接函数签名宽松（🟢 P2）
+
+`useCanvasInteraction.ts` 的 `emitFn: (event: string, ...args: unknown[]) => void` 为兼容 Vue emit 采用宽松签名。这是 Vue `<script setup>`（非 TS）与 composable 交互的 pragmatic 折中，影响有限。
 
 ---
 
-### 2.8 【KISS 违规】handleImportScene 函数过长
-
-**问题**：`App.vue` 的 `handleImportScene` 函数约 150 行，包含：
-- 剪贴板读取
-- JSON 解析
-- 版本兼容
-- 字段校验
-- 物体验证
-- 状态更新
-- 错误提示
-
-**违反原则**：KISS（保持简单）— 单个函数承担过多逻辑。
-
-**建议**：拆分为：
-- `readFromClipboard()` — 剪贴板操作
-- `parseSceneData(text)` — JSON 解析 + 版本迁移
-- `validateSceneObjects(objs)` — 物体验证
-- `loadSceneData(data)` — 状态更新
-
----
-
-### 2.9 【DRY 违规】魔法数字散落
-
-**问题**：多处硬编码数字：
-
-`usePhysics.ts:280-281`：
-```typescript
-const MAX_SUBSTEPS = 200
-const maxStepDist = 10  // 无注释说明来源
-```
-
-`usePhysics.ts:143`：
-```typescript
-const MAX_SNAPSHOTS = 1200  // 20秒 × 60fps
-```
-
-`useSceneBuilder.ts:11-16`：
-```typescript
-const DEFAULT_CANVAS_WIDTH = 800
-const DEFAULT_CANVAS_HEIGHT = 500
-const CANVAS_MARGIN = 60
-const GROUND_BASELINE = 400
-```
-
-`useCanvasInteraction.ts:281`：
-```typescript
-const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(maxVelMag * dt / maxStepDist)))
-```
-
-**违反原则**：DRY（不重复自己）+ 定义常量为荣，魔法数字为耻。
-
-**建议**：集中到 `src/constants.ts`：
-```typescript
-export const PHYSICS = {
-  MAX_SUBSTEPS: 200,
-  MAX_STEP_DIST: 10,  // 像素，防隧穿
-  MAX_SNAPSHOTS: 1200,  // 20秒 × 60fps
-  TRAIL_LENGTH: 80,
-} as const
-
-export const CANVAS = {
-  DEFAULT_WIDTH: 800,
-  DEFAULT_HEIGHT: 500,
-  MARGIN: 60,
-  GROUND_BASELINE: 400,
-} as const
-```
-
----
-
-### 2.10 【YAGNI 违规】预留的 future 字段
-
-**问题**：`ParticleObject` 接口包含 `prevX`/`prevY` 字段：
-```typescript
-interface ParticleObject {
-  // ...
-  prevX?: number  // CCD 碰撞检测用
-  prevY?: number  // CCD 碰撞检测用
-}
-```
-
-但实际只有 `subStepPhysics` 开头赋值，`detectSegmentCollision` 读取。如果未来移除 CCD，这些字段会变成死码。
-
-**违反原则**：YAGNI（你不会需要它）— 只有当前需求的字段才是必须的。
-
-**建议**：如果 CCD 是核心功能，改为必填字段并初始化；否则移除。
-
----
-
-## 三、问题严重程度分级
+## 四、问题严重程度分级（现状）
 
 | 级别 | 问题 | 影响 |
 |------|------|------|
-| 🔴 P0 | SRP 违规（App.vue） | 600 行大文件，难以维护和测试 |
-| 🔴 P0 | ISP 违规（ParsedObject） | 类型不安全，需要大量运行时判断 |
-| 🟡 P1 | SRP 违规（usePhysics.ts） | 物理引擎和快照耦合，修改风险高 |
-| 🟡 P1 | OCP 违规（subStepPhysics） | 添加新力需修改核心代码 |
-| 🟡 P1 | DIP 违规（useCanvasInteraction） | 测试困难，无法替换状态源 |
-| 🟢 P2 | 显式优于隐式（any 类型） | 失去类型检查，潜在运行时错误 |
-| 🟢 P2 | KISS 违规（长函数） | 可读性差，难以测试 |
-| 🟢 P2 | DRY 违规（魔法数字） | 修改需查找多处 |
+| 🟡 P1 | 测试覆盖缺口（积分/力计算/基础碰撞未覆盖） | 核心逻辑改动缺乏回归保护 |
+| 🟢 P2 | useHistory.ts 残留 `as any` | 一致性，非功能性 |
+| 🟢 P2 | useCanvasInteraction 模块级状态 | 可读性，非功能性问题 |
+| 🟢 P2 | emit 桥接签名宽松 | 类型安全折中，影响有限 |
+
+> 既往 P0 问题（App.vue SRP、ParsedObject ISP）均已解决。当前无 P0 问题。
 
 ---
 
-## 四、修复优先级建议
+## 五、修复优先级建议
 
-### 立即修复（P0）
+### 近期（P1）
 
-1. **拆分 App.vue** — 提取场景管理、物体操作、历史管理到独立 composable
-2. **拆分 ParsedObject 接口** — 使用联合类型替代单一庞大接口
-
-### 本次比赛前修复（P1）
-
-3. **重构 usePhysics.ts** — 分离快照系统
-4. **引入力计算策略模式** — 注册表替代硬编码
-5. **依赖注入改造** — 抽象 PhysicsStateAccess 接口
+1. **扩展单元测试覆盖** — 为 usePhysics 积分、useForces 力计算、基础碰撞编写单元测试（对应 TESTING.md 第二阶段）
 
 ### 长期优化（P2）
 
-6. **消除 any 类型** — 定义精确类型
-7. **拆分长函数** — handleImportScene、handleRemoveObject 等
-8. **集中常量定义** — 创建 constants.ts
+2. **对齐 useHistory 类型写法** — `as any` → `as unknown as Record<string, unknown>`
+3. **归并 useCanvasInteraction 模块级状态** — 按职责封装为 reactive 对象（可选）
+4. **vue-tsc 类型检查纳入 CI** — 对应 FR-8.2，需先补全 emit 类型签名
+
+---
+
+## 六、已解决问题汇总（可追溯）
+
+| 原问题 | 解决方式 |
+|--------|----------|
+| 2.1 App.vue SRP | 拆分为 useSceneManager/useObjectOperations/useSceneIO/useKeyboard，~600→~309 行 |
+| 2.2 usePhysics SRP | 拆出 useSnapshotManager（快照/关键帧）与 useForces（合力计算） |
+| 2.4 ParsedObject ISP | 重构为判别联合 ParsedBall\|ParsedPlatform\|ParsedArc\|ParsedSpring |
+| 2.5 OCP 硬编码力 | useForces 力注册表 + 策略模式，registerForce 扩展 |
+| 2.6 DIP 直接依赖 | PhysicsStateAccess 接口 + initCanvasInteraction 依赖注入 |
+| 2.7 any 类型 | DragTarget/BatchDragItem 类型化（useHistory 残留 1 处） |
+| 2.8 KISS 长函数 | 移至 useSceneIO，提取 deepCopyObjects/validateObject 纯函数 |
+| 2.9 魔法数字 | 集中至 src/constants.ts |
+| 2.10 prevX/prevY | 重新评估为 CCD 核心字段，非 YAGNI，合理保留 |
