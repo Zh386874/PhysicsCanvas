@@ -25,7 +25,7 @@ export const questionBank: QuestionItem[] = [
     difficulty: 'hard',
     tags: ['板块模型', '圆周运动', '动量守恒', '能量守恒', '斜面'],
     sceneJson: {
-      title: '游戏装置（2023浙江高考）（螺旋圆轨分离B/E为动态双缺口；凹槽侧壁IJ碰撞未实现；轨道等比例放大×1.6，小球缩小至0.08m以缓解碰撞卡顿）',
+      title: '游戏装置（2023浙江高考）（螺旋圆轨分离B/E为动态双缺口；凹槽侧壁IJ端面碰撞已实现；摆渡车为plate类型带物理厚度；轨道等比例放大×1.6，小球缩小至0.08m以缓解碰撞卡顿）',
       topic: 'custom',
       objects: [
         // 滑块：从AB上高度h静止释放（A点位置，球底高度）。
@@ -45,9 +45,12 @@ export const questionBank: QuestionItem[] = [
         // 水平轨道FG：L=2.5m，阻力=0.2mg → μ=0.2，F(7.68,0) → G(11.68,0)（坐标×1.6）
         { id: '水平轨道FG', type: 'platform', startPoint: { x: 7.68, y: 0 }, endPoint: { x: 11.68, y: 0 }, friction: 0.2 },
         // 摆渡车：紧靠GH，上表面y=0，长L=3m，质量m=1kg，可移动；μ为第(2)问答案值0.3（坐标×1.6）
-        { id: '摆渡车', type: 'platform', startPoint: { x: 11.68, y: 0 }, endPoint: { x: 16.48, y: 0 }, friction: 0.3, movable: true, mass: 1 },
+        // 物理厚度0.8m（上表面y=0 → 下表面y=-0.8 接触凹槽底面HI）；frictionTop=0.3（滑块摩擦），frictionBottom=0（凹槽底面光滑）
+        { id: '摆渡车', type: 'plate', startPoint: { x: 11.68, y: 0 }, endPoint: { x: 16.48, y: 0 }, physicsThickness: 0.8, angle: 0, frictionTop: 0.3, frictionBottom: 0, mass: 1 },
         // 凹槽底面HI：L_0=9m，水平光滑，低于上表面0.8m，G(11.68,-0.8) → J(26.08,-0.8)（坐标×1.6）
-        { id: '凹槽底面HI', type: 'platform', startPoint: { x: 11.68, y: -0.8 }, endPoint: { x: 26.08, y: -0.8 }, friction: 0 }
+        { id: '凹槽底面HI', type: 'platform', startPoint: { x: 11.68, y: -0.8 }, endPoint: { x: 26.08, y: -0.8 }, friction: 0 },
+        // 凹槽侧壁IJ：竖直，摆渡车碰到后由端面碰撞静止（startPoint上→endPoint下，法线自动指向左）
+        { id: '凹槽侧壁IJ', type: 'platform', startPoint: { x: 26.08, y: 0 }, endPoint: { x: 26.08, y: -0.8 }, friction: 0 }
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,

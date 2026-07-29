@@ -4,6 +4,7 @@
  */
 import { ref, watch } from 'vue'
 import { autoComputeNormal } from './useCollision'
+import { PIXELS_PER_METER } from './usePhysics'
 import type { PhysicsObject, SegmentObject, ParticleObject, SpringObject } from './usePhysics'
 
 export type ToolType = 'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | 'arc' | 'spring'
@@ -60,11 +61,14 @@ function createPlatformLikeObject(
       ...base,
       name: `板块${index}`,
       color: '#dc2626',
+      subtype: 'plate',
       movable: true,
       mass: 1,
-      thickness: 20,
-      frictionTop: 0.5,
-      frictionBottom: 0.3,
+      thickness: 20,                              // 视觉厚度（像素）保留
+      physicsThickness: 0.1 * PIXELS_PER_METER,   // 物理厚度初始 0.1m（用户可调）
+      angle: 0,                                    // 静态倾角，默认水平
+      frictionTop: 0.3,                            // 默认上表面 0.3
+      frictionBottom: 0.1,                         // 默认下表面 0.1
       velocity: { x: 0, y: 0 }  // 初始静止，使物理更新分支能进入
     }
   }

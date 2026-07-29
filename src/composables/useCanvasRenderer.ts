@@ -241,17 +241,42 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
     if (seg.arc) continue // 弧线子段由 drawArcsVisually 统一绘制
     const { x1, y1, x2, y2, normalX, normalY } = seg
     const nx = normalX || 0, ny = normalY || 0
-    const offset = seg.thickness ?? 30
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.12)'
-    ctx.beginPath()
-    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
-    ctx.lineTo(x2 + nx * offset, y2 + ny * offset)
-    ctx.lineTo(x1 + nx * offset, y1 + ny * offset)
-    ctx.closePath(); ctx.fill()
-    ctx.strokeStyle = seg.color || '#475569'
-    ctx.lineWidth = 3
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2
+    // 板块：用 physicsThickness 绘制真实物理边界矩形（沿法线反方向 = 板块实体方向）
+    if (seg.subtype === 'plate' && seg.physicsThickness) {
+      const t = seg.physicsThickness
+      // 下表面端点（沿法线反方向偏移 physicsThickness）
+      const x3 = x1 - nx * t, y3 = y1 - ny * t
+      const x4 = x2 - nx * t, y4 = y2 - ny * t
+      // 填充矩形（板块实体）
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.18)'
+      ctx.beginPath()
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+      ctx.lineTo(x4, y4); ctx.lineTo(x3, y3)
+      ctx.closePath(); ctx.fill()
+      // 描边上下表面（上表面=原线段，下表面=偏移线段）
+      ctx.strokeStyle = seg.color || '#dc2626'
+      ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke()
+      // 描边左右端面（加粗，提示碰撞面）
+      ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x3, y3); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x4, y4); ctx.stroke()
+    } else {
+      // 普通线段/传送带/平台：沿用视觉厚度平行四边形
+      const offset = seg.thickness ?? 30
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.12)'
+      ctx.beginPath()
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+      ctx.lineTo(x2 + nx * offset, y2 + ny * offset)
+      ctx.lineTo(x1 + nx * offset, y1 + ny * offset)
+      ctx.closePath(); ctx.fill()
+      ctx.strokeStyle = seg.color || '#475569'
+      ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+    }
+    // 法线箭头 + 名称（所有线段共用）
     const arrowLen = 20
     const tipX = midX + nx * arrowLen, tipY = midY + ny * arrowLen
     ctx.strokeStyle = 'rgba(167, 139, 250, 0.7)'

@@ -163,13 +163,32 @@
             />
           </div>
           <div class="field">
-            <label>厚度 (像素)</label>
+            <label>厚度 (像素，视觉)</label>
             <input
               type="number"
               step="1"
               min="1"
               :value="object.thickness || 20"
               @input="update('thickness', parseFloat($event.target.value))"
+            />
+          </div>
+          <div class="field">
+            <label>物理厚度 (m，参与碰撞)</label>
+            <input
+              type="number"
+              step="0.05"
+              min="0.01"
+              :value="object.physicsThickness !== undefined ? (object.physicsThickness / PIXELS_PER_METER).toFixed(2) : 0.1"
+              @input="update('physicsThickness', parseFloat($event.target.value) * PIXELS_PER_METER)"
+            />
+          </div>
+          <div class="field">
+            <label>倾角 (rad，静态)</label>
+            <input
+              type="number"
+              step="0.05"
+              :value="object.angle !== undefined ? object.angle : 0"
+              @input="update('angle', parseFloat($event.target.value))"
             />
           </div>
           <div class="field">

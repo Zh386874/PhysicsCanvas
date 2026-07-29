@@ -105,6 +105,12 @@ export interface SegmentObject {
   mass?: number
   /** 视觉厚度（像素），仅渲染用，板块模型可选；未设置时渲染回退默认值 */
   thickness?: number
+  /** 物理厚度（像素，运行时由米×scale 转换）；板块上下表面间距，参与碰撞与支撑检测 */
+  physicsThickness?: number
+  /** 静态倾角（弧度）；板块相对水平面的初始倾斜，物理更新中保持不变（不动态旋转） */
+  angle?: number
+  /** 子类型：区分 plate/conveyor/platform（运行时语义）；未设置视为普通线段 */
+  subtype?: 'plate' | 'conveyor' | 'platform'
   /** 上表面摩擦系数（板块模型，板块定义法线指向侧）；未设置回退 friction */
   frictionTop?: number
   /** 下表面摩擦系数（板块模型，板块定义法线反向侧）；未设置回退 friction */
@@ -261,17 +267,20 @@ function subStepPhysics(subDt: number): boolean {
     const vy = seg.velocity?.y ?? 0
     seg.x1 += vx * subDt; seg.x2 += vx * subDt
     seg.y1 += vy * subDt; seg.y2 += vy * subDt
-    // 3. 地面/平台支撑检测（板块中心 y 用 (y1+y2)/2）
+    // 3. 地面/平台支撑检测（用下表面 y：板块中心 + 物理厚度/2，沿画布 y 正方向）
+    //    法线指向上方（normalY<0），下表面 = 中心 + physicsThickness/2（画布 y 向下为正）
     const segMidY = (seg.y1 + seg.y2) / 2
     const segMidX = (seg.x1 + seg.x2) / 2
     const segHalfLen = Math.abs(seg.x2 - seg.x1) / 2
+    const halfThickness = seg.physicsThickness ? seg.physicsThickness / 2 : 0
+    const bottomY = segMidY + halfThickness  // 下表面 y（画布坐标）
     let supportY: number | null = null
     let supportFriction = 0
     let supportVx = 0
-    // 3a. 地面支撑
-    if (state.groundY < GROUND_DISABLED && segMidY >= state.groundY) {
+    // 3a. 地面支撑：下表面接触地面；摩擦用板块下表面系数 frictionBottom（默认 0.1）
+    if (state.groundY < GROUND_DISABLED && bottomY >= state.groundY) {
       supportY = state.groundY
-      supportFriction = 0.5  // 地面摩擦常量（state 无此字段，内联默认值）
+      supportFriction = seg.frictionBottom ?? 0.1
     }
     // 3b. 平台/传送带支撑（水平非 movable 线段）
     if (supportY === null) {
@@ -284,17 +293,18 @@ function subStepPhysics(subDt: number): boolean {
         const s2MidY = (s2.y1 + s2.y2) / 2
         const s2MidX = (s2.x1 + s2.x2) / 2
         const s2HalfLen = Math.abs(s2.x2 - s2.x1) / 2
-        if (Math.abs(segMidX - s2MidX) < segHalfLen + s2HalfLen && segMidY >= s2MidY) {
+        if (Math.abs(segMidX - s2MidX) < segHalfLen + s2HalfLen && bottomY >= s2MidY) {
           supportY = s2MidY
-          supportFriction = s2.friction ?? 0.5
+          // 板块下表面摩擦优先（frictionBottom），否则用支撑面 friction
+          supportFriction = seg.frictionBottom ?? s2.friction ?? 0.1
           supportVx = s2.velocity?.x ?? 0  // 传送带速度
           break
         }
       }
     }
-    // 4. 应用支撑：y 归位 + vy 清零 + 摩擦减速 vx（相对支撑面速度）
+    // 4. 应用支撑：下表面归位到 supportY + vy 清零 + 摩擦减速 vx（相对支撑面速度）
     if (supportY !== null && seg.velocity) {
-      const dy = supportY - segMidY
+      const dy = supportY - bottomY
       seg.y1 += dy; seg.y2 += dy
       seg.velocity.y = 0
       if (supportFriction > 0) {
@@ -304,6 +314,40 @@ function subStepPhysics(subDt: number): boolean {
           seg.velocity.x = supportVx  // 与支撑面共速
         } else {
           seg.velocity.x -= Math.sign(vRel) * a
+        }
+      }
+    }
+    // 5. 板块端面与静态竖直线段的碰撞（水平板块撞竖直侧壁，如摆渡车撞凹槽侧壁IJ）
+    //    碰撞后板块水平速度清零（立即静止），符合高考"碰到侧壁立即静止"语义
+    if (Math.abs(seg.y1 - seg.y2) < 3 && seg.velocity) {
+      const segLeftX = Math.min(seg.x1, seg.x2)
+      const segRightX = Math.max(seg.x1, seg.x2)
+      const segTopY = segMidY - halfThickness    // 板块上表面
+      const segBottomY2 = bottomY                // 板块下表面
+      for (const o2 of state.objects) {
+        if (o2.id === seg.id || o2.type !== 'line_segment') continue
+        const s2 = o2 as SegmentObject
+        if (s2.movable || s2.arc) continue
+        // 仅竖直线段（|x1-x2|<3px 视为竖直）
+        if (Math.abs(s2.x1 - s2.x2) > 3) continue
+        const wallX = (s2.x1 + s2.x2) / 2
+        const wallTopY = Math.min(s2.y1, s2.y2)
+        const wallBotY = Math.max(s2.y1, s2.y2)
+        // y 范围重叠才碰撞（板块上下表面与墙竖直范围有交集）
+        if (segBottomY2 < wallTopY || segTopY > wallBotY) continue
+        // 板块右端撞墙（墙在右侧，板块向右移动越过墙）
+        if (wallX > segRightX && segRightX >= wallX - 1) {
+          const dx = wallX - segRightX
+          seg.x1 += dx; seg.x2 += dx
+          seg.velocity.x = 0  // 立即静止
+          break
+        }
+        // 板块左端撞墙（墙在左侧，板块向左移动越过墙）
+        if (wallX < segLeftX && segLeftX <= wallX + 1) {
+          const dx = wallX - segLeftX
+          seg.x1 += dx; seg.x2 += dx
+          seg.velocity.x = 0  // 立即静止
+          break
         }
       }
     }

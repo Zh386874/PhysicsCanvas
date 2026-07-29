@@ -134,7 +134,13 @@ export function detectSegmentCollision(
       hitX = P.x; hitY = P.y; hit = true
     }
   }
-  if (!hit) return false
+  if (!hit) {
+    // 板块端面碰撞：上表面未命中时，检测质点是否撞击板块左右端面（无摩擦，动量守恒）
+    if (segment.subtype === 'plate' && segment.physicsThickness) {
+      return detectPlateEndCollision(obj, segment)
+    }
+    return false
+  }
 
   obj.x = hitX + nx * radius
   obj.y = hitY + ny * radius
@@ -221,6 +227,22 @@ function isAngleInGap(angle: number, centerAngle: number, halfWidth: number): bo
   while (diff > PI) diff -= TWO_PI
   while (diff < -PI) diff += TWO_PI
   return Math.abs(diff) <= halfWidth
+}
+
+/**
+ * 判断小球碰撞体积是否与缺口重叠
+ * 在 isAngleInGap 基础上叠加球的角半径 arcsin(ballRadius/dist)，
+ * 实现"小球碰撞体积与触发点重叠"的放行语义（而非仅球心角度）。
+ * 球体积触及缺口即放行，避免球心未落入缺口时球体撞实体壁被弹回。
+ * @param dist 球心到圆心距离；过小时退化为纯角度判断
+ */
+function isBallVolumeInGap(
+  angle: number, centerAngle: number, halfWidth: number,
+  ballRadius: number, dist: number
+): boolean {
+  if (dist <= 1e-9) return isAngleInGap(angle, centerAngle, halfWidth)
+  const angularRadius = Math.asin(Math.min(ballRadius / dist, 1))
+  return isAngleInGap(angle, centerAngle, halfWidth + angularRadius)
 }
 
 /**
@@ -349,11 +371,12 @@ export function detectArcCollision(
   // 缺口动态放行：小球在"已打开"的缺口范围内时跳过碰撞
   // entryOpen 时入口缺口放行（小球从 AB 进入圆轨），exitOpen 时出口缺口放行（小球从圆轨穿出到 EF）
   const objAngle = Math.atan2(obj.y - cy, obj.x - cx)
+  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
   if (seg.arcGateState) {
     if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
-        isAngleInGap(objAngle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth)) return false
+        isBallVolumeInGap(objAngle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth, radius, objDist)) return false
     if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
-        isAngleInGap(objAngle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth)) return false
+        isBallVolumeInGap(objAngle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth, radius, objDist)) return false
   }
   // 完整圆（2π）isAngleInRange 恒 true，不会触发；非完整弧仍保留静态缺口放行
   if (!isAngleInRange(objAngle, startAngle, endAngle)) return false
@@ -365,7 +388,7 @@ export function detectArcCollision(
   const hitX = closest.x
   const hitY = closest.y
   // 球心在弧线圆外 → 从外向内接触；在圆内 → 从内向外接触
-  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
+  // objDist 已在缺口放行判定前计算，此处复用
   fromOutside = objDist > r
 
   // 计算碰撞点对应的法线（径向）
@@ -466,12 +489,12 @@ function applyArcConstraint(
   // —— 结构性脱离：进入开启的缺口（题库场景出口 E）——
   if (seg.arcGateState) {
     if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
-        isAngleInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth)) {
+        isBallVolumeInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth, radius, objDist)) {
       obj.constrainedArcGroupId = undefined
       return false
     }
     if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
-        isAngleInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth)) {
+        isBallVolumeInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth, radius, objDist)) {
       obj.constrainedArcGroupId = undefined
       return false
     }
@@ -547,23 +570,23 @@ function tryActivateArcConstraint(
 
   const closest = closestPointOnArc(obj.x, obj.y, cx, cy, r, startAngle, endAngle)
   const angle = Math.atan2(obj.y - cy, obj.x - cx)
+  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
 
   // 角度范围判定
   if (!isAngleInRange(angle, startAngle, endAngle)) return false
 
-  // 缺口区域不激活（让球穿过缺口进入/离开）
+  // 缺口区域不激活（让球穿过缺口进入/离开）：按球碰撞体积判定，球体触及缺口即放行
   if (seg.arcGateState) {
     if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
-        isAngleInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth)) return false
+        isBallVolumeInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth, radius, objDist)) return false
     if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
-        isAngleInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth)) return false
+        isBallVolumeInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth, radius, objDist)) return false
   }
 
   // 距离判定
   // 带缺口的弧线特例：球在环内且所有门已关闭时，跳过距离判定强制激活约束
   // 场景：球从缺口进入后门关闭，球离弧面较远（> radius），但应在弧面上
   // 无此特例时，球会穿过圆环底部（closest.dist > radius 导致约束和碰撞都失效）
-  const objDist = Math.hypot(obj.x - cx, obj.y - cy)
   const isInside = objDist < r
   const allGatesClosed = !!seg.arcGateState && !seg.arcGateState.entryOpen && !seg.arcGateState.exitOpen
   const isGatedArcInsideCatchUp = allGatesClosed && isInside
@@ -622,6 +645,72 @@ function closestPointOnSegment(
   let t = ((px - x1) * dx + (py - y1) * dy) / len2
   t = Math.max(0, Math.min(1, t))
   return { x: x1 + t * dx, y: y1 + t * dy }
+}
+
+/**
+ * 板块端面碰撞检测（质点撞击板块左右端面）
+ * - 板块四个角点：上表面两端 (x1,y1)/(x2,y2) + 下表面两端（沿法线反方向偏移 physicsThickness）
+ * - 左端面 = (x1,y1)-(x3,y3)，法线指向 -切线方向；右端面 = (x2,y2)-(x4,y4)，法线指向 +切线方向
+ * - 碰撞响应：法向反射 + 动量守恒（考虑板块 mass），**不计算摩擦**
+ * @returns true 表示发生端面碰撞（已处理响应）
+ */
+function detectPlateEndCollision(
+  obj: ParticleObject,
+  seg: SegmentObject
+): boolean {
+  if (!seg.physicsThickness) return false
+  const radius = obj.radius || 10
+  const restitution = seg.restitution !== undefined ? seg.restitution : 0.3
+  const { x1, y1, x2, y2 } = seg
+  const nx = seg.normalX || 0, ny = seg.normalY || 0
+  const t = seg.physicsThickness
+  // 下表面端点：上表面沿法线反方向偏移 physicsThickness（法线 normalY<0 指上，反方向向下 y 增大）
+  const x3 = x1 - nx * t, y3 = y1 - ny * t
+  const x4 = x2 - nx * t, y4 = y2 - ny * t
+  // 切线方向（沿板块长度，从端点1指向端点2）
+  const dx = x2 - x1, dy = y2 - y1
+  const len = Math.hypot(dx, dy) || 1
+  const tx = dx / len, ty = dy / len
+  // 端面列表：左端面法线指向 -切线，右端面法线指向 +切线
+  const endFaces = [
+    { ax: x1, ay: y1, bx: x3, by: y3, enx: -tx, eny: -ty },
+    { ax: x2, ay: y2, bx: x4, by: y4, enx: tx, eny: ty }
+  ]
+  for (const face of endFaces) {
+    const dist = pointToSegmentDistance(obj.x, obj.y, face.ax, face.ay, face.bx, face.by)
+    if (dist > radius) continue
+    const P = closestPointOnSegment(obj.x, obj.y, face.ax, face.ay, face.bx, face.by)
+    // 位置修正：将质点推到端面外（沿端面法线 + radius）
+    obj.x = P.x + face.enx * radius
+    obj.y = P.y + face.eny * radius
+    // 法向速度（沿端面法线投影）
+    const v_obj_n = obj.vx * face.enx + obj.vy * face.eny
+    if (v_obj_n < 0) {
+      // 质点向端面内运动 → 反射 + 动量守恒（考虑板块可移动）
+      // 使用带恢复系数的正确碰撞公式（动量守恒 + e=-(v1'-v2')/(v1-v2)）：
+      //   v_obj' = ((m_obj - e*m_seg)*v_obj + (1+e)*m_seg*v_seg) / M
+      //   v_seg' = ((1+e)*m_obj*v_obj + (m_seg - e*m_obj)*v_seg) / M
+      const m_obj = obj.mass, m_seg = seg.mass || 1
+      const segVx = seg.velocity?.x ?? 0, segVy = seg.velocity?.y ?? 0
+      const v_seg_n = segVx * face.enx + segVy * face.eny
+      const totalM = m_obj + m_seg
+      const v_obj_n_new = ((m_obj - restitution * m_seg) * v_obj_n + (1 + restitution) * m_seg * v_seg_n) / totalM
+      const v_seg_n_new = ((1 + restitution) * m_obj * v_obj_n + (m_seg - restitution * m_obj) * v_seg_n) / totalM
+      // 更新质点速度
+      obj.vx += (v_obj_n_new - v_obj_n) * face.enx
+      obj.vy += (v_obj_n_new - v_obj_n) * face.eny
+      // 更新板块速度（牛顿第三定律反作用）
+      const segDv = v_seg_n_new - v_seg_n
+      if (seg.velocity) {
+        seg.velocity.x += segDv * face.enx
+        seg.velocity.y += segDv * face.eny
+      } else {
+        seg.velocity = { x: segDv * face.enx, y: segDv * face.eny }
+      }
+    }
+    return true
+  }
+  return false
 }
 
 /**

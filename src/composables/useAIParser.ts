@@ -16,7 +16,7 @@ export interface ParsedVec2 { x: number; y: number }
 /** 物体基类：仅包含公共字段 */
 export interface BaseParsedObject {
   id?: string
-  type: 'ball' | 'platform' | 'arc' | 'spring'
+  type: 'ball' | 'platform' | 'arc' | 'spring' | 'plate'
 }
 
 /** 质点 / 刚体 */
@@ -39,6 +39,23 @@ export interface ParsedPlatform extends BaseParsedObject {
   friction?: number
   beltVelocity?: ParsedVec2
   movable?: boolean
+  mass?: number
+}
+
+/** 板块（带物理厚度的可移动长方形，独立类型）
+ *  与 platform 区分：板块强制上下表面摩擦分离，带物理厚度与静态倾角 */
+export interface ParsedPlate extends BaseParsedObject {
+  type: 'plate'
+  startPoint?: ParsedVec2
+  endPoint?: ParsedVec2
+  /** 物理厚度（米），参与碰撞；由用户按题目设定 */
+  physicsThickness?: number
+  /** 静态倾角（弧度），相对水平面；不动态旋转 */
+  angle?: number
+  /** 上表面摩擦系数（与物体接触） */
+  frictionTop?: number
+  /** 下表面摩擦系数（与地面/支撑面接触） */
+  frictionBottom?: number
   mass?: number
 }
 
@@ -66,7 +83,7 @@ export interface ParsedSpring extends BaseParsedObject {
 }
 
 /** 物体联合类型（判别联合：通过 type 字段收窄） */
-export type ParsedObject = ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring
+export type ParsedObject = ParsedBall | ParsedPlatform | ParsedPlate | ParsedArc | ParsedSpring
 
 export interface ParsedProblem {
   title?: string
@@ -168,10 +185,11 @@ const SYSTEM_PROMPT = `你是一个高考物理题解析引擎。从题目中提
 输出：
 {"title":"传送带问题","topic":"custom","objects":[{"id":"A","type":"ball","mass":2,"radius":0.2,"initialPosition":{"x":0,"y":0.2},"initialVelocity":{"x":0,"y":0}},{"id":"belt","type":"platform","startPoint":{"x":-2,"y":0},"endPoint":{"x":8,"y":0},"friction":0.2}],"field":{"type":"none","E":{"x":0,"y":0},"B":0},"gravity":9.8,"groundY":0,"worldWidth":10}
 
-示例6（板块模型）：
+示例6（板块模型，type='plate'，带物理厚度与上下表面摩擦分离）：
 题目："质量1kg滑块以4m/s滑上静止在光滑地面的质量3kg木板长2m，滑块与木板动摩擦因数0.3"
 输出：
-{"title":"板块模型","topic":"custom","objects":[{"id":"block","type":"ball","mass":1,"radius":0.2,"initialPosition":{"x":0,"y":0.4},"initialVelocity":{"x":4,"y":0}},{"id":"board_top","type":"platform","startPoint":{"x":-1,"y":0.2},"endPoint":{"x":1,"y":0.2},"friction":0.3},{"id":"ground","type":"platform","startPoint":{"x":-5,"y":0},"endPoint":{"x":5,"y":0},"friction":0}],"field":{"type":"none","E":{"x":0,"y":0},"B":0},"gravity":9.8,"groundY":0,"worldWidth":10}
+{"title":"板块模型","topic":"custom","objects":[{"id":"block","type":"ball","mass":1,"radius":0.2,"initialPosition":{"x":0,"y":0.4},"initialVelocity":{"x":4,"y":0}},{"id":"board","type":"plate","startPoint":{"x":-1,"y":0.2},"endPoint":{"x":1,"y":0.2},"physicsThickness":0.1,"angle":0,"frictionTop":0.3,"frictionBottom":0,"mass":3},{"id":"ground","type":"platform","startPoint":{"x":-5,"y":0},"endPoint":{"x":5,"y":0},"friction":0}],"field":{"type":"none","E":{"x":0,"y":0},"B":0},"gravity":9.8,"groundY":0,"worldWidth":10}
+注意：板块用 type='plate'，physicsThickness 为物理厚度(米)，frictionTop 为上表面摩擦(与滑块)，frictionBottom 为下表面摩擦(与地面，光滑地面为0)，angle 为静态倾角(弧度)
 
 请仅返回 JSON，不要添加任何解释文字。`
 

@@ -123,6 +123,45 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
     return segment
   }
 
+  if (obj.type === 'plate') {
+    const x1 = (obj.startPoint?.x ?? 0) * scale + CANVAS_MARGIN
+    const y1 = GROUND_BASELINE - (obj.startPoint?.y ?? 0) * scale
+    const x2 = (obj.endPoint?.x ?? 1) * scale + CANVAS_MARGIN
+    const y2 = GROUND_BASELINE - (obj.endPoint?.y ?? 0) * scale
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.hypot(dx, dy) || 1
+    // 法线指向上方（normalY < 0）
+    let normalX = -dy / len
+    let normalY = dx / len
+    if (normalY > 0) {
+      normalX = -normalX
+      normalY = -normalY
+    }
+    const segment: SegmentObject = {
+      id: nextId++,
+      name: obj.id || `板块${index + 1}`,
+      type: 'line_segment',
+      subtype: 'plate',
+      x1, y1, x2, y2,
+      normalX,
+      normalY,
+      restitution: 0.2,
+      color: '#dc2626',
+      movable: true,                          // 板块可移动（触发物理更新分支）
+      mass: obj.mass ?? 1,                    // 默认质量 1
+      velocity: { x: 0, y: 0 },               // 初始静止，使重力分支生效
+      // 物理厚度（米→像素），默认 0.1m；参与碰撞与支撑检测
+      physicsThickness: (obj.physicsThickness ?? 0.1) * scale,
+      // 静态倾角（弧度），物理更新中保持不变
+      angle: obj.angle ?? 0,
+      // 强制上下表面摩擦分离；默认 上0.3 / 下0.1
+      frictionTop: obj.frictionTop ?? 0.3,
+      frictionBottom: obj.frictionBottom ?? 0.1
+    }
+    return segment
+  }
+
   if (obj.type === 'arc') {
     // 弧线用 20 段线段近似
     const cx = (obj.center?.x ?? 0) * scale
