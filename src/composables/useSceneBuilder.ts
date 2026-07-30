@@ -4,9 +4,20 @@
  */
 
 import { state, loadScene, PIXELS_PER_METER } from './usePhysics'
-import type { PhysicsObject, ParticleObject, SegmentObject, SpringObject, FieldState } from './usePhysics'
+import type {
+  PhysicsObject,
+  ParticleObject,
+  SegmentObject,
+  SpringObject,
+  FieldState
+} from './usePhysics'
 import type { ParsedProblem, ParsedObject, ParsedArc, ParsedSpring } from './useAIParser'
-import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, CANVAS_MARGIN, GROUND_BASELINE } from '../constants'
+import {
+  DEFAULT_CANVAS_WIDTH,
+  DEFAULT_CANVAS_HEIGHT,
+  CANVAS_MARGIN,
+  GROUND_BASELINE
+} from '../constants'
 
 /** 物体颜色池 */
 const COLOR_POOL = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb7185']
@@ -36,8 +47,8 @@ function computeAutoScale(parsed: ParsedProblem): number {
 
   if (allPoints.length === 0) return PIXELS_PER_METER
 
-  const xs = allPoints.map(p => p.x)
-  const ys = allPoints.map(p => p.y)
+  const xs = allPoints.map((p) => p.x)
+  const ys = allPoints.map((p) => p.y)
   const worldW = Math.max(...xs) - Math.min(...xs)
   const worldH = Math.max(...ys) - Math.min(...ys)
 
@@ -104,7 +115,10 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       id: nextId++,
       name: obj.id || `平台${index + 1}`,
       type: 'line_segment',
-      x1, y1, x2, y2,
+      x1,
+      y1,
+      x2,
+      y2,
       normalX,
       normalY,
       friction: obj.friction ?? 0,
@@ -112,10 +126,14 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       // 颜色按语义区分：传送带（青）/ 板块（红）/ 普通平台（灰），与 useEditTools 工厂保持一致
       color: obj.beltVelocity ? '#0891b2' : obj.movable ? '#dc2626' : '#94a3b8',
       // 传送带速度（SI m/s → 像素/s，y 需翻转）；板块需初始 velocity 才能受重力下落
-      velocity: obj.beltVelocity ? {
-        x: obj.beltVelocity.x * scale,
-        y: -obj.beltVelocity.y * scale
-      } : obj.movable ? { x: 0, y: 0 } : undefined,
+      velocity: obj.beltVelocity
+        ? {
+            x: obj.beltVelocity.x * scale,
+            y: -obj.beltVelocity.y * scale
+          }
+        : obj.movable
+          ? { x: 0, y: 0 }
+          : undefined,
       // 板块模型：可移动线段
       movable: obj.movable ?? false,
       mass: obj.movable ? (obj.mass ?? 1) : undefined
@@ -143,14 +161,17 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       name: obj.id || `板块${index + 1}`,
       type: 'line_segment',
       subtype: 'plate',
-      x1, y1, x2, y2,
+      x1,
+      y1,
+      x2,
+      y2,
       normalX,
       normalY,
       restitution: 0.2,
       color: '#dc2626',
-      movable: true,                          // 板块可移动（触发物理更新分支）
-      mass: obj.mass ?? 1,                    // 默认质量 1
-      velocity: { x: 0, y: 0 },               // 初始静止，使重力分支生效
+      movable: true, // 板块可移动（触发物理更新分支）
+      mass: obj.mass ?? 1, // 默认质量 1
+      velocity: { x: 0, y: 0 }, // 初始静止，使重力分支生效
       // 物理厚度（米→像素），默认 0.1m；参与碰撞与支撑检测
       physicsThickness: (obj.physicsThickness ?? 0.1) * scale,
       // 静态倾角（弧度），物理更新中保持不变
@@ -187,7 +208,10 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       id: nextId++,
       name: obj.id || `弧线${index + 1}`,
       type: 'line_segment',
-      x1, y1, x2, y2,
+      x1,
+      y1,
+      x2,
+      y2,
       normalX: -dy / len,
       normalY: dx / len,
       friction: obj.friction ?? 0,
@@ -225,9 +249,8 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         halfWidth: obj.entryGap.halfWidth,
         initiallyOpen: obj.entryGap.initiallyOpen,
         triggerType: obj.entryGap.triggerType,
-        triggerAngle: obj.entryGap.triggerAngle !== undefined
-          ? -obj.entryGap.triggerAngle
-          : undefined,
+        triggerAngle:
+          obj.entryGap.triggerAngle !== undefined ? -obj.entryGap.triggerAngle : undefined,
         triggerAction: obj.entryGap.triggerAction
       }
     : undefined
@@ -237,21 +260,22 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         halfWidth: obj.exitGap.halfWidth,
         initiallyOpen: obj.exitGap.initiallyOpen,
         triggerType: obj.exitGap.triggerType,
-        triggerAngle: obj.exitGap.triggerAngle !== undefined
-          ? -obj.exitGap.triggerAngle
-          : undefined,
+        triggerAngle:
+          obj.exitGap.triggerAngle !== undefined ? -obj.exitGap.triggerAngle : undefined,
         triggerAction: obj.exitGap.triggerAction
       }
     : undefined
   const hasGates = !!(entryGap || exitGap)
   // 仅第一段携带 arcGateState（detectArcCollision/updateArcGates 通过 groupId 去重，只处理第一段）
   // 初始开关状态由 gap.initiallyOpen 决定（默认 false = 关闭）
-  const arcGateState = hasGates ? {
-    entryOpen: entryGap?.initiallyOpen ?? false,
-    exitOpen: exitGap?.initiallyOpen ?? false,
-    prevAngle: undefined,
-    wasInside: undefined
-  } : undefined
+  const arcGateState = hasGates
+    ? {
+        entryOpen: entryGap?.initiallyOpen ?? false,
+        exitOpen: exitGap?.initiallyOpen ?? false,
+        prevAngle: undefined,
+        wasInside: undefined
+      }
+    : undefined
 
   for (let i = 0; i < segments; i++) {
     const a1 = startA + (endA - startA) * (i / segments)
@@ -268,12 +292,18 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
     const isFullCircle = Math.abs(angleSpan - 2 * Math.PI) < 0.01
     let nx = -dy / len
     let ny = dx / len
-    if (!isFullCircle && ny > 0) { nx = -nx; ny = -ny }
+    if (!isFullCircle && ny > 0) {
+      nx = -nx
+      ny = -ny
+    }
     result.push({
       id: nextId++,
       name: `${obj.id || `弧线${index + 1}`}-${i + 1}`,
       type: 'line_segment',
-      x1, y1, x2, y2,
+      x1,
+      y1,
+      x2,
+      y2,
       normalX: nx,
       normalY: ny,
       friction: obj.friction ?? 0,
@@ -282,10 +312,12 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
       groupId: arcGroupId,
       arc: { cx, cy, r, startAngle: startA, endAngle: endA, entryGap, exitGap },
       // 仅第一段携带运行时状态 + 约束动力学开关
-      ...(i === 0 ? {
-        ...(arcGateState ? { arcGateState } : {}),
-        constraintEnabled: true
-      } : {})
+      ...(i === 0
+        ? {
+            ...(arcGateState ? { arcGateState } : {}),
+            constraintEnabled: true
+          }
+        : {})
     })
   }
   return result
@@ -296,7 +328,10 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
  * 需要在所有球体转换完成后调用（依赖 idMap 解析连接关系）
  */
 function convertSpring(
-  obj: ParsedSpring, scale: number, index: number, idMap: Map<string, number>
+  obj: ParsedSpring,
+  scale: number,
+  index: number,
+  idMap: Map<string, number>
 ): SpringObject | null {
   if (!obj.ballId || !idMap.has(obj.ballId)) return null
   const ballId = idMap.get(obj.ballId)!
@@ -320,7 +355,11 @@ function convertSpring(
 /**
  * 主函数：将 AI 解析结果构建为可运行场景
  */
-export function buildScene(parsed: ParsedProblem): { success: boolean; message: string; objectCount: number } {
+export function buildScene(parsed: ParsedProblem): {
+  success: boolean
+  message: string
+  objectCount: number
+} {
   if (!parsed.objects || parsed.objects.length === 0) {
     return { success: false, message: 'AI 未识别到任何物体', objectCount: 0 }
   }

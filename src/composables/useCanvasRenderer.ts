@@ -2,7 +2,13 @@
  * 画布渲染层：所有纯绘制函数
  * 接收 ctx 和状态参数，无副作用，不持有状态
  */
-import type { PhysicsObject, FieldState, ParticleObject, SegmentObject, SpringObject } from './usePhysics'
+import type {
+  PhysicsObject,
+  FieldState,
+  ParticleObject,
+  SegmentObject,
+  SpringObject
+} from './usePhysics'
 
 /** 渲染上下文：绘制所需的外部依赖 */
 export interface RenderContext {
@@ -23,8 +29,11 @@ export interface DisplayData {
 export interface PreviewState {
   previewLine: { x1: number; y1: number; x2: number; y2: number } | null
   previewArc: {
-    cx: number; cy: number; r: number
-    startAngle: number; endAngle: number
+    cx: number
+    cy: number
+    r: number
+    startAngle: number
+    endAngle: number
     phase?: string
   } | null
 }
@@ -56,8 +65,12 @@ export interface UIState {
 
 export function drawArrow(
   ctx: CanvasRenderingContext2D,
-  x1: number, y1: number, x2: number, y2: number,
-  color: string, width: number
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  color: string,
+  width: number
 ): void {
   ctx.strokeStyle = color
   ctx.lineWidth = width
@@ -77,7 +90,11 @@ export function drawArrow(
 
 export function roundRect(
   ctx: CanvasRenderingContext2D,
-  x: number, y: number, w: number, h: number, r: number
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
 ): void {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
@@ -93,7 +110,12 @@ export function roundRect(
 }
 
 export function pointToSegmentDistance(
-  px: number, py: number, x1: number, y1: number, x2: number, y2: number
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
 ): number {
   const dx = x2 - x1
   const dy = y2 - y1
@@ -129,10 +151,16 @@ export function drawGrid(rc: RenderContext): void {
   ctx.lineWidth = 1
   const step = 40
   for (let x = 0; x < cssW; x += step) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cssH); ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, cssH)
+    ctx.stroke()
   }
   for (let y = 0; y < cssH; y += step) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cssW, y); ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(cssW, y)
+    ctx.stroke()
   }
 }
 
@@ -140,7 +168,10 @@ export function drawGround(rc: RenderContext, groundY: number): void {
   const { ctx, cssW } = rc
   ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)'
   ctx.lineWidth = 2
-  ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(cssW, groundY); ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(0, groundY)
+  ctx.lineTo(cssW, groundY)
+  ctx.stroke()
   ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
   ctx.font = '12px sans-serif'
   ctx.textAlign = 'left'
@@ -157,37 +188,47 @@ export function drawField(rc: RenderContext, field: FieldState): void {
     ctx.lineWidth = 1
     for (let x = step / 2; x < cssW; x += step) {
       for (let y = step / 2; y < cssH; y += step) {
-        ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.stroke()
+        ctx.beginPath()
+        ctx.arc(x, y, 6, 0, Math.PI * 2)
+        ctx.stroke()
         if (field.B >= 0) {
-          ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill()
+          ctx.beginPath()
+          ctx.arc(x, y, 2, 0, Math.PI * 2)
+          ctx.fill()
         } else {
           ctx.beginPath()
-          ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4)
-          ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4)
+          ctx.moveTo(x - 4, y - 4)
+          ctx.lineTo(x + 4, y + 4)
+          ctx.moveTo(x + 4, y - 4)
+          ctx.lineTo(x - 4, y + 4)
           ctx.stroke()
         }
       }
     }
   }
   if (field.E.x !== 0 || field.E.y !== 0) {
-    const ex = field.E.x, ey = field.E.y
+    const ex = field.E.x,
+      ey = field.E.y
     const mag = Math.sqrt(ex * ex + ey * ey)
     if (mag < 0.01) return
-    const dx = (ex / mag) * 20, dy = (ey / mag) * 20
+    const dx = (ex / mag) * 20,
+      dy = (ey / mag) * 20
     ctx.strokeStyle = 'rgba(34, 211, 238, 0.2)'
     ctx.fillStyle = 'rgba(34, 211, 238, 0.2)'
     ctx.lineWidth = 1
     for (let x = step / 2; x < cssW; x += step) {
       for (let y = step / 2; y < cssH; y += step) {
         ctx.beginPath()
-        ctx.moveTo(x - dx / 2, y - dy / 2); ctx.lineTo(x + dx / 2, y + dy / 2)
+        ctx.moveTo(x - dx / 2, y - dy / 2)
+        ctx.lineTo(x + dx / 2, y + dy / 2)
         ctx.stroke()
         const angle = Math.atan2(dy, dx)
         ctx.beginPath()
         ctx.moveTo(x + dx / 2, y + dy / 2)
         ctx.lineTo(x + dx / 2 - 5 * Math.cos(angle - 0.4), y + dy / 2 - 5 * Math.sin(angle - 0.4))
         ctx.lineTo(x + dx / 2 - 5 * Math.cos(angle + 0.4), y + dy / 2 - 5 * Math.sin(angle + 0.4))
-        ctx.closePath(); ctx.fill()
+        ctx.closePath()
+        ctx.fill()
       }
     }
   }
@@ -240,55 +281,84 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
     const seg = obj as SegmentObject
     if (seg.arc) continue // 弧线子段由 drawArcsVisually 统一绘制
     const { x1, y1, x2, y2, normalX, normalY } = seg
-    const nx = normalX || 0, ny = normalY || 0
-    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2
+    const nx = normalX || 0,
+      ny = normalY || 0
+    const midX = (x1 + x2) / 2,
+      midY = (y1 + y2) / 2
     // 板块：用 physicsThickness 绘制真实物理边界矩形（沿法线反方向 = 板块实体方向）
     if (seg.subtype === 'plate' && seg.physicsThickness) {
       const t = seg.physicsThickness
       // 下表面端点（沿法线反方向偏移 physicsThickness）
-      const x3 = x1 - nx * t, y3 = y1 - ny * t
-      const x4 = x2 - nx * t, y4 = y2 - ny * t
+      const x3 = x1 - nx * t,
+        y3 = y1 - ny * t
+      const x4 = x2 - nx * t,
+        y4 = y2 - ny * t
       // 填充矩形（板块实体）
       ctx.fillStyle = 'rgba(220, 38, 38, 0.18)'
       ctx.beginPath()
-      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
-      ctx.lineTo(x4, y4); ctx.lineTo(x3, y3)
-      ctx.closePath(); ctx.fill()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x2, y2)
+      ctx.lineTo(x4, y4)
+      ctx.lineTo(x3, y3)
+      ctx.closePath()
+      ctx.fill()
       // 描边上下表面（上表面=原线段，下表面=偏移线段）
       ctx.strokeStyle = seg.color || '#dc2626'
       ctx.lineWidth = 3
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x2, y2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x3, y3)
+      ctx.lineTo(x4, y4)
+      ctx.stroke()
       // 描边左右端面（加粗，提示碰撞面）
       ctx.lineWidth = 2
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x3, y3); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x4, y4); ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x3, y3)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x2, y2)
+      ctx.lineTo(x4, y4)
+      ctx.stroke()
     } else {
       // 普通线段/传送带/平台：沿用视觉厚度平行四边形
       const offset = seg.thickness ?? 30
       ctx.fillStyle = 'rgba(148, 163, 184, 0.12)'
       ctx.beginPath()
-      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x2, y2)
       ctx.lineTo(x2 + nx * offset, y2 + ny * offset)
       ctx.lineTo(x1 + nx * offset, y1 + ny * offset)
-      ctx.closePath(); ctx.fill()
+      ctx.closePath()
+      ctx.fill()
       ctx.strokeStyle = seg.color || '#475569'
       ctx.lineWidth = 3
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x1, y1)
+      ctx.lineTo(x2, y2)
+      ctx.stroke()
     }
     // 法线箭头 + 名称（所有线段共用）
     const arrowLen = 20
-    const tipX = midX + nx * arrowLen, tipY = midY + ny * arrowLen
+    const tipX = midX + nx * arrowLen,
+      tipY = midY + ny * arrowLen
     ctx.strokeStyle = 'rgba(167, 139, 250, 0.7)'
     ctx.lineWidth = 1.5
-    ctx.beginPath(); ctx.moveTo(midX, midY); ctx.lineTo(tipX, tipY); ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(midX, midY)
+    ctx.lineTo(tipX, tipY)
+    ctx.stroke()
     const angle = Math.atan2(ny, nx)
     ctx.beginPath()
     ctx.moveTo(tipX, tipY)
     ctx.lineTo(tipX - 5 * Math.cos(angle - 0.4), tipY - 5 * Math.sin(angle - 0.4))
     ctx.lineTo(tipX - 5 * Math.cos(angle + 0.4), tipY - 5 * Math.sin(angle + 0.4))
     ctx.closePath()
-    ctx.fillStyle = 'rgba(167, 139, 250, 0.7)'; ctx.fill()
+    ctx.fillStyle = 'rgba(167, 139, 250, 0.7)'
+    ctx.fill()
     ctx.fillStyle = '#94a3b8'
     ctx.font = '11px sans-serif'
     ctx.textAlign = 'center'
@@ -306,7 +376,11 @@ export function drawArcsVisually(
   const selectedSet = new Set(selectedIds)
   const groups = new Map<number, SegmentObject[]>()
   for (const obj of objects) {
-    if (obj.type === 'line_segment' && (obj as SegmentObject).groupId && (obj as SegmentObject).arc) {
+    if (
+      obj.type === 'line_segment' &&
+      (obj as SegmentObject).groupId &&
+      (obj as SegmentObject).arc
+    ) {
       const seg = obj as SegmentObject
       if (!groups.has(seg.groupId!)) groups.set(seg.groupId!, [])
       groups.get(seg.groupId!)!.push(seg)
@@ -317,9 +391,14 @@ export function drawArcsVisually(
     const firstSeg = segs[0]
     const arc = firstSeg.arc!
     const { cx, cy, r, startAngle, endAngle, entryGap, exitGap } = arc
-    const isSelected = segs.some(s => selectedSet.has(s.id))
+    const isSelected = segs.some((s) => selectedSet.has(s.id))
     // 检测是否有触发器配置（任一缺口定义了 triggerType 或 triggerAngle）
-    const hasTrigger = !!(entryGap?.triggerType || exitGap?.triggerType || entryGap?.triggerAngle !== undefined || exitGap?.triggerAngle !== undefined)
+    const hasTrigger = !!(
+      entryGap?.triggerType ||
+      exitGap?.triggerType ||
+      entryGap?.triggerAngle !== undefined ||
+      exitGap?.triggerAngle !== undefined
+    )
     const gate = firstSeg.arcGateState
 
     // 基色：选中蓝 > 触发琥珀(showGateColors时) > 普通紫
@@ -336,7 +415,7 @@ export function drawArcsVisually(
       ctx.lineWidth = 3
     }
     // 根据 endAngle - startAngle 符号选择绘制方向，避免 startAngle > endAngle 时画成 3/4 圆
-    const anticlockwise = (endAngle - startAngle) < 0
+    const anticlockwise = endAngle - startAngle < 0
     ctx.beginPath()
     ctx.arc(cx, cy, r, startAngle, endAngle, anticlockwise)
     ctx.stroke()
@@ -371,15 +450,21 @@ export function drawSprings(rc: RenderContext, objects: PhysicsObject[]): void {
   for (const obj of objects) {
     if (obj.type !== 'spring') continue
     const spring = obj as SpringObject
-    const ball = objects.find(o => o.id === spring.ballId && (o.type === '质点' || o.type === '刚体')) as ParticleObject | undefined
+    const ball = objects.find(
+      (o) => o.id === spring.ballId && (o.type === '质点' || o.type === '刚体')
+    ) as ParticleObject | undefined
     if (!ball) continue
-    const x1 = spring.anchorX, y1 = spring.anchorY
-    const x2 = ball.x, y2 = ball.y
-    const dx = x2 - x1, dy = y2 - y1
+    const x1 = spring.anchorX,
+      y1 = spring.anchorY
+    const x2 = ball.x,
+      y2 = ball.y
+    const dx = x2 - x1,
+      dy = y2 - y1
     const len = Math.hypot(dx, dy)
     if (len < 1e-6) continue
     // 螺旋方向：垂直于弹簧轴线
-    const px = -dy / len, py = dx / len
+    const px = -dy / len,
+      py = dx / len
     ctx.strokeStyle = spring.color || '#34d399'
     ctx.lineWidth = 2
     ctx.beginPath()
@@ -387,10 +472,10 @@ export function drawSprings(rc: RenderContext, objects: PhysicsObject[]): void {
     // 端部留 15% 直线，中间 70% 画螺旋
     const startPad = len * 0.15
     const endPad = len * 0.15
-    const coilStart = x1 + dx / len * startPad
-    const coilStartY = y1 + dy / len * startPad
-    const coilEnd = x1 + dx / len * (len - endPad)
-    const coilEndY = y1 + dy / len * (len - endPad)
+    const coilStart = x1 + (dx / len) * startPad
+    const coilStartY = y1 + (dy / len) * startPad
+    const coilEnd = x1 + (dx / len) * (len - endPad)
+    const coilEndY = y1 + (dy / len) * (len - endPad)
     ctx.lineTo(coilStart, coilStartY)
     const coilLen = len - startPad - endPad
     const steps = SPRING_COILS * 8
@@ -451,11 +536,13 @@ export function drawForces(
     if (charge !== 0) {
       // 多场同时绘制力箭头
       if (field.E.x !== 0 || field.E.y !== 0) {
-        const Fex = charge * field.E.x, Fey = charge * field.E.y
+        const Fex = charge * field.E.x,
+          Fey = charge * field.E.y
         const feMag = Math.hypot(Fex, Fey)
         if (feMag > 0.01) {
           const feLen = Math.min(feMag * 0.8, 60)
-          const ex = p.x + (Fex / feMag) * feLen, ey = p.y + (Fey / feMag) * feLen
+          const ex = p.x + (Fex / feMag) * feLen,
+            ey = p.y + (Fey / feMag) * feLen
           drawArrow(ctx, p.x, p.y, ex, ey, 'rgba(34, 197, 94, 0.9)', 2)
           ctx.fillStyle = 'rgba(34, 197, 94, 1)'
           ctx.font = '11px sans-serif'
@@ -464,11 +551,13 @@ export function drawForces(
         }
       }
       if (field.B !== 0) {
-        const Fmx = charge * p.vy * field.B, Fmy = -charge * p.vx * field.B
+        const Fmx = charge * p.vy * field.B,
+          Fmy = -charge * p.vx * field.B
         const fmMag = Math.hypot(Fmx, Fmy)
         if (fmMag > 0.01) {
           const fmLen = Math.min(fmMag * 0.8, 60)
-          const mx = p.x + (Fmx / fmMag) * fmLen, my = p.y + (Fmy / fmMag) * fmLen
+          const mx = p.x + (Fmx / fmMag) * fmLen,
+            my = p.y + (Fmy / fmMag) * fmLen
           drawArrow(ctx, p.x, p.y, mx, my, 'rgba(168, 85, 247, 0.9)', 2)
           ctx.fillStyle = 'rgba(168, 85, 247, 1)'
           ctx.font = '11px sans-serif'
@@ -503,8 +592,10 @@ export function drawForces(
     }
     const seg = findContactSegment(p, objects)
     if (seg) {
-      const nx = seg.normalX, ny = seg.normalY
-      const segDx = seg.x2 - seg.x1, segDy = seg.y2 - seg.y1
+      const nx = seg.normalX,
+        ny = seg.normalY
+      const segDx = seg.x2 - seg.x1,
+        segDy = seg.y2 - seg.y1
       const segLen = Math.sqrt(segDx * segDx + segDy * segDy)
       const cosA = Math.abs(segDx) / segLen
       const N = p.mass * gravity * cosA
@@ -516,10 +607,19 @@ export function drawForces(
       if (mu > 0) {
         const f = mu * N
         const fLen = Math.min(f * 2, 40)
-        const tx = segDx / segLen, ty = segDy / segLen
+        const tx = segDx / segLen,
+          ty = segDy / segLen
         const vAlong = p.vx * tx + p.vy * ty
         const dir = vAlong >= 0 ? -1 : 1
-        drawArrow(ctx, p.x, p.y, p.x + tx * fLen * dir, p.y + ty * fLen * dir, 'rgba(251, 146, 60, 0.8)', 2)
+        drawArrow(
+          ctx,
+          p.x,
+          p.y,
+          p.x + tx * fLen * dir,
+          p.y + ty * fLen * dir,
+          'rgba(251, 146, 60, 0.8)',
+          2
+        )
         ctx.fillStyle = 'rgba(251, 146, 60, 0.9)'
         ctx.fillText('f', p.x + tx * fLen * dir + 4, p.y + ty * fLen * dir)
       }
@@ -529,47 +629,73 @@ export function drawForces(
 
 // ===== 预览绘制 =====
 
-export function drawPreviewLine(rc: RenderContext, preview: { x1: number; y1: number; x2: number; y2: number } | null): void {
+export function drawPreviewLine(
+  rc: RenderContext,
+  preview: { x1: number; y1: number; x2: number; y2: number } | null
+): void {
   const { ctx } = rc
   if (!preview) return
   const { x1, y1, x2, y2 } = preview
   ctx.strokeStyle = 'rgba(167, 139, 250, 0.7)'
   ctx.lineWidth = 2
   ctx.setLineDash([6, 4])
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(x2, y2)
+  ctx.stroke()
   ctx.setLineDash([])
   ctx.fillStyle = 'rgba(167, 139, 250, 0.9)'
-  ctx.beginPath(); ctx.arc(x1, y1, 3, 0, Math.PI * 2); ctx.fill()
-  ctx.beginPath(); ctx.arc(x2, y2, 3, 0, Math.PI * 2); ctx.fill()
+  ctx.beginPath()
+  ctx.arc(x1, y1, 3, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(x2, y2, 3, 0, Math.PI * 2)
+  ctx.fill()
 }
 
-export function drawPreviewArc(rc: RenderContext, preview: {
-  cx: number; cy: number; r: number; startAngle: number; endAngle: number; phase?: string
-} | null): void {
+export function drawPreviewArc(
+  rc: RenderContext,
+  preview: {
+    cx: number
+    cy: number
+    r: number
+    startAngle: number
+    endAngle: number
+    phase?: string
+  } | null
+): void {
   const { ctx } = rc
   if (!preview) return
   const { cx, cy, r, phase } = preview
   if (r < 1) return
   ctx.fillStyle = 'rgba(167, 139, 250, 0.9)'
-  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill()
+  ctx.beginPath()
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2)
+  ctx.fill()
   if (phase === 'radius') {
     ctx.strokeStyle = 'rgba(167, 139, 250, 0.3)'
     ctx.lineWidth = 1
     ctx.setLineDash([4, 4])
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
     ctx.setLineDash([])
   } else if (phase === 'angle') {
     ctx.strokeStyle = 'rgba(167, 139, 250, 0.25)'
     ctx.lineWidth = 1
     ctx.setLineDash([4, 4])
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
     ctx.setLineDash([])
-    let { startAngle, endAngle } = preview
+    const { startAngle, endAngle } = preview
     let delta = endAngle - startAngle
     while (delta <= 0) delta += Math.PI * 2
     ctx.strokeStyle = 'rgba(167, 139, 250, 0.9)'
     ctx.lineWidth = 3
-    ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, startAngle + delta); ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, startAngle, startAngle + delta)
+    ctx.stroke()
     ctx.fillStyle = '#a78bfa'
     ctx.beginPath()
     ctx.arc(cx + r * Math.cos(startAngle), cy + r * Math.sin(startAngle), 4, 0, Math.PI * 2)
@@ -595,7 +721,11 @@ export function drawSelectionRect(rc: RenderContext, sel: SelectionState): void 
   ctx.setLineDash([])
 }
 
-export function drawSelectionHighlight(rc: RenderContext, objects: PhysicsObject[], selectedIds: number[]): void {
+export function drawSelectionHighlight(
+  rc: RenderContext,
+  objects: PhysicsObject[],
+  selectedIds: number[]
+): void {
   const { ctx } = rc
   const selectedSet = new Set(selectedIds)
   if (selectedSet.size === 0) return
@@ -608,7 +738,9 @@ export function drawSelectionHighlight(rc: RenderContext, objects: PhysicsObject
       ctx.lineWidth = 2.5
       ctx.shadowColor = 'rgba(96, 165, 250, 0.8)'
       ctx.shadowBlur = 12
-      ctx.beginPath(); ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2); ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2)
+      ctx.stroke()
       ctx.shadowBlur = 0
     } else if (obj.type === 'line_segment') {
       const seg = obj as SegmentObject
@@ -617,7 +749,10 @@ export function drawSelectionHighlight(rc: RenderContext, objects: PhysicsObject
       ctx.lineWidth = 5
       ctx.shadowColor = 'rgba(96, 165, 250, 0.7)'
       ctx.shadowBlur = 10
-      ctx.beginPath(); ctx.moveTo(seg.x1, seg.y1); ctx.lineTo(seg.x2, seg.y2); ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(seg.x1, seg.y1)
+      ctx.lineTo(seg.x2, seg.y2)
+      ctx.stroke()
       ctx.shadowBlur = 0
     }
   }
@@ -634,7 +769,7 @@ export function drawShiftFlash(rc: RenderContext, flash: ShiftFlashState): void 
   const alpha = Math.min(1, remaining / 700)
   const r = 15
   const expand = (1 - alpha) * 20
-  ctx.strokeStyle = 'rgba(34, 197, 94, ' + (alpha * 0.9) + ')'
+  ctx.strokeStyle = 'rgba(34, 197, 94, ' + alpha * 0.9 + ')'
   ctx.lineWidth = 3
   ctx.shadowColor = 'rgba(34, 197, 94, ' + alpha + ')'
   ctx.shadowBlur = 15
@@ -660,12 +795,15 @@ export function drawAIToast(rc: RenderContext, aiToast: string): void {
   if (!aiToast) return
   ctx.font = 'bold 13px sans-serif'
   const metrics = ctx.measureText(aiToast)
-  const padX = 12, padY = 6
+  const padX = 12,
+    padY = 6
   const boxW = metrics.width + padX * 2
   const boxH = 26
-  const x = 16, y = 16
+  const x = 16,
+    y = 16
   ctx.fillStyle = 'rgba(59, 130, 246, 0.85)'
-  roundRect(ctx, x, y, boxW, boxH, 13); ctx.fill()
+  roundRect(ctx, x, y, boxW, boxH, 13)
+  ctx.fill()
   ctx.fillStyle = '#fff'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
@@ -676,15 +814,21 @@ export function drawAIToast(rc: RenderContext, aiToast: string): void {
 export function drawEditUI(rc: RenderContext, ui: UIState): void {
   const { ctx, cssW } = rc
   if (!ui.editMode) return
-  let text = '工具：' + (
-    ui.tool === 'select' ? '🖱️ 选择/移动（点击物体拖动，点击空白取消选择）' :
-    ui.tool === 'ball' ? '⚽ 小球（点击添加，拖拽移动）' :
-    ui.tool === 'platform' ? '➖ 平台（拖拽绘制，Shift 吸附）' :
-    ui.tool === 'conveyor' ? '📦 传送带（拖拽绘制，默认 2m/s 沿 x 正向）' :
-    ui.tool === 'plate' ? '🟫 板块（拖拽绘制，可被滑块带动）' :
-    ui.tool === 'spring' ? '🌀 弹簧（两次点击：固定端→连接的球）' :
-    '⤵ 圆弧（三次点击：圆心→半径起点→终点，Shift反向）'
-  )
+  let text =
+    '工具：' +
+    (ui.tool === 'select'
+      ? '🖱️ 选择/移动（点击物体拖动，点击空白取消选择）'
+      : ui.tool === 'ball'
+        ? '⚽ 小球（点击添加，拖拽移动）'
+        : ui.tool === 'platform'
+          ? '➖ 平台（拖拽绘制，Shift 吸附）'
+          : ui.tool === 'conveyor'
+            ? '📦 传送带（拖拽绘制，默认 2m/s 沿 x 正向）'
+            : ui.tool === 'plate'
+              ? '🟫 板块（拖拽绘制，可被滑块带动）'
+              : ui.tool === 'spring'
+                ? '🌀 弹簧（两次点击：固定端→连接的球）'
+                : '⤵ 圆弧（三次点击：圆心→半径起点→终点，Shift反向）')
   if (ui.chargeMode) text += '  ⚡带电粒子'
   ctx.font = '12px sans-serif'
   const metrics = ctx.measureText(text)
@@ -694,10 +838,12 @@ export function drawEditUI(rc: RenderContext, ui: UIState): void {
   const x = cssW - boxW - 16
   const y = 16
   ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'
-  roundRect(ctx, x, y, boxW, boxH, 6); ctx.fill()
+  roundRect(ctx, x, y, boxW, boxH, 6)
+  ctx.fill()
   ctx.strokeStyle = 'rgba(167, 139, 250, 0.4)'
   ctx.lineWidth = 1
-  roundRect(ctx, x, y, boxW, boxH, 6); ctx.stroke()
+  roundRect(ctx, x, y, boxW, boxH, 6)
+  ctx.stroke()
   ctx.fillStyle = '#c4b5fd'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'

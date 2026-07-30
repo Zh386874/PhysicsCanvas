@@ -17,16 +17,25 @@ const redoStack = ref<HistorySnapshot[]>([])
 /**
  * 深拷贝物体数组，剥离运行时字段
  */
-function snapshotFromState(objects: PhysicsObject[], gravity: number, groundY: number, field: FieldState): HistorySnapshot {
+function snapshotFromState(
+  objects: PhysicsObject[],
+  gravity: number,
+  groundY: number,
+  field: FieldState
+): HistorySnapshot {
   return {
-    objects: JSON.parse(JSON.stringify(objects.map(o => {
-      if (o.type === 'line_segment') {
-        const { ...rest } = o
-        return rest
-      }
-      const { trail, prevX, prevY, ...rest } = o as any
-      return rest
-    }))),
+    objects: JSON.parse(
+      JSON.stringify(
+        objects.map((o) => {
+          if (o.type === 'line_segment') {
+            const { ...rest } = o
+            return rest
+          }
+          const { trail, prevX, prevY, ...rest } = o as any
+          return rest
+        })
+      )
+    ),
     gravity,
     // 内部 groundY >= 100000 表示禁用，存 null 还原语义
     groundY: groundY >= 100000 ? null : groundY,
@@ -38,7 +47,12 @@ function snapshotFromState(objects: PhysicsObject[], gravity: number, groundY: n
  * 推入历史记录（在编辑操作执行前调用，保存"操作前"状态）
  * 推入新历史时清空 redo 栈
  */
-function pushHistory(objects: PhysicsObject[], gravity: number, groundY: number, field: FieldState): void {
+function pushHistory(
+  objects: PhysicsObject[],
+  gravity: number,
+  groundY: number,
+  field: FieldState
+): void {
   undoStack.value.push(snapshotFromState(objects, gravity, groundY, field))
   if (undoStack.value.length > MAX_HISTORY) undoStack.value.shift()
   redoStack.value = []
@@ -47,7 +61,12 @@ function pushHistory(objects: PhysicsObject[], gravity: number, groundY: number,
 /**
  * 撤销：弹出 undo 栈顶，将当前状态推入 redo 栈，返回要恢复的状态
  */
-function undo(objects: PhysicsObject[], gravity: number, groundY: number, field: FieldState): HistorySnapshot | null {
+function undo(
+  objects: PhysicsObject[],
+  gravity: number,
+  groundY: number,
+  field: FieldState
+): HistorySnapshot | null {
   if (undoStack.value.length === 0) return null
   // 当前状态推入 redo
   redoStack.value.push(snapshotFromState(objects, gravity, groundY, field))
@@ -57,7 +76,12 @@ function undo(objects: PhysicsObject[], gravity: number, groundY: number, field:
 /**
  * 重做：弹出 redo 栈顶，将当前状态推入 undo 栈，返回要恢复的状态
  */
-function redo(objects: PhysicsObject[], gravity: number, groundY: number, field: FieldState): HistorySnapshot | null {
+function redo(
+  objects: PhysicsObject[],
+  gravity: number,
+  groundY: number,
+  field: FieldState
+): HistorySnapshot | null {
   if (redoStack.value.length === 0) return null
   undoStack.value.push(snapshotFromState(objects, gravity, groundY, field))
   return redoStack.value.pop()!
@@ -77,14 +101,5 @@ function clearHistory(): void {
   redoStack.value = []
 }
 
-export {
-  pushHistory,
-  undo,
-  redo,
-  canUndo,
-  canRedo,
-  clearHistory,
-  undoStack,
-  redoStack
-}
+export { pushHistory, undo, redo, canUndo, canRedo, clearHistory, undoStack, redoStack }
 export type { HistorySnapshot }

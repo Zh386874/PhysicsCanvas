@@ -11,7 +11,10 @@ import { ref, computed } from 'vue'
  */
 
 /** 二维向量 */
-export interface ParsedVec2 { x: number; y: number }
+export interface ParsedVec2 {
+  x: number
+  y: number
+}
 
 /** 物体基类：仅包含公共字段 */
 export interface BaseParsedObject {
@@ -68,9 +71,23 @@ export interface ParsedArc extends BaseParsedObject {
   endAngle?: number
   friction?: number
   /** 螺旋圆轨动态入口缺口（B点），运行时由状态机控制开关 */
-  entryGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  entryGap?: {
+    centerAngle: number
+    halfWidth: number
+    initiallyOpen?: boolean
+    triggerType?: 'angleCross' | 'enterRing'
+    triggerAngle?: number
+    triggerAction?: 'open' | 'close'
+  }
   /** 螺旋圆轨动态出口缺口（E点），运行时由状态机控制开关 */
-  exitGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  exitGap?: {
+    centerAngle: number
+    halfWidth: number
+    initiallyOpen?: boolean
+    triggerType?: 'angleCross' | 'enterRing'
+    triggerAngle?: number
+    triggerAction?: 'open' | 'close'
+  }
 }
 
 /** 弹簧 */
@@ -88,7 +105,13 @@ export type ParsedObject = ParsedBall | ParsedPlatform | ParsedPlate | ParsedArc
 export interface ParsedProblem {
   title?: string
   description?: string
-  topic: 'projectile' | 'slope' | 'elastic_collision' | 'magnetic_circle' | 'electric_deflection' | 'custom'
+  topic:
+    | 'projectile'
+    | 'slope'
+    | 'elastic_collision'
+    | 'magnetic_circle'
+    | 'electric_deflection'
+    | 'custom'
   objects: ParsedObject[]
   field: {
     type: 'none' | 'electric' | 'magnetic' | 'composite'
@@ -202,9 +225,24 @@ interface ModelConfig {
 }
 
 const MODELS: ModelConfig[] = [
-  { id: 'deepseek', name: 'DeepSeek', apiBase: 'https://api.deepseek.com/v1/chat/completions', modelName: 'deepseek-chat' },
-  { id: 'glm', name: '智谱 GLM', apiBase: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', modelName: 'glm-4-flash' },
-  { id: 'openai', name: 'OpenAI', apiBase: 'https://api.openai.com/v1/chat/completions', modelName: 'gpt-4o-mini' }
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    apiBase: 'https://api.deepseek.com/v1/chat/completions',
+    modelName: 'deepseek-chat'
+  },
+  {
+    id: 'glm',
+    name: '智谱 GLM',
+    apiBase: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    modelName: 'glm-4-flash'
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    apiBase: 'https://api.openai.com/v1/chat/completions',
+    modelName: 'gpt-4o-mini'
+  }
 ]
 
 const STORAGE_KEY = 'ai_api_config'
@@ -215,7 +253,7 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const config = JSON.parse(raw)
-    const model = MODELS.find(m => m.id === config.modelId)
+    const model = MODELS.find((m) => m.id === config.modelId)
     if (!model || !config.apiKey) return null
     return { model, apiKey: config.apiKey }
   } catch {
@@ -253,7 +291,7 @@ export async function parsePhysicsProblem(text: string): Promise<ParsedProblem> 
     const response = await fetch(model.apiBase, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -346,10 +384,4 @@ export function convertToSceneParams(parsed: ParsedProblem): {
   return { sceneName, params }
 }
 
-export {
-  loading,
-  errorMsg,
-  result,
-  isAIConfigured,
-  configuredModelName
-}
+export { loading, errorMsg, result, isAIConfigured, configuredModelName }

@@ -5,7 +5,11 @@
  */
 import { computed, type Ref } from 'vue'
 import {
-  state, updateObjectProperty, addObject, removeObject, PIXELS_PER_METER
+  state,
+  updateObjectProperty,
+  addObject,
+  removeObject,
+  PIXELS_PER_METER
 } from './usePhysics'
 import type { PhysicsObject, ParticleObject } from './usePhysics'
 import { pushHistory, undo as historyUndo, redo as historyRedo } from './useHistory'
@@ -35,13 +39,11 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
   const { activeScene, mode, aiToast, selectedId, selectedIds, saveCustomScene } = ctx
 
   /** 当前选中物体（基于 selectedId） */
-  const selectedObject = computed(() =>
-    state.objects.find(o => o.id === selectedId.value)
-  )
+  const selectedObject = computed(() => state.objects.find((o) => o.id === selectedId.value))
 
   /** 属性面板更新物体 */
   function onObjectUpdate(updated: Partial<PhysicsObject> & { id: number }): void {
-    const idx = state.objects.findIndex(o => o.id === updated.id)
+    const idx = state.objects.findIndex((o) => o.id === updated.id)
     if (idx !== -1) {
       Object.assign(state.objects[idx], updated)
     }
@@ -71,9 +73,10 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * 批量更新（框选拖拽时整体平移）
    */
   function handleBatchUpdate(updates: BatchUpdateItem[]): void {
-    if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
+    if (activeScene.value === '自定义')
+      pushHistory(state.objects, state.gravity, state.groundY, state.field)
     for (const { id, props } of updates) {
-      const obj = state.objects.find(o => o.id === id)
+      const obj = state.objects.find((o) => o.id === id)
       if (obj) Object.assign(obj, props)
     }
     saveCustomScene()
@@ -81,7 +84,8 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
 
   /** 添加物体（自定义场景编辑） */
   function handleAddObject(obj: PhysicsObject): void {
-    if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
+    if (activeScene.value === '自定义')
+      pushHistory(state.objects, state.gravity, state.groundY, state.field)
     addObject(obj)
     selectedId.value = obj.id
     saveCustomScene()
@@ -92,7 +96,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * 注：拖拽过程中频繁调用，不推入历史，由调用方在拖拽结束时推入
    */
   function handleUpdateObject(payload: { id: number; props: Record<string, unknown> }): void {
-    const obj = state.objects.find(o => o.id === payload.id)
+    const obj = state.objects.find((o) => o.id === payload.id)
     if (obj) Object.assign(obj, payload.props)
     saveCustomScene()
   }
@@ -103,8 +107,9 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * 删除质点/刚体时级联删除连接它的弹簧，避免孤儿弹簧
    */
   function handleRemoveObject(id: number): void {
-    if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
-    const target = state.objects.find(o => o.id === id)
+    if (activeScene.value === '自定义')
+      pushHistory(state.objects, state.gravity, state.groundY, state.field)
+    const target = state.objects.find((o) => o.id === id)
     const toDelete = new Set<number>([id])
     if (target && (target as SegmentObjectLike).groupId) {
       // 弧线组：删除同 groupId 的所有线段
@@ -121,7 +126,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
       }
     }
     for (const did of toDelete) removeObject(did)
-    selectedIds.value = selectedIds.value.filter(sid => !toDelete.has(sid))
+    selectedIds.value = selectedIds.value.filter((sid) => !toDelete.has(sid))
     if (selectedId.value === id) selectedId.value = null
     saveCustomScene()
   }
@@ -131,7 +136,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * params 中速度为 m/s，需 ×PIXELS_PER_METER 转像素
    */
   function handleUpdateParams(params: { mass?: number; vx?: number; charge?: number }): void {
-    const obj = state.objects.find(o => o.type === '质点') as ParticleObject | undefined
+    const obj = state.objects.find((o) => o.type === '质点') as ParticleObject | undefined
     if (!obj) return
     if (params.mass !== undefined) updateObjectProperty(obj.id, 'mass', params.mass)
     if (params.vx !== undefined) updateObjectProperty(obj.id, 'vx', params.vx * PIXELS_PER_METER)
@@ -149,7 +154,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
       pushHistory(state.objects, state.gravity, state.groundY, state.field)
       const toDelete = new Set<number>()
       for (const id of selectedIds.value) {
-        const target = state.objects.find(o => o.id === id)
+        const target = state.objects.find((o) => o.id === id)
         if (target && (target as SegmentObjectLike).groupId) {
           for (const o of state.objects) {
             const seg = o as SegmentObjectLike
@@ -167,7 +172,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
       }
       for (const id of toDelete) removeObject(id)
       selectedIds.value = []
-      if (selectedId.value !== null && !state.objects.find(o => o.id === selectedId.value)) {
+      if (selectedId.value !== null && !state.objects.find((o) => o.id === selectedId.value)) {
         selectedId.value = null
       }
       saveCustomScene()
@@ -203,7 +208,9 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
     if (!prev) return
     applyHistorySnapshot(prev)
     aiToast.value = '已撤销'
-    setTimeout(() => { aiToast.value = '' }, 1500)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 1500)
   }
 
   /** 重做 */
@@ -214,7 +221,9 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
     if (!next) return
     applyHistorySnapshot(next)
     aiToast.value = '已重做'
-    setTimeout(() => { aiToast.value = '' }, 1500)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 1500)
   }
 
   return {

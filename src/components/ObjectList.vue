@@ -2,12 +2,18 @@
   <div class="object-list">
     <div class="panel-title">物体列表</div>
     <div class="list">
-      <template v-for="item in groupedItems" :key="item.type === 'single' ? item.obj.id : item.groupId">
+      <template
+        v-for="item in groupedItems"
+        :key="item.type === 'single' ? item.obj.id : item.groupId"
+      >
         <!-- 单个物体（质点/刚体/弹簧/普通线段） -->
         <div
           v-if="item.type === 'single'"
           class="item"
-          :class="{ selected: item.obj.id === selectedId, 'multi-selected': selectedIds.includes(item.obj.id) }"
+          :class="{
+            selected: item.obj.id === selectedId,
+            'multi-selected': selectedIds.includes(item.obj.id)
+          }"
           @click="$emit('select', item.obj.id)"
         >
           <span class="name">{{ item.name }}</span>
@@ -18,7 +24,9 @@
               class="del-btn"
               title="删除"
               @click.stop="$emit('remove', item.obj.id)"
-            >✕</button>
+            >
+              ✕
+            </button>
           </div>
         </div>
         <!-- 弧线分组条目（同 groupId 的线段合并） -->
@@ -26,16 +34,23 @@
           <div
             class="item group-item"
             :class="{
-              selected: item.groupItems.some(o => o.id === selectedId),
-              'multi-selected': item.groupItems.some(o => selectedIds.includes(o.id))
+              selected: item.groupItems.some((o) => o.id === selectedId),
+              'multi-selected': item.groupItems.some((o) => selectedIds.includes(o.id))
             }"
-            @click="$emit('select-group', item.groupItems.map(o => o.id))"
+            @click="
+              $emit(
+                'select-group',
+                item.groupItems.map((o) => o.id)
+              )
+            "
           >
             <button
               class="expand-btn"
               :title="isExpanded(item.groupId) ? '收起' : '展开'"
               @click.stop="toggleExpand(item.groupId)"
-            >{{ isExpanded(item.groupId) ? '▼' : '▶' }}</button>
+            >
+              {{ isExpanded(item.groupId) ? '▼' : '▶' }}
+            </button>
             <span class="name">{{ item.name }}</span>
             <div class="item-right">
               <span class="type">{{ item.subtype }}</span>
@@ -44,7 +59,9 @@
                 class="del-btn"
                 title="删除整组"
                 @click.stop="$emit('remove', item.groupItems[0].id)"
-              >✕</button>
+              >
+                ✕
+              </button>
             </div>
           </div>
           <!-- 展开后显示子线段列表 -->

@@ -32,7 +32,10 @@ export function registerForce(calculator: ForceCalculator): void {
 /**
  * 计算粒子所受合力（遍历所有已注册的力计算器）
  */
-export function calculateTotalForce(state: PhysicsState, particle: ParticleObject): { fx: number; fy: number } {
+export function calculateTotalForce(
+  state: PhysicsState,
+  particle: ParticleObject
+): { fx: number; fy: number } {
   const ctx: ForceContext = { state, particle }
   let fx = 0
   let fy = 0
@@ -111,8 +114,8 @@ registerForce(({ state, particle }) => {
     if (currentLen < 1e-6) continue
     const deformation = currentLen - spring.naturalLength
     const forceMag = -spring.k * deformation
-    fx += forceMag * dx / currentLen
-    fy += forceMag * dy / currentLen
+    fx += (forceMag * dx) / currentLen
+    fy += (forceMag * dy) / currentLen
   }
   return { fx, fy }
 })

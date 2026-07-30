@@ -6,7 +6,13 @@
  */
 import { ref, computed, watch } from 'vue'
 import {
-  state, loadScene, reset, capturePlayStart, snapshots, currentFrame, keyframeIndices
+  state,
+  loadScene,
+  reset,
+  capturePlayStart,
+  snapshots,
+  currentFrame,
+  keyframeIndices
 } from './usePhysics'
 import type { PhysicsObject, FieldState } from './usePhysics'
 import type { ParsedProblem } from './useAIParser'
@@ -40,19 +46,25 @@ export function useSceneManager() {
   // ===== 共享 UI 状态 =====
   const activeScene = ref('自定义')
   const selectedId = ref<number | null>(null)
-  const selectedIds = ref<number[]>([])  // 多选（框选）
+  const selectedIds = ref<number[]>([]) // 多选（框选）
   const mode = ref<'live' | 'replay'>('live')
   const aiToast = ref('')
   const currentQuestionDesc = ref('')
 
   // 编辑模式：自定义场景下未播放时为 true，允许编辑画布
-  const editMode = computed(() =>
-    activeScene.value === '自定义' && mode.value === 'live' && !state.isPlaying
+  const editMode = computed(
+    () => activeScene.value === '自定义' && mode.value === 'live' && !state.isPlaying
   )
 
   // 初始化默认场景：自定义（首屏即自定义页面，尝试恢复上次保存的自定义场景）
   const initialPreset = getPreset('自定义')
-  loadScene(initialPreset.objects, initialPreset.forces, initialPreset.field, initialPreset.gravity, initialPreset.groundY)
+  loadScene(
+    initialPreset.objects,
+    initialPreset.forces,
+    initialPreset.field,
+    initialPreset.gravity,
+    initialPreset.groundY
+  )
   state.isPlaying = false
   restoreCustomScene()
   capturePlayStart()
@@ -73,9 +85,14 @@ export function useSceneManager() {
       localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(sceneData))
     } catch (e: unknown) {
       // 配额超限等异常处理（DOMException 也是 Error 子类，instanceof 可安全收窄）
-      if (e instanceof Error && (e.name === 'QuotaExceededError' || (e as DOMException).code === 22)) {
+      if (
+        e instanceof Error &&
+        (e.name === 'QuotaExceededError' || (e as DOMException).code === 22)
+      ) {
         aiToast.value = '场景数据过大，已超出本地存储限制'
-        setTimeout(() => { aiToast.value = '' }, 3000)
+        setTimeout(() => {
+          aiToast.value = ''
+        }, 3000)
       }
     }
   }
@@ -105,18 +122,22 @@ export function useSceneManager() {
         return
       }
       if (!Array.isArray(objs) || objs.length === 0) return
-      const validObjs = objs.filter(o => o && typeof o === 'object') as PhysicsObject[]
+      const validObjs = objs.filter((o) => o && typeof o === 'object') as PhysicsObject[]
       if (validObjs.length === 0) return
       state.objects.splice(0, state.objects.length)
       for (const o of validObjs) {
         state.objects.push({ ...o, trail: [] } as PhysicsObject)
       }
       if (gravity !== undefined && typeof gravity === 'number') state.gravity = gravity
-      if (groundY !== undefined) state.groundY = groundY === null ? GROUND_DISABLED : groundY as number
-      if (field && typeof field === 'object') state.field = JSON.parse(JSON.stringify(field)) as FieldState
+      if (groundY !== undefined)
+        state.groundY = groundY === null ? GROUND_DISABLED : (groundY as number)
+      if (field && typeof field === 'object')
+        state.field = JSON.parse(JSON.stringify(field)) as FieldState
       selectedId.value = validObjs[0]?.id ?? null
       aiToast.value = '已恢复上次自定义场景'
-      setTimeout(() => { aiToast.value = '' }, 2500)
+      setTimeout(() => {
+        aiToast.value = ''
+      }, 2500)
     } catch {
       // 静默失败：恢复失败不影响主流程
     }
@@ -128,7 +149,11 @@ export function useSceneManager() {
   function onSceneSwitch(sceneName: string): void {
     // 从自定义场景切出时二次确认（编辑内容已自动保存，确认避免误操作）
     if (activeScene.value === '自定义' && sceneName !== '自定义' && state.objects.length > 0) {
-      if (!window.confirm('确定切换到「' + sceneName + '」场景？自定义场景内容已自动保存，可随时切回恢复。')) {
+      if (
+        !window.confirm(
+          '确定切换到「' + sceneName + '」场景？自定义场景内容已自动保存，可随时切回恢复。'
+        )
+      ) {
         return
       }
     }
@@ -193,10 +218,12 @@ export function useSceneManager() {
     loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
     selectedId.value = preset.objects[0]?.id ?? null
     mode.value = 'live'
-    capturePlayStart()  // 自动播放前捕获重置基线
+    capturePlayStart() // 自动播放前捕获重置基线
     state.isPlaying = true
     aiToast.value = 'AI 已解析：' + sceneName + '场景'
-    setTimeout(() => { aiToast.value = '' }, 3000)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 3000)
   }
 
   /**
@@ -208,10 +235,12 @@ export function useSceneManager() {
     selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
     selectedIds.value = []
     mode.value = 'live'
-    capturePlayStart()  // 自动播放前捕获重置基线
+    capturePlayStart() // 自动播放前捕获重置基线
     state.isPlaying = true
     aiToast.value = `AI 已生成：${info.title}（${info.objectCount} 个物体）`
-    setTimeout(() => { aiToast.value = '' }, 3000)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 3000)
   }
 
   /**
@@ -221,23 +250,34 @@ export function useSceneManager() {
     const buildResult = buildScene(question.sceneJson)
     if (!buildResult.success) {
       aiToast.value = `加载失败：${buildResult.message}`
-      setTimeout(() => { aiToast.value = '' }, 3000)
+      setTimeout(() => {
+        aiToast.value = ''
+      }, 3000)
       return
     }
     activeScene.value = '自定义'
     selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
     selectedIds.value = []
     mode.value = 'live'
-    capturePlayStart()  // 自动播放前捕获重置基线
+    capturePlayStart() // 自动播放前捕获重置基线
     state.isPlaying = true
     currentQuestionDesc.value = question.description || ''
     aiToast.value = `已加载：${question.title}`
-    setTimeout(() => { aiToast.value = '' }, 3000)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 3000)
   }
 
   // 监听场设置与重力变化：自定义场景下自动保存到 localStorage
-  watch(() => state.field, () => saveCustomScene(), { deep: true })
-  watch(() => state.gravity, () => saveCustomScene())
+  watch(
+    () => state.field,
+    () => saveCustomScene(),
+    { deep: true }
+  )
+  watch(
+    () => state.gravity,
+    () => saveCustomScene()
+  )
 
   return {
     // 状态

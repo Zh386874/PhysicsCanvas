@@ -40,7 +40,8 @@
 
         <!-- 获取 Key 提示 -->
         <div class="key-hint">
-          获取 API Key：<a :href="currentModel.docUrl" target="_blank">{{ currentModel.docUrl }}</a>
+          获取 API Key：
+          <a :href="currentModel.docUrl" target="_blank">{{ currentModel.docUrl }}</a>
         </div>
 
         <!-- 当前状态 -->
@@ -48,19 +49,13 @@
           <div v-if="savedConfig" class="status-active">
             ✅ 已配置 {{ savedConfig.modelName }}（Key: {{ savedConfig.maskedKey }}）
           </div>
-          <div v-else class="status-inactive">
-            ⚠️ 未配置，当前使用本地关键词解析
-          </div>
+          <div v-else class="status-inactive">⚠️ 未配置，当前使用本地关键词解析</div>
         </div>
 
         <!-- 操作按钮 -->
         <div class="dialog-actions">
-          <button v-if="savedConfig" class="btn-clear" @click="onClear">
-            清除配置
-          </button>
-          <button class="btn-save" :disabled="!apiKey.trim()" @click="onSave">
-            保存配置
-          </button>
+          <button v-if="savedConfig" class="btn-clear" @click="onClear">清除配置</button>
+          <button class="btn-save" :disabled="!apiKey.trim()" @click="onSave">保存配置</button>
         </div>
       </div>
     </div>
@@ -112,9 +107,7 @@ const selectedModel = ref('deepseek')
 const apiKey = ref('')
 const showKey = ref(false)
 
-const currentModel = computed(() =>
-  models.find(m => m.id === selectedModel.value) || models[0]
-)
+const currentModel = computed(() => models.find((m) => m.id === selectedModel.value) || models[0])
 
 // 已保存的配置（从 localStorage 读取）
 const savedConfig = computed(() => {
@@ -122,13 +115,11 @@ const savedConfig = computed(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const config = JSON.parse(raw)
-    const model = models.find(m => m.id === config.modelId)
+    const model = models.find((m) => m.id === config.modelId)
     if (!model) return null
     // 掩码显示 Key
     const key = config.apiKey || ''
-    const maskedKey = key.length > 8
-      ? key.slice(0, 4) + '****' + key.slice(-4)
-      : '****'
+    const maskedKey = key.length > 8 ? key.slice(0, 4) + '****' + key.slice(-4) : '****'
     return {
       ...config,
       modelName: model.name,
@@ -183,8 +174,12 @@ function onClose() {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .api-key-dialog {
@@ -198,8 +193,14 @@ function onClose() {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dialog-header {
