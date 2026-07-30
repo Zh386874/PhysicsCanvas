@@ -238,19 +238,45 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
   for (const obj of objects) {
     if (obj.type !== 'line_segment') continue
     const seg = obj as SegmentObject
+    if (seg.arc) continue // 弧线子段由 drawArcsVisually 统一绘制
     const { x1, y1, x2, y2, normalX, normalY } = seg
     const nx = normalX || 0, ny = normalY || 0
-    const offset = 30
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.12)'
-    ctx.beginPath()
-    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
-    ctx.lineTo(x2 + nx * offset, y2 + ny * offset)
-    ctx.lineTo(x1 + nx * offset, y1 + ny * offset)
-    ctx.closePath(); ctx.fill()
-    ctx.strokeStyle = seg.color || '#475569'
-    ctx.lineWidth = 3
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2
+    // 板块：用 physicsThickness 绘制真实物理边界矩形（沿法线反方向 = 板块实体方向）
+    if (seg.subtype === 'plate' && seg.physicsThickness) {
+      const t = seg.physicsThickness
+      // 下表面端点（沿法线反方向偏移 physicsThickness）
+      const x3 = x1 - nx * t, y3 = y1 - ny * t
+      const x4 = x2 - nx * t, y4 = y2 - ny * t
+      // 填充矩形（板块实体）
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.18)'
+      ctx.beginPath()
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+      ctx.lineTo(x4, y4); ctx.lineTo(x3, y3)
+      ctx.closePath(); ctx.fill()
+      // 描边上下表面（上表面=原线段，下表面=偏移线段）
+      ctx.strokeStyle = seg.color || '#dc2626'
+      ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke()
+      // 描边左右端面（加粗，提示碰撞面）
+      ctx.lineWidth = 2
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x3, y3); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x4, y4); ctx.stroke()
+    } else {
+      // 普通线段/传送带/平台：沿用视觉厚度平行四边形
+      const offset = seg.thickness ?? 30
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.12)'
+      ctx.beginPath()
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+      ctx.lineTo(x2 + nx * offset, y2 + ny * offset)
+      ctx.lineTo(x1 + nx * offset, y1 + ny * offset)
+      ctx.closePath(); ctx.fill()
+      ctx.strokeStyle = seg.color || '#475569'
+      ctx.lineWidth = 3
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+    }
+    // 法线箭头 + 名称（所有线段共用）
     const arrowLen = 20
     const tipX = midX + nx * arrowLen, tipY = midY + ny * arrowLen
     ctx.strokeStyle = 'rgba(167, 139, 250, 0.7)'
@@ -270,8 +296,14 @@ export function drawSegments(rc: RenderContext, objects: PhysicsObject[]): void 
   }
 }
 
-export function drawArcsVisually(rc: RenderContext, objects: PhysicsObject[]): void {
+export function drawArcsVisually(
+  rc: RenderContext,
+  objects: PhysicsObject[],
+  selectedIds: number[] = [],
+  showGateColors: boolean = true
+): void {
   const { ctx } = rc
+  const selectedSet = new Set(selectedIds)
   const groups = new Map<number, SegmentObject[]>()
   for (const obj of objects) {
     if (obj.type === 'line_segment' && (obj as SegmentObject).groupId && (obj as SegmentObject).arc) {
@@ -282,12 +314,48 @@ export function drawArcsVisually(rc: RenderContext, objects: PhysicsObject[]): v
   }
   for (const [, segs] of groups) {
     if (segs.length === 0) continue
-    const { cx, cy, r, startAngle, endAngle } = segs[0].arc!
-    ctx.strokeStyle = 'rgba(124, 58, 237, 0.9)'
-    ctx.lineWidth = 3
+    const firstSeg = segs[0]
+    const arc = firstSeg.arc!
+    const { cx, cy, r, startAngle, endAngle, entryGap, exitGap } = arc
+    const isSelected = segs.some(s => selectedSet.has(s.id))
+    // 检测是否有触发器配置（任一缺口定义了 triggerType 或 triggerAngle）
+    const hasTrigger = !!(entryGap?.triggerType || exitGap?.triggerType || entryGap?.triggerAngle !== undefined || exitGap?.triggerAngle !== undefined)
+    const gate = firstSeg.arcGateState
+
+    // 基色：选中蓝 > 触发琥珀(showGateColors时) > 普通紫
+    if (isSelected) {
+      ctx.strokeStyle = 'rgba(96, 165, 250, 0.95)'
+      ctx.lineWidth = 5
+      ctx.shadowColor = 'rgba(96, 165, 250, 0.7)'
+      ctx.shadowBlur = 10
+    } else if (hasTrigger && showGateColors) {
+      ctx.strokeStyle = '#f59e0b'
+      ctx.lineWidth = 3
+    } else {
+      ctx.strokeStyle = 'rgba(124, 58, 237, 0.9)'
+      ctx.lineWidth = 3
+    }
+    // 根据 endAngle - startAngle 符号选择绘制方向，避免 startAngle > endAngle 时画成 3/4 圆
+    const anticlockwise = (endAngle - startAngle) < 0
     ctx.beginPath()
-    ctx.arc(cx, cy, r, startAngle, endAngle)
+    ctx.arc(cx, cy, r, startAngle, endAngle, anticlockwise)
     ctx.stroke()
+    ctx.shadowBlur = 0
+
+    // 绘制缺口状态叠加（仅触发器弧线且有运行时状态且开启颜色显示时）
+    if (hasTrigger && gate && showGateColors) {
+      ctx.lineWidth = 6
+      const drawGapOverlay = (gap: typeof entryGap, isOpen: boolean) => {
+        if (!gap) return
+        ctx.beginPath()
+        ctx.strokeStyle = isOpen ? '#22c55e' : '#ef4444'
+        ctx.arc(cx, cy, r, gap.centerAngle - gap.halfWidth, gap.centerAngle + gap.halfWidth, false)
+        ctx.stroke()
+      }
+      drawGapOverlay(entryGap, gate.entryOpen)
+      drawGapOverlay(exitGap, gate.exitOpen)
+      ctx.lineWidth = 3
+    }
   }
 }
 
@@ -409,6 +477,30 @@ export function drawForces(
         }
       }
     }
+    // 弹簧力 -kx：查找连接到当前粒子的弹簧并绘制
+    for (const obj of objects) {
+      if (obj.type !== 'spring') continue
+      const spring = obj as SpringObject
+      if (spring.ballId !== p.id) continue
+      const dx = p.x - spring.anchorX
+      const dy = p.y - spring.anchorY
+      const currentLen = Math.hypot(dx, dy)
+      if (currentLen < 1e-6) continue
+      const deformation = currentLen - spring.naturalLength
+      const forceMag = -spring.k * deformation
+      const fsLen = Math.min(Math.abs(forceMag) * 0.5, 50)
+      if (fsLen < 1) continue
+      // 力方向：拉伸时指向锚点（-dx），压缩时远离锚点（+dx）
+      const dirX = forceMag >= 0 ? -dx / currentLen : dx / currentLen
+      const dirY = forceMag >= 0 ? -dy / currentLen : dy / currentLen
+      const fx2 = p.x + dirX * fsLen
+      const fy2 = p.y + dirY * fsLen
+      drawArrow(ctx, p.x, p.y, fx2, fy2, 'rgba(34, 211, 238, 0.9)', 2)
+      ctx.fillStyle = 'rgba(34, 211, 238, 1)'
+      ctx.font = '11px sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText('-kx', fx2 + 4, fy2)
+    }
     const seg = findContactSegment(p, objects)
     if (seg) {
       const nx = seg.normalX, ny = seg.normalY
@@ -520,6 +612,7 @@ export function drawSelectionHighlight(rc: RenderContext, objects: PhysicsObject
       ctx.shadowBlur = 0
     } else if (obj.type === 'line_segment') {
       const seg = obj as SegmentObject
+      if (seg.arc) continue // 弧线选中高亮由 drawArcsVisually 处理
       ctx.strokeStyle = 'rgba(96, 165, 250, 0.95)'
       ctx.lineWidth = 5
       ctx.shadowColor = 'rgba(96, 165, 250, 0.7)'
@@ -584,8 +677,11 @@ export function drawEditUI(rc: RenderContext, ui: UIState): void {
   const { ctx, cssW } = rc
   if (!ui.editMode) return
   let text = '工具：' + (
+    ui.tool === 'select' ? '🖱️ 选择/移动（点击物体拖动，点击空白取消选择）' :
     ui.tool === 'ball' ? '⚽ 小球（点击添加，拖拽移动）' :
     ui.tool === 'platform' ? '➖ 平台（拖拽绘制，Shift 吸附）' :
+    ui.tool === 'conveyor' ? '📦 传送带（拖拽绘制，默认 2m/s 沿 x 正向）' :
+    ui.tool === 'plate' ? '🟫 板块（拖拽绘制，可被滑块带动）' :
     ui.tool === 'spring' ? '🌀 弹簧（两次点击：固定端→连接的球）' :
     '⤵ 圆弧（三次点击：圆心→半径起点→终点，Shift反向）'
   )

@@ -1,0 +1,198 @@
+# 物理解模项目完整分析报告
+
+## 一、项目概况
+
+| 维度 | 内容 |
+|---|---|
+| 项目名称 | physics-sim（物理解模） |
+| 技术栈 | Vue 3.5.13 + Vite 6.3.5（纯原生，零 UI 库依赖） |
+| 代码规模 | 11 个源文件，约 2200 行 |
+| 仓库地址 | https://gitee.com/zhang-hao041030/physics-canvas |
+| 最新提交 | 3660e63 chore: 添加 package-lock.json |
+| 项目定位 | 物理仿真教学工具，覆盖力学 + 电磁学场景 |
+| 设计风格 | 蓝白科技风（深色背景 + 青色高亮 + 紫色辅助） |
+
+### 依赖清单
+- 运行时：vue ^3.5.13（唯一运行时依赖）
+- 构建：vite ^6.3.5 + @vitejs/plugin-vue ^5.2.4
+- 无状态管理库、无 UI 组件库、无动画库，全部自实现
+
+## 二、架构分层
+
+```
+App.vue（状态编排层）
+  ├─ SceneTabs.vue      顶部场景切换（5个 Tab）
+  ├─ AIInput.vue         AI 题目解析入口（Mock，emit 单向数据流）
+  ├─ ObjectList.vue      物体列表
+  ├─ PropertyPanel.vue   属性编辑（质点/线段/场设置/法线自动重算）
+  ├─ PhysicsCanvas.vue   画布渲染 + 物理循环（含场可视化）
+  ├─ Timeline.vue        分步回放（600帧 + 关键帧识别）
+  ├─ ControlBar.vue      播放控制
+  └─ ForceEditor.vue     自定义力编辑器
+
+composables/
+  ├─ usePhysics.js   状态管理 + 欧拉积分 + 完整快照系统
+  ├─ useCollision.js 碰撞检测（地面/质点间/线段 + autoComputeNormal）
+  └─ usePresets.js   5 个预设场景
+```
+
+### 数据流设计
+- 单向数据流：composables 管状态，组件只读 + emit
+- AIInput 通过 emit('load-preset', name) 和 emit('update-params', params) 通知父组件，不直接修改全局状态
+- 父组件 App.vue 调用 usePhysics 的 loadScene / updateObjectProperty 操作状态
+
+## 三、已实现功能
+
+### 五大物理场景
+| 场景 | 完成度 | 关键参数 | 实现要点 |
+|---|---|---|---|
+| 抛体运动 | ✅ | vx=500 px/s, g=490 px/s² | 欧拉积分 + 地面碰撞 |
+| 斜面滑块 | ✅ | 线段碰撞 + 摩擦力 + 法线自动重算 | 连续碰撞检测 + 切向摩擦衰减 |
+| 弹性碰撞 | ✅ | v1=400, v2=-150 px/s | 动量守恒 + 动能守恒 |
+| 磁场圆周 | ✅ | B=1, q=1, r=150px 逆时针 | 洛伦兹力 F=qv×B |
+| 电场偏转 | ✅ | E.y=-1000, 合力向上 -510 | 电场力 Fe=qE |
+
+### 核心功能模块
+| 模块 | 完成度 | 说明 |
+|---|---|---|
+| 物理引擎 | ✅ 完整 | 欧拉积分 + 多力合成（重力/自定义力/场力） |
+| 碰撞检测 | ✅ 完整 | 地面/质点间/任意线段（连续检测 + 法向反射） |
+| 斜面受力 | ✅ 完整 | 重力/支持力/摩擦力分解可视化 |
+| 电磁场力 | ✅ 完整 | 电场力 qE（绿色）+ 洛伦兹力 qvB（紫色） |
+| 分步回放 | ✅ 完整 | 600 帧快照 + 关键帧识别 + 时间轴拖动 |
+| 快照完整性 | ✅ 完整 | 含 objects/field/groundY/gravity/timestamp |
+| 场可视化 | ✅ 完整 | 磁场 ⊙/⊗ 网格 + 电场箭头网格（半透明） |
+| AI 题目解析 | 🟡 Mock 版 | 关键词匹配 + 正则提参，未接真实 AI |
+| 法线自动重算 | ✅ 完整 | 端点变化时自动计算 + 保留用户方向偏好 |
+
+## 四、物理参数尺度统一
+
+### 全局尺度常量
+```javascript
+const PIXELS_PER_METER = 50   // 1 米 = 50 像素
+const GRAVITY_SI = 9.8         // m/s²
+const GRAVITY = 490            // 像素/s² = 9.8 × 50
+```
+
+### 速度换算
+| 物理量 | SI 单位 | 像素单位 | 换算 |
+|---|---|---|---|
+| 重力加速度 | 9.8 m/s² | 490 px/s² | ×50 |
+| 速度 | 10 m/s | 500 px/s | ×50 |
+| 电场强度 | 20 N/C | 1000 px/s² | 内部直接用像素 |
+| 磁感应强度 | 1 T | 1（无量纲） | 保持 |
+
+### 用户界面显示
+- PropertyPanel 中重力输入显示 `9.80 m/s²`，内部存储 `490 像素/s²`
+- 用户输入时自动 ×50 转换
+
+## 五、碰撞检测实现
+
+### 线段连续碰撞检测（detectSegmentCollision）
+1. **路径穿越检测**：叉积判断 (prevX,prevY)→(x,y) 是否穿过 (x1,y1)→(x2,y2)
+2. **距离接触检测**：质点到线段距离 ≤ radius（不论哪一侧）
+3. **位置修正**：交点/最近点 + 法线方向偏移 radius
+4. **速度反射**：v_normal < 0 时 `v -= (1+e)·v_normal·n`
+5. **切向摩擦**：`damp = friction·0.15`，衰减切向速度
+
+### 法线自动重算（autoComputeNormal）
+- 法线 = (dy, -dx) 归一化
+- 当前法线与新法线点积 < 0 时翻转，保留用户方向偏好
+- 端点 x1/y1/x2/y2 任一变化时自动触发
+
+## 六、快照与回放系统
+
+### 快照结构
+```javascript
+{
+  objects: [{ id, x, y, vx, vy }, ...],
+  field: { type, E: {x, y}, B },
+  groundY: 440,
+  gravity: 490,
+  timestamp: Date.now()
+}
+```
+
+### 关键帧识别
+- 速度分量符号变化（vx 或 vy 变号）
+- 碰撞发生帧
+- 用于回放时快速跳转
+
+### 向后兼容
+- `Array.isArray(frame)` 判断旧快照（数组）vs 新快照（对象）
+- 旧快照无 field 字段时 `getDisplayField()` 回退 `state.field`
+
+## 七、已修复的问题
+
+| # | 问题 | 修复方案 |
+|---|---|---|
+| 1 | 物理参数尺度不统一（9.8 vs 300） | PIXELS_PER_METER=50 全局常量，重力统一 490 px/s² |
+| 2 | AIInput 违反单向数据流 | 改为 emit，父组件 handleLoadPreset/handleUpdateParams |
+| 3 | 快照不含 field/groundY/gravity | 快照结构扩展为完整状态对象 |
+| 4 | 线段法线不自动更新 | autoComputeNormal + 端点变化自动重算 |
+| 5 | 斜面受力分析错误（cos/sin 混用） | 修正 cosα = \|segDx\|/len |
+| 6 | 电磁场力未绘制 | drawForces 新增 qE 和 qvB 箭头 |
+| 7 | 碰撞检测穿透 | 距离检测改为 dist <= radius（不论哪一侧） |
+| 8 | 斜面 groundY 冲突 | loadScene 接受 groundY=null 禁用水平地面 |
+
+## 八、仍存在的问题
+
+### 严重问题（P0）
+1. **resizeCanvas 覆盖 groundY**：PhysicsCanvas.vue#L30 在 resizeCanvas 中硬设 `state.groundY = rect.height - 60`，会覆盖斜面预设的 groundY=null（设为 100000）。用户调整窗口大小后斜面场景可能重新出现水平地面。
+
+### 中等问题（P1）
+2. **findContactSegment 阈值过宽**：`(radius+4)` 会让斜面下方的滑块也被判定为接触，支持力画在不该画的位置。
+3. **质点间碰撞用整体 restitution**：地面恢复系数和质点间恢复系数共用 state.restitution，无法独立调节。
+4. **MAX_SNAPSHOTS=600**：10 秒后老帧被丢弃，长时间运行无法回看开头。
+
+### 轻微问题（P2）
+5. **无 TypeScript**：物体形状靠约定（type 字段），重构风险高。
+6. **AI 解析仅 Mock**：未接真实 AI，关键词匹配能力有限。
+7. **无单元测试**：物理计算正确性靠肉眼验证。
+
+## 九、技术亮点
+
+| 亮点 | 说明 |
+|---|---|
+| 斜面连续碰撞检测 | 叉积判穿越 + 最近点修正 + 法向反射 + 切向摩擦，实现规范 |
+| 关键帧识别 | 用速度分量变号 + 碰撞标记，思路简洁有效 |
+| 场可视化 | 半透明符号网格不遮挡物体，符合教学软件美学 |
+| 快照完整性 | 回放时 field/groundY 同步恢复，向后兼容旧快照 |
+| 法线自动重算 | 保留用户方向偏好，用户体验良好 |
+| AIInput 单向数据流 | 符合 Vue 最佳实践，组件完全解耦 |
+| 物理尺度统一 | PIXELS_PER_METER 常量，SI 与像素显式转换 |
+
+## 十、改进建议优先级
+
+| 优先级 | 建议 | 收益 |
+|---|---|---|
+| P0 | 修复 resizeCanvas 覆盖 groundY 问题 | 斜面场景稳定性 |
+| P0 | 收紧 findContactSegment 阈值到 radius+1 | 受力分析准确性 |
+| P1 | 质点间碰撞独立恢复系数 | 碰撞场景灵活性 |
+| P1 | 快照改环形缓冲或支持导出 | 长时间运行 |
+| P2 | 引入 TS 或 JSDoc 类型注解 | 可维护性 |
+| P2 | 接入真实 AI API | 题目解析能力 |
+| P2 | 添加单元测试（物理计算） | 正确性保障 |
+
+## 十一、文件清单与职责
+
+| 文件 | 行数 | 职责 |
+|---|---|---|
+| App.vue | ~136 | 状态编排、场景切换、AI 回调 |
+| components/SceneTabs.vue | ~60 | 5 个场景 Tab 切换 |
+| components/AIInput.vue | ~150 | AI 题目输入 + Mock 解析 + 结果展示 |
+| components/ObjectList.vue | ~80 | 物体列表展示与选中 |
+| components/PropertyPanel.vue | ~360 | 属性编辑（质点/线段/场/法线） |
+| components/PhysicsCanvas.vue | ~510 | Canvas 渲染 + 物理循环 + 场可视化 |
+| components/Timeline.vue | ~170 | 分步回放时间轴 + 关键帧 |
+| components/ControlBar.vue | ~90 | 播放/暂停/重置/回放切换 |
+| components/ForceEditor.vue | ~120 | 自定义力增删 |
+| composables/usePhysics.js | ~225 | 状态 + 积分 + 快照 + loadScene |
+| composables/useCollision.js | ~245 | 三类碰撞 + autoComputeNormal |
+| composables/usePresets.js | ~155 | 5 个预设场景 |
+
+## 十二、总体评价
+
+**核心功能完整、架构清晰、数据流规范、视觉风格统一**，适合作为初赛作品。
+
+主要短板集中在两个 P0 问题（resizeCanvas 覆盖 groundY、findContactSegment 阈值），修复后项目稳定性将显著提升。物理引擎实现规范，教学价值高，特别是斜面连续碰撞检测和电磁场力可视化两大亮点。

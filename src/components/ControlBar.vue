@@ -17,6 +17,13 @@
     </button>
     <button
       class="btn"
+      :class="{ active: showGateColors }"
+      @click="$emit('toggle-gate-colors')"
+    >
+      🎨 触发器颜色
+    </button>
+    <button
+      class="btn"
       :class="{ active: mode === 'replay' }"
       @click="$emit('toggle-replay')"
     >
@@ -29,10 +36,11 @@
 defineProps({
   isPlaying: { type: Boolean, default: false },
   showForce: { type: Boolean, default: true },
+  showGateColors: { type: Boolean, default: true },
   mode: { type: String, default: 'live' }
 })
 
-defineEmits(['toggle-play', 'reset', 'toggle-force', 'toggle-replay'])
+defineEmits(['toggle-play', 'reset', 'toggle-force', 'toggle-gate-colors', 'toggle-replay'])
 </script>
 
 <style scoped>

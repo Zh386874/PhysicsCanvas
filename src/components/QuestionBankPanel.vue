@@ -1,12 +1,12 @@
 <template>
   <div class="question-bank-panel">
-    <div class="panel-header" @click="collapsed = !collapsed">
+    <div v-if="!embedded" class="panel-header" @click="collapsed = !collapsed">
       <span class="header-title">📚 真题库</span>
       <span class="header-count">{{ difficultyStats.total }} 道</span>
       <span class="toggle-icon">{{ collapsed ? '▶' : '▼' }}</span>
     </div>
 
-    <div v-show="!collapsed" class="panel-body">
+    <div v-show="embedded || !collapsed" class="panel-body">
       <!-- 搜索框 -->
       <input
         v-model="searchKeyword"
@@ -66,9 +66,13 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref } from 'vue'
 import { useQuestionBank } from '../composables/useQuestionBank'
+
+defineProps({
+  embedded: { type: Boolean, default: false }
+})
 
 const emit = defineEmits(['load-question'])
 
@@ -91,7 +95,7 @@ function handleApply() {
   emit('load-question', selectedQuestion.value)
 }
 
-function handleLoad(q: typeof selectedQuestion.value) {
+function handleLoad(q) {
   if (!q) return
   selectQuestion(q.id)
   emit('load-question', q)

@@ -1,5 +1,21 @@
 <template>
   <div class="canvas-wrap">
+    <!-- 编辑模式工具栏：位于画布顶部，作为独立 div 显示框 -->
+    <div v-if="editMode" class="edit-toolbar">
+      <button class="tool-btn" :class="{ active: tool === 'select' }" @click="tool = 'select'">🖱️ 选择/移动</button>
+      <button class="tool-btn" :class="{ active: tool === 'ball' }" @click="tool = 'ball'">⚽ 小球</button>
+      <button class="tool-btn" :class="{ active: tool === 'platform' }" @click="tool = 'platform'">➖ 平台</button>
+      <button class="tool-btn" :class="{ active: tool === 'conveyor' }" @click="tool = 'conveyor'">📦 传送带</button>
+      <button class="tool-btn" :class="{ active: tool === 'plate' }" @click="tool = 'plate'">🟫 板块</button>
+      <button class="tool-btn" :class="{ active: tool === 'arc' }" @click="tool = 'arc'">⤵ 圆弧</button>
+      <button class="tool-btn" :class="{ active: tool === 'spring' }" @click="tool = 'spring'">🌀 弹簧</button>
+      <button class="tool-btn" :class="{ active: chargeMode }" @click="chargeMode = !chargeMode">⚡ 带电</button>
+      <span class="tool-divider"></span>
+      <button class="tool-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">↶ 撤销</button>
+      <button class="tool-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">↷ 重做</button>
+      <button class="tool-btn" @click="$emit('export-scene')">💾 导出</button>
+      <button class="tool-btn" @click="$emit('import-scene')">📂 导入</button>
+    </div>
     <canvas
       ref="canvasRef"
       @mousedown="onMouseDown"
@@ -10,17 +26,9 @@
       @contextmenu.prevent
       :style="{ cursor: cursorStyle }"
     ></canvas>
-    <!-- 编辑模式工具栏 -->
-    <div v-if="editMode" class="edit-toolbar">
-      <button class="tool-btn" :class="{ active: tool === 'ball' }" @click="tool = 'ball'">⚽ 小球</button>
-      <button class="tool-btn" :class="{ active: tool === 'platform' }" @click="tool = 'platform'">➖ 平台</button>
-      <button class="tool-btn" :class="{ active: tool === 'arc' }" @click="tool = 'arc'">⤵ 圆弧</button>
-      <button class="tool-btn" :class="{ active: tool === 'spring' }" @click="tool = 'spring'">🌀 弹簧</button>
-      <button class="tool-btn" :class="{ active: chargeMode }" @click="chargeMode = !chargeMode">⚡ 带电</button>
-      <button class="tool-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">↶ 撤销</button>
-      <button class="tool-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">↷ 重做</button>
-      <button class="tool-btn" @click="$emit('export-scene')">💾 导出</button>
-      <button class="tool-btn" @click="$emit('import-scene')">📂 导入</button>
+    <!-- Shift 吸附提示（仅选择/移动工具时显示） -->
+    <div v-if="editMode && tool === 'select'" class="shift-hint">
+      按住 Shift 键可快速贴合线段
     </div>
     <!-- 重置视图按钮（所有场景常驻右下角） -->
     <button class="reset-view-btn" title="重置视图（平移与缩放归位）" @click="resetView">🎯 重置视图</button>
@@ -28,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { state, updatePhysics, snapshots, currentFrame } from '../composables/usePhysics'
 // 渲染层：纯绘制函数
 import {
@@ -69,6 +77,7 @@ const cursorStyle = computed(() => {
   if (!props.editMode) return 'default'
   if (isSelectionActive()) return 'crosshair'
   if (isDragging() || isBatchDragging()) return 'grabbing'
+  if (tool.value === 'select') return 'default'
   return 'crosshair'
 })
 
@@ -148,7 +157,7 @@ function draw() {
   drawField(rc, field)
   drawGround(rc, groundY)
   drawSegments(rc, objects)
-  drawArcsVisually(rc, objects)
+  drawArcsVisually(rc, objects, props.selectedIds, state.showGateColors)
   drawTrails(rc, objects, props.mode === 'replay')
   drawObjects(rc, objects)
   drawSprings(rc, objects)
@@ -187,9 +196,14 @@ function loop(now) {
   rafId = requestAnimationFrame(loop)
 }
 
+// 工具栏显隐会改变画布可用高度，需在 editMode 切换后重新计算 canvas 尺寸
+watch(() => props.editMode, () => {
+  nextTick(() => resizeCanvas())
+})
+
 onMounted(() => {
-  // 注入交互层依赖：canvasRef、props getter、emit
-  initCanvasInteraction(canvasRef, () => props, emit)
+  // 注入交互层依赖：canvasRef、props getter、emit、state（DIP：通过接口访问状态）
+  initCanvasInteraction(canvasRef, () => props, emit, state)
   resizeCanvas()
   window.addEventListener('resize', resizeCanvas)
   rafId = requestAnimationFrame(loop)
@@ -207,26 +221,31 @@ onUnmounted(() => {
   background: #0a0e27;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 canvas {
+  flex: 1;
   width: 100%;
-  height: 100%;
   display: block;
 }
 
 .edit-toolbar {
-  position: absolute;
-  top: 12px;
-  left: 12px;
   display: flex;
   gap: 0.4rem;
-  padding: 0.4rem;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(167, 139, 250, 0.3);
-  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
   backdrop-filter: blur(8px);
   z-index: 10;
+  flex-wrap: wrap;
+}
+
+.tool-divider {
+  width: 1px;
+  background: rgba(167, 139, 250, 0.2);
+  margin: 0 0.2rem;
 }
 
 .reset-view-btn {
@@ -249,6 +268,21 @@ canvas {
   background: rgba(34, 211, 238, 0.18);
   border-color: rgba(34, 211, 238, 0.7);
   color: #a5f3fc;
+}
+
+.shift-hint {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fbbf24;
+  font-size: 0.8rem;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  pointer-events: none;
 }
 
 .tool-btn {

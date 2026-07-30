@@ -2,18 +2,70 @@
  * 画布交互层：事件处理 + 拖拽 + 平移缩放
  * 不含绘制（由 useCanvasRenderer 负责）和工具状态（由 useEditTools 负责）
  * 弧线点击/预览、Shift 防重叠委托给 useEditTools
+ *
+ * 依赖注入（DIP）：通过 PhysicsStateAccess 接口访问物理状态，
+ * 而非直接 import usePhysics.state，便于测试和替换状态源
  */
 import { ref, type Ref } from 'vue'
-import { state } from './usePhysics'
 import { autoComputeNormal } from './useCollision'
 import {
   tool, chargeMode, previewLine, genId,
+  isPlatformTool, createPlatformLikeObject,
   handleArcClick, updateArcPreview,
   getSpringAnchor, handleSpringClick, updateSpringPreview,
-  pushOutOfOverlap, triggerShiftFlash
+  pushOutOfOverlap, snapToSegmentSurface, triggerShiftFlash
 } from './useEditTools'
 import { pointToSegmentDistance } from './useCanvasRenderer'
 import type { PhysicsObject, ParticleObject, SegmentObject } from './usePhysics'
+import { GROUND_DISABLED, PAN_LIMIT } from '../constants'
+
+/**
+ * 物理状态访问接口（DIP 抽象）
+ * 交互层只依赖此接口，不依赖具体的 usePhysics.state
+ */
+export interface PhysicsStateAccess {
+  /** 物体列表（只读访问） */
+  readonly objects: PhysicsObject[]
+  /** 地面 y 坐标（像素），>= 100000 表示禁用地面 */
+  groundY: number
+}
+
+/** 拖拽模式：圆/线段端点/线段整体 */
+type DragMode = 'circle' | 'endpoint' | 'segment'
+
+/** 拖拽目标描述（含拖拽过程中动态添加的偏移量） */
+interface DragTarget {
+  id: number
+  mode: DragMode
+  endpointIdx?: 0 | 1
+  /** 圆拖拽：鼠标相对圆心的偏移 */
+  offsetX?: number
+  offsetY?: number
+  /** 线段整体拖拽：按下时的端点坐标 */
+  startX1?: number
+  startY1?: number
+  startX2?: number
+  startY2?: number
+}
+
+/** 批量拖拽初始状态项（质点存 x/y，线段存四端点） */
+interface BatchDragItem {
+  id: number
+  x?: number
+  y?: number
+  x1?: number
+  y1?: number
+  x2?: number
+  y2?: number
+}
+
+/** 画布组件 props 的最小契约（交互层依赖） */
+interface CanvasProps {
+  editMode: boolean
+  selectedIds: number[]
+}
+
+/** 点击检测结果（与 DragTarget 同构，hitTest 返回基础字段，onMouseDown 补充偏移量） */
 
 // ===== 世界坐标系：平移与缩放 =====
 export const worldOffset = ref({ x: 0, y: 0 })
@@ -36,7 +88,7 @@ let shiftPressed = false
 
 // ===== 拖拽物体状态 =====
 let dragging = false
-let dragTarget: any = null
+let dragTarget: DragTarget | null = null
 let justDragged = false
 
 // ===== 框选状态 =====
@@ -47,12 +99,13 @@ let selectionEnd: { x: number; y: number } | null = null
 // ===== 批量拖拽状态 =====
 let batchDragging = false
 let batchDragStartPos: { x: number; y: number } | null = null
-let batchDragInitial: any[] | null = null
+let batchDragInitial: BatchDragItem[] | null = null
 
 // ===== 注入的依赖（组件实例级） =====
 let canvasRef: Ref<HTMLCanvasElement | null> | null = null
-let getProps: () => any = () => ({ editMode: false, selectedIds: [] })
-let emitFn: (event: string, ...args: any[]) => void = () => {}
+let getProps: () => CanvasProps = () => ({ editMode: false, selectedIds: [] })
+let emitFn: (event: string, ...args: unknown[]) => void = () => {}
+let stateAccess: PhysicsStateAccess = { objects: [], groundY: 400 }
 
 // ===== Getter（供渲染层和组件使用） =====
 export function getDpr(): number { return dpr }
@@ -68,17 +121,20 @@ export function isDrawing(): boolean { return drawing }
 export function isSelectionActive(): boolean { return selectionActive }
 
 /**
- * 初始化交互层：注入 canvasRef、props getter、emit
+ * 初始化交互层：注入 canvasRef、props getter、emit、stateAccess
  * 在组件 onMounted 中调用
+ * @param stateAccess 物理状态访问接口（DIP：依赖抽象而非具体 usePhysics.state）
  */
 export function initCanvasInteraction(
   canvas: Ref<HTMLCanvasElement | null>,
-  propsGetter: () => any,
-  emitter: (event: string, ...args: any[]) => void
+  propsGetter: () => CanvasProps,
+  emitter: (event: string, ...args: unknown[]) => void,
+  state: PhysicsStateAccess
 ): void {
   canvasRef = canvas
   getProps = propsGetter
   emitFn = emitter
+  stateAccess = state
 }
 
 // ===== 坐标转换 =====
@@ -105,10 +161,10 @@ function getMousePos(e: MouseEvent): { x: number; y: number } {
  * 检测鼠标是否点中某个物体，返回拖拽目标描述
  * @param skipSegments 是否跳过线段检测（ball 工具下传 true，避免点击线段拦截添加小球）
  */
-function hitTest(pos: { x: number; y: number }, skipSegments = false): any {
+function hitTest(pos: { x: number; y: number }, skipSegments = false): DragTarget | null {
   if (!skipSegments) {
     // 先检测线段端点（优先级高，便于编辑端点）
-    for (const obj of state.objects) {
+    for (const obj of stateAccess.objects) {
       if (obj.type === 'line_segment') {
         const seg = obj as SegmentObject
         const d1 = Math.hypot(pos.x - seg.x1, pos.y - seg.y1)
@@ -118,7 +174,7 @@ function hitTest(pos: { x: number; y: number }, skipSegments = false): any {
       }
     }
     // 再检测线段整体（点击在线段附近 5px）
-    for (const obj of state.objects) {
+    for (const obj of stateAccess.objects) {
       if (obj.type === 'line_segment') {
         const seg = obj as SegmentObject
         const dist = pointToSegmentDistance(pos.x, pos.y, seg.x1, seg.y1, seg.x2, seg.y2)
@@ -127,7 +183,7 @@ function hitTest(pos: { x: number; y: number }, skipSegments = false): any {
     }
   }
   // 最后检测圆
-  for (const obj of state.objects) {
+  for (const obj of stateAccess.objects) {
     if (obj.type === '质点') {
       const p = obj as ParticleObject
       const d = Math.hypot(pos.x - p.x, pos.y - p.y)
@@ -154,7 +210,7 @@ function onCanvasClick(e: MouseEvent): void {
 
   // Shift 防重叠：检测并沿法线推出
   if (e.shiftKey) {
-    const corrected = pushOutOfOverlap(finalX, finalY, radius, state.objects)
+    const corrected = pushOutOfOverlap(finalX, finalY, radius, stateAccess.objects)
     if (corrected) {
       finalX = corrected.x
       finalY = corrected.y
@@ -164,7 +220,7 @@ function onCanvasClick(e: MouseEvent): void {
 
   const newObj = {
     id: genId(),
-    name: '小球' + (state.objects.length + 1),
+    name: '小球' + (stateAccess.objects.length + 1),
     type: '质点',
     x: finalX,
     y: finalY,
@@ -219,7 +275,7 @@ function onMouseDown(e: MouseEvent): void {
 
   // 弹簧工具：第二次点击（已有锚点）→ 选择球并创建弹簧
   if (tool.value === 'spring' && getSpringAnchor()) {
-    handleSpringClick(pos, state.objects, (obj) => emitFn('add-object', obj))
+    handleSpringClick(pos, stateAccess.objects, (obj) => emitFn('add-object', obj))
     return
   }
 
@@ -230,19 +286,19 @@ function onMouseDown(e: MouseEvent): void {
     if (props.selectedIds.length > 1 && props.selectedIds.includes(hit.id)) {
       batchDragging = true
       batchDragStartPos = pos
-      batchDragInitial = props.selectedIds.map((id: number) => {
-        const o = state.objects.find(o => o.id === id)
+      batchDragInitial = props.selectedIds.map((id: number): BatchDragItem | null => {
+        const o = stateAccess.objects.find(o => o.id === id)
         if (!o) return null
         if (o.type === '质点' || o.type === '刚体') return { id, x: o.x, y: o.y }
         if (o.type === 'line_segment') return { id, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 }
         return null
-      }).filter(Boolean)
+      }).filter((item): item is BatchDragItem => item !== null)
       return
     }
     // 单选拖拽
     dragging = true
     dragTarget = hit
-    const obj = state.objects.find(o => o.id === hit.id)
+    const obj = stateAccess.objects.find(o => o.id === hit.id)
     if (!obj) return
     if (hit.mode === 'circle') {
       const p = obj as ParticleObject
@@ -260,8 +316,8 @@ function onMouseDown(e: MouseEvent): void {
     return
   }
 
-  // 未命中物体：platform 工具开始绘制线段
-  if (tool.value === 'platform') {
+  // 未命中物体：平台类工具（platform/conveyor/plate）开始绘制线段
+  if (isPlatformTool(tool.value)) {
     drawing = true
     drawStart = pos
     drawEnd = pos
@@ -269,14 +325,20 @@ function onMouseDown(e: MouseEvent): void {
     return
   }
 
+  // select 工具：点击空白处清除选择（不添加新物体）
+  if (tool.value === 'select') {
+    emitFn('update-selected', [])
+    return
+  }
+
   // 圆弧工具：三次点击（圆心 → 半径起点 → 终点角度），委托给 useEditTools
   if (tool.value === 'arc') {
-    handleArcClick(pos, e.shiftKey, (obj) => emitFn('add-object', obj), state.objects)
+    handleArcClick(pos, e.shiftKey, (obj) => emitFn('add-object', obj), stateAccess.objects)
     return
   }
   // 弹簧工具：第一次点击（设置固定端），第二次点击在选择球时已提前处理
   if (tool.value === 'spring') {
-    handleSpringClick(pos, state.objects, (obj) => emitFn('add-object', obj))
+    handleSpringClick(pos, stateAccess.objects, (obj) => emitFn('add-object', obj))
     return
   }
   // ball 工具：mousedown 不做事，由 click 添加
@@ -314,9 +376,11 @@ function onMouseMove(e: MouseEvent): void {
     const dy = pos.y - batchDragStartPos!.y
     const updates = batchDragInitial.map(item => {
       if (item.x !== undefined) {
-        return { id: item.id, props: { x: item.x + dx, y: item.y + dy } }
+        // 质点/刚体：x 和 y 同时存在
+        return { id: item.id, props: { x: item.x + dx, y: item.y! + dy } }
       }
-      return { id: item.id, props: { x1: item.x1 + dx, y1: item.y1 + dy, x2: item.x2 + dx, y2: item.y2 + dy } }
+      // 线段：x1/y1/x2/y2 同时存在
+      return { id: item.id, props: { x1: item.x1! + dx, y1: item.y1! + dy, x2: item.x2! + dx, y2: item.y2! + dy } }
     })
     emitFn('batch-update', updates)
     return
@@ -334,8 +398,8 @@ function onMouseMove(e: MouseEvent): void {
     return
   }
 
-  // 线段绘制预览
-  if (drawing && tool.value === 'platform') {
+  // 线段绘制预览（平台类工具共用）
+  if (drawing && isPlatformTool(tool.value)) {
     let endX = pos.x
     let endY = pos.y
     // Shift 吸附：水平或垂直
@@ -355,12 +419,26 @@ function onMouseMove(e: MouseEvent): void {
 
   // 物体拖拽
   if (dragging && dragTarget) {
-    const obj = state.objects.find(o => o.id === dragTarget.id)
+    // 模块级 let 变量在函数调用后会丢失窄化，用局部 const 保存以保持非空类型
+    const target = dragTarget
+    const obj = stateAccess.objects.find(o => o.id === target.id)
     if (!obj) return
-    if (dragTarget.mode === 'circle') {
-      emitFn('update-object', { id: obj.id, props: { x: pos.x - dragTarget.offsetX, y: pos.y - dragTarget.offsetY } })
-    } else if (dragTarget.mode === 'endpoint') {
-      const newProps: { x1?: number; y1?: number; x2?: number; y2?: number; normalX?: number; normalY?: number } = dragTarget.endpointIdx === 0
+    if (target.mode === 'circle') {
+      let targetX = pos.x - target.offsetX!
+      let targetY = pos.y - target.offsetY!
+      // Shift 吸附：精准落到最近线段表面（边缘接触）
+      if (shiftPressed) {
+        const p = obj as ParticleObject
+        const snapped = snapToSegmentSurface(targetX, targetY, p.radius || 10, stateAccess.objects)
+        if (snapped) {
+          targetX = snapped.x
+          targetY = snapped.y
+          triggerShiftFlash({ x: targetX, y: targetY })
+        }
+      }
+      emitFn('update-object', { id: obj.id, props: { x: targetX, y: targetY } })
+    } else if (target.mode === 'endpoint') {
+      const newProps: { x1?: number; y1?: number; x2?: number; y2?: number; normalX?: number; normalY?: number } = target.endpointIdx === 0
         ? { x1: pos.x, y1: pos.y }
         : { x2: pos.x, y2: pos.y }
       // 自动重算法线
@@ -369,17 +447,17 @@ function onMouseMove(e: MouseEvent): void {
       newProps.normalX = normal.normalX
       newProps.normalY = normal.normalY
       emitFn('update-object', { id: obj.id, props: newProps })
-    } else if (dragTarget.mode === 'segment') {
+    } else if (target.mode === 'segment') {
       // 整体平移
-      const dx = pos.x - dragTarget.offsetX
-      const dy = pos.y - dragTarget.offsetY
+      const dx = pos.x - target.offsetX!
+      const dy = pos.y - target.offsetY!
       emitFn('update-object', {
         id: obj.id,
         props: {
-          x1: dragTarget.startX1 + dx,
-          y1: dragTarget.startY1 + dy,
-          x2: dragTarget.startX2 + dx,
-          y2: dragTarget.startY2 + dy
+          x1: target.startX1! + dx,
+          y1: target.startY1! + dy,
+          x2: target.startX2! + dx,
+          y2: target.startY2! + dy
         }
       })
     }
@@ -416,8 +494,8 @@ function onMouseUp(e: MouseEvent): void {
     return
   }
 
-  // 线段绘制完成
-  if (drawing && tool.value === 'platform') {
+  // 线段绘制完成（platform/conveyor/plate 共用，属性由工厂函数差异化）
+  if (drawing && isPlatformTool(tool.value)) {
     drawing = false
     const pos = getMousePos(e)
     let endX = pos.x
@@ -431,22 +509,11 @@ function onMouseUp(e: MouseEvent): void {
     // 线段长度过短则忽略
     const len = Math.hypot(endX - drawStart!.x, endY - drawStart!.y)
     if (len > 10) {
-      const tempSeg = { x1: drawStart!.x, y1: drawStart!.y, x2: endX, y2: endY }
-      const normal = autoComputeNormal(tempSeg)
-      const newObj = {
-        id: genId(),
-        name: '平台' + (state.objects.filter(o => o.type === 'line_segment').length + 1),
-        type: 'line_segment',
-        x1: drawStart!.x,
-        y1: drawStart!.y,
-        x2: endX,
-        y2: endY,
-        normalX: normal.normalX,
-        normalY: normal.normalY,
-        restitution: 0.3,
-        friction: 0.5,
-        color: '#475569'
-      }
+      // isPlatformTool 已保证 tool.value 为 'platform' | 'conveyor' | 'plate'，类型断言安全
+      const newObj = createPlatformLikeObject(
+        tool.value as 'platform' | 'conveyor' | 'plate',
+        drawStart!.x, drawStart!.y, endX, endY, stateAccess.objects
+      )
       emitFn('add-object', newObj)
     }
     previewLine.value = null
@@ -474,7 +541,7 @@ function getObjectsInRect(p1: { x: number; y: number } | null, p2: { x: number; 
   const minY = Math.min(p1.y, p2.y)
   const maxY = Math.max(p1.y, p2.y)
   const ids: number[] = []
-  for (const obj of state.objects) {
+  for (const obj of stateAccess.objects) {
     if (obj.type === '质点') {
       const p = obj as ParticleObject
       if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) {
@@ -516,7 +583,7 @@ function clampOffset(offset: { x: number; y: number }, scale: number, _canvas: H
   // 用 CSS 逻辑尺寸计算（与绘制坐标一致）
   const halfW = cssW / 2
   const halfH = cssH / 2
-  const limit = 3000
+  const limit = PAN_LIMIT
   const minX = halfW - limit * scale
   const maxX = halfW + limit * scale
   const minY = halfH - limit * scale
@@ -538,19 +605,21 @@ function resetView(): void {
 
 function resizeCanvas(): void {
   const canvas = canvasRef?.value
-  if (!canvas || !canvas.parentElement) return
-  const rect = canvas.parentElement.getBoundingClientRect()
+  if (!canvas) return
+  // 用 canvas 自身的 bounding rect 获取实际 CSS 显示尺寸
+  // canvas 由 CSS flex/width 控制显示尺寸，backing store 跟随实际尺寸
+  const rect = canvas.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) return
   // 高 DPI 适配：backing store 按 dpr 放大，CSS 尺寸不变，绘制坐标用 CSS 像素
   dpr = window.devicePixelRatio || 1
   cssW = rect.width
   cssH = rect.height
   canvas.width = Math.floor(cssW * dpr)
   canvas.height = Math.floor(cssH * dpr)
-  canvas.style.width = cssW + 'px'
-  canvas.style.height = cssH + 'px'
+  // CSS 显示尺寸由 flex/width 控制，不设置 style.width/height 避免覆盖 flex 布局
   // 仅当场景启用水平地面时才跟随容器更新；null/100000 表示禁用（斜面/自定义场景）
-  if (state.groundY !== null && state.groundY !== 100000) {
-    state.groundY = cssH - 60
+  if (stateAccess.groundY !== null && stateAccess.groundY !== 100000) {
+    stateAccess.groundY = cssH - 60
   }
 }
 

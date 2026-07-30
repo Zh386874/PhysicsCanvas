@@ -1,0 +1,137 @@
+问题诊断与修复方案总览
+你的反馈	原因	修复要点
+小球无法拖拽	editMode 计算依赖 state.isPlaying，可能时序导致拖拽事件中断；或工具判断冲突	重构拖拽逻辑，与点击添加解耦，确保编辑模式下拖拽优先级最高
+展示画布无法移动/过小	没有平移和缩放功能；canvas 尺寸固定，大场景超出视野	增加世界坐标系平移 + 滚轮缩放 + 鼠标中键平移；canvas 自适应容器
+缺少带电粒子选项	添加小球时 charge 固定为 0，无设置入口	在工具栏增加“带电粒子”切换，添加时自动设置电荷；属性面板可修改电荷
+导出/导入没实现	之前只加了按钮和空函数，未绑定或未正确读写剪贴板	完善导出/导入功能：导出为 JSON 复制到剪贴板；导入时解析并加载场景
+没有圆形弧线平台	线段工具只能画直线，圆弧碰撞未实现	新增“圆弧”工具：绘制一段圆弧，自动离散为多条线段（折线近似），复用现有碰撞检测
+修复提示词（按顺序执行）
+🔧 第 1 步：修复拖拽功能，确保小球可移动
+text
+在 PhysicsCanvas.vue 中检查编辑模式下的鼠标事件绑定：
+- 将所有鼠标事件（mousedown/mousemove/mouseup）统一处理，不依赖 `editMode` 的条件分支，而是直接在函数开头判断：如果 `!props.editMode` 则 return。
+- 确保 `hitTest` 函数的判定顺序正确：先判断端点（距离 ≤ 8），再判断线段整体（距离 ≤ 5），最后判断圆（距离 ≤ radius）。
+- 在 `onMouseDown` 中，如果命中物体，设置 `dragTarget = { id, part: 'circle' | 'endpoint1' | 'endpoint2' | 'whole' }`，并记录 `dragOffset`（鼠标与物体参考点的差值），然后 `return` 以防止触发点击添加小球的逻辑。
+- 在 `onMouseMove` 中，如果 `dragTarget` 存在，根据 part 更新位置：
+    - 'circle'：设置物体 x = 鼠标世界坐标 - offset.x, y = 鼠标世界坐标 - offset.y
+    - 'endpoint1'：设置 x1,y1
+    - 'endpoint2'：设置 x2,y2
+    - 'whole'：同时平移 x1,x2 和 y1,y2
+  调用 `autoComputeNormal` 更新法线（如果是线段），然后通过 `emit('update-object', { id, newProps })` 实时更新状态。
+- 在 `onMouseUp` 中清除 `dragTarget`。
+- 将编辑工具栏的“小球”按钮始终为默认工具，拖拽功能在任何编辑工具下都应生效（不论当前是“小球”还是“平台”工具），这样用户可以在画完线段后立即拖拽小球，无需切换工具。
+- 验证：进入自定义场景，添加一个小球，直接用鼠标按住小球并移动，小球应跟随鼠标；松开后停在新位置。切换到平台工具，拖拽线段端点或整体，仍能拖动小球。
+检验：进入自定义场景，添加小球，鼠标按住小球拖拽移动，松开后小球停止在新位置；再画一条线段，拖动小球到线段附近，两者均能正常交互。
+
+🔧 第 2 步：实现画布平移和缩放（移动画布、放大缩小）
+text
+在 PhysicsCanvas.vue 中引入世界坐标变换：
+- 定义响应式变量：`worldOffset = { x: 0, y: 0 }`，`worldScale = 1`（范围限制 0.3 ~ 5）。
+- 在 `draw` 函数最前面应用变换：
+    ctx.save()
+    ctx.translate(worldOffset.x, worldOffset.y)
+    ctx.scale(worldScale, worldScale)
+ 并在最后 `ctx.restore()`。
+- 所有绘图坐标（物体位置、网格、场可视化等）无需修改，因为它们使用世界坐标。
+- 为 canvas 绑定 `wheel` 事件（滚轮缩放）：
+    event.preventDefault()
+    const factor = event.deltaY < 0 ? 1.1 : 0.9
+    const newScale = Math.max(0.3, Math.min(5, worldScale * factor))
+    // 以鼠标位置为中心缩放
+    const rect = canvas.getBoundingClientRect()
+    const mouseX = event.clientX - rect.left
+    const mouseY = event.clientY - rect.top
+    const worldX = (mouseX - worldOffset.x) / worldScale
+    const worldY = (mouseY - worldOffset.y) / worldScale
+    worldOffset.x = mouseX - worldX * newScale
+    worldOffset.y = mouseY - worldY * newScale
+    worldScale = newScale
+- 为 canvas 绑定 `mousedown` 用于中键拖拽（平移画布）：
+    在现有 mousedown 逻辑中，增加判断：如果 `event.button === 1`（中键）且 editMode 为 true，则设置 `panning = true`，记录 `panStart = { x: event.clientX, y: event.clientY }`，阻止默认行为和后续点击逻辑。
+    在 `mousemove` 中，如果 `panning` 为 true，计算 delta，更新 `worldOffset.x += deltaX`，`worldOffset.y += deltaY`。
+    在 `mouseup` 中清除 `panning`。
+- 修改所有鼠标坐标转换（点击添加、拖拽、绘制线段）都必须考虑世界坐标转换：
+    封装函数 `screenToWorld(screenX, screenY)`：
+        return {
+            x: (screenX - canvasRect.left - worldOffset.x) / worldScale,
+            y: (screenY - canvasRect.top - worldOffset.y) / worldScale
+        }
+    在 `onMouseDown/onMouseMove/onClick` 中，所有获取鼠标位置的地方均调用此函数。
+- 确保画布尺寸自适应：canvas 的 width/height 保持为容器尺寸（已有 resizeCanvas），在 mounted 和窗口 resize 时重新计算。
+- 验证：滚轮缩放，画面以鼠标为中心放大缩小；按住鼠标中键拖动，整个场景平移；添加的小球和线段仍在正确世界位置。
+检验：进入自定义场景，滚动滚轮放大缩小画布，画面中心跟随鼠标；按住鼠标中键拖动，场景平移；在放大状态下拖拽小球，操作准确不偏移。
+
+🔧 第 3 步：添加“带电粒子”选项
+text
+在 PhysicsCanvas.vue 的编辑工具栏中，增加一个切换开关（比如在“小球”和“平台”旁边加一个“带电粒子”复选框或切换按钮）。默认不选中。
+当“带电粒子”模式激活时，当前工具自动变为“小球”（如果当前是平台则自动切回小球），添加小球时自动设置 charge 为 1（或 -1，可后续在属性面板修改）。
+具体修改：
+- 定义 `chargeMode = ref(false)`。
+- 在点击添加小球时，`newObj.charge = chargeMode.value ? 1 : 0`。
+- 工具指示 UI 中显示“⚡带电”或“带电粒子”状态。
+- 同时修改 PropertyPanel.vue：当选中物体 type 为 '质点' 时，除了现有属性外，增加一个“电荷(q)”输入框，允许修改电荷数值（默认 0）。绑定到 `updateObjectProperty`。
+- 验证：勾选带电模式，点击画布添加小球，小球应带电荷（可在属性面板看到电荷为1）。切换到电场/磁场场景预览效果（即使自定义场景默认无场，但用户可以手动添加场？目前场设置在预设场景里，自定义场景 field 为 null，可能暂时无法看到电场力，但粒子属性已就绪）。
+检验：自定义场景，勾选“带电粒子”，点击添加小球，属性面板显示电荷 q=1（或你设定的默认值）；取消勾选，添加的粒子电荷为 0；选中粒子可在属性面板修改电荷值。
+
+🔧 第 4 步：完善导出/导入功能
+text
+在 App.vue 中，补充 handleExport 和 handleImport 函数（如果缺失则创建）：
+- handleExport：
+    const data = JSON.stringify(state.objects, null, 2)
+    navigator.clipboard.writeText(data).then(() => alert('场景已复制到剪贴板'))
+    （如果环境不支持 clipboard API，可降级为 prompt 显示文本）
+- handleImport：
+    const text = prompt('粘贴场景 JSON：')
+    if (!text) return
+    try {
+        const objects = JSON.parse(text)
+        if (!Array.isArray(objects)) throw new Error('格式错误')
+        // 清空当前场景并加载新物体
+        state.objects.length = 0
+        objects.forEach(obj => state.objects.push(obj))
+        // 同时更新快照初始状态（可选）
+        if (customPresetSnapshot) {
+            customPresetSnapshot.objects = JSON.parse(JSON.stringify(objects))
+        }
+    } catch(e) {
+        alert('导入失败：' + e.message)
+    }
+- 确保导出/导入按钮已绑定这些函数（在 PhysicsCanvas 工具栏中，💾和📂按钮需要 emit 事件到 App.vue）。如果之前未绑定，修改 PhysicsCanvas 的工具栏按钮，添加 `@click="$emit('export-scene')"` 和 `@click="$emit('import-scene')"`，并在 App.vue 中监听。
+- 验证：搭建一个场景，点击💾，打开记事本粘贴，看到 JSON 文本；点击📂，粘贴之前复制的 JSON，场景恢复。
+检验：自定义场景，添加若干物体，点击💾导出按钮，提示“已复制到剪贴板”；打开记事本粘贴，看到 JSON。清空场景（切换到其他标签再切回来），点击📂导入，粘贴 JSON，场景恢复。
+
+🔧 第 5 步：画布大小调整（避免画布过小）
+text
+- 当前 canvas 尺寸由父容器决定，可能过小。在 App.vue 的布局中，确保 PhysicsCanvas 的父容器占满主要区域，并设置最小高度。
+- 修改 App.vue 样式，将画布区域设置为 `flex: 1; min-height: 500px;`（或更合适的值），确保在窗口缩放时画布能利用剩余空间。
+- 在 PhysicsCanvas 中，resizeCanvas 应根据父容器尺寸设置 canvas.width/height，保持物理世界范围不变，但可视区域增大。
+- 如果希望用户能手动调整画布大小（比如拖拽边框），可添加一个简单的分隔条，但初级修复先保证自适应即可。
+- 验证：调整浏览器窗口大小，画布自动填充可用空间；在大屏幕上画布足够大，可以看见全貌。
+检验：打开自定义场景，将浏览器窗口最大化，画布应占据大部分中央区域，不再显得过小；缩小窗口，画布等比缩小。
+
+🔧 第 6 步：（可选）支持圆弧平台
+text
+新增工具“圆弧”：在工具栏中增加一个“圆弧”按钮。
+交互流程：选择圆弧工具 → 在画布上点击确定圆心位置 → 移动鼠标确定半径 → 点击确定 → 接着出现角度调节手柄（可选简化：默认生成 90° 的圆弧，之后可以拖拽端点调整）。
+为了快速实现，我们可以采用“点击圆心，拖动半径，生成固定角度（如 -90° ~ 90°）的圆弧，自动用 20 条线段近似”。
+具体步骤：
+- 在 PhysicsCanvas 中增加状态 `drawingArc = { centerX, centerY, radius, startAngle, endAngle }`。
+- 选择圆弧工具后，第一次 click 记录圆心，移动时实时显示圆预览；第二次 click 确定半径（同时默认角度为 0 ~ π/2），生成多条线段对象，并添加到场景中（一次性添加多个 segment）。
+- 生成线段算法：for i in 0..numSegments-1，计算角度 angle1 = startAngle + i*step, angle2 = angle1+step，端点 = center + radius*[cos, sin]，创建 segment 对象。
+- 这些线段与普通平台一样参与碰撞检测，无需修改碰撞代码。
+- 生成后这些线段应视为一个组，以便整体移动？简单起见，先独立生成，后续拖拽可单独编辑（但体验稍差）。可保持现状，用户可拖拽每条线段端点。
+- 验证：在自定义场景，点击圆弧工具，在画布单击圆心，移动鼠标出现圆预览，再单击确定半径，生成一排线段组成的弧线。添加小球，播放，小球可沿弧面滚动/碰撞。
+检验：使用圆弧工具，在画布上画出半圆形弧面；播放物理，小球能沿着弧面运动或弹跳。
+
+执行顺序建议
+先修复拖拽（第1步），这是交互核心。
+
+接着加上画布移动/缩放（第2步），否则画面太小无法看到全部物体。
+
+再带电粒子选项（第3步）和导出/导入（第4步），补全功能缺失。
+
+画布自适应调整（第5步）顺手做掉。
+
+圆弧平台（第6步）放在最后，因为需要更多开发时间，可先省略。
+
+每一步执行后立即在浏览器中测试验证，确保功能正常再进行下一步。

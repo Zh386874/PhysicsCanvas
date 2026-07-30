@@ -1,0 +1,272 @@
+
+
+# 物理解模 — 完整项目分析
+
+## 一、项目概述
+
+**物理解模** 是一个基于 Vue 3 + Canvas 2D 的物理仿真教学工具，面向高中/大学物理课堂演示与互动实验。支持抛体运动、斜面滑块、弹性碰撞、磁场圆周、电场偏转 5 个预设场景，以及一个完整的自定义场景编辑器。
+
+- **仓库**：https://gitee.com/zhang-hao041030/physics-canvas
+- **技术栈**：Vue 3.5 + Vite 6.4 + Composition API（`<script setup>`）
+- **代码规模**：17 个源文件，约 3977 行
+
+---
+
+## 二、目录结构
+
+```
+物理解模/
+├── index.html              # HTML 入口
+├── package.json            # 依赖与脚本
+├── vite.config.js          # Vite 配置
+├── .gitignore
+└── src/
+    ├── main.js             # 应用入口（4 行）
+    ├── App.vue             # 状态编排层（421 行）
+    ├── components/
+    │   ├── PhysicsCanvas.vue   # 画布渲染+编辑交互（1476 行，核心）
+    │   ├── ObjectList.vue      # 物体列表+多选高亮（126 行）
+    │   ├── PropertyPanel.vue   # 属性面板+场设置（364 行）
+    │   ├── ControlBar.vue      # 播放/重置/回放控制（76 行）
+    │   ├── Timeline.vue        # 回放时间轴+关键帧（173 行）
+    │   ├── AIInput.vue         # AI 题目解析（Mock）（302 行）
+    │   ├── ForceEditor.vue     # 自定义力编辑器（164 行）
+    │   └── SceneTabs.vue       # 场景标签切换（53 行）
+    └── composables/
+        ├── usePhysics.js       # 物理状态+欧拉积分（242 行）
+        ├── useCollision.js     # 碰撞检测模块（366 行）
+        └── usePresets.js       # 6 个预设场景（169 行）
+```
+
+---
+
+## 三、架构设计
+
+### 数据流（单向）
+
+```
+usePhysics.state（唯一数据源）
+      ↓ props
+  App.vue（编排层）
+      ↓ props
+  各组件（PhysicsCanvas / ObjectList / PropertyPanel ...）
+      ↓ emit 事件
+  App.vue（处理函数）→ 修改 state
+```
+
+组件间通过 **props + emit** 通信，禁止跨组件直接修改全局状态（AIInput 曾违反此规则已修复）。
+
+### 核心常量
+
+- `PIXELS_PER_METER = 50`：1 米 = 50 像素
+- `GRAVITY = 490`：9.8 m/s² × 50，像素/s²
+- `MAX_SNAPSHOTS = 600`：10 秒 × 60fps 回放上限
+
+---
+
+## 四、核心模块分析
+
+### 4.1 usePhysics.js — 物理状态与积分
+
+**职责**：管理全局 reactive state，欧拉积分，快照录制。
+
+**关键函数**：
+- `updatePhysics(dt)`：每帧计算合力（重力 + 自定义力 + 场力 qE/qvB）→ 欧拉积分 → 碰撞检测 → 录制快照
+- `loadScene(objects, forces, field, gravity, groundY)`：加载预设，`groundY=null` 禁用水平地面
+- `addObject/removeObject/updateObjectProperty`：自定义场景编辑
+
+**快照结构**（完整回放状态）：
+```javascript
+{ objects: [{id,x,y,vx,vy}], field, groundY, gravity, timestamp }
+```
+
+### 4.2 useCollision.js — 碰撞检测
+
+**三种碰撞**：
+
+| 类型 | 函数 | 算法 |
+|------|------|------|
+| 地面 | `checkGroundCollision` | y+radius >= groundY → 位置修正+反弹 |
+| 质点间 | `checkParticleCollision` | 距离 < r1+r2 → 动量守恒弹性碰撞 |
+| 线段 | `detectSegmentCollision` | 连续碰撞：叉积路径相交 + 距离接触 + 法线反射 |
+| 弧线 | `detectArcCollision` | 圆-弧碰撞：自动判别内外侧，径向法线反射 |
+
+**弧线碰撞**（本次新增）：对带 `arc` 元数据的线段，用圆-弧碰撞替代离散线段碰撞。同一 `groupId` 的 8 条线段只检测一次，避免重复处理。
+
+**autoComputeNormal**：法线 = (dy, -dx) 归一化，保留用户方向偏好（点积符号判断）。
+
+### 4.3 usePresets.js — 6 个预设场景
+
+| 场景 | 物体 | 场 | 重力 | groundY |
+|------|------|-----|------|---------|
+| 抛体运动 | 1 质点 v=10m/s | 无 | 490 | 默认 |
+| 斜面滑块 | 1 质点 + 斜面线段 + 地面线段 | 无 | 490 | null |
+| 弹性碰撞 | 2 质点相向运动 | 无 | 490 | 默认 |
+| 磁场圆周 | 1 带电粒子 v=150px/s | 磁场 B=1 | 0 | 默认 |
+| 电场偏转 | 1 带电粒子 v=6m/s | 电场 Ey=-1000 | 490 | 默认 |
+| 自定义 | 空白 | 无 | 490 | null |
+
+### 4.4 PhysicsCanvas.vue — 画布渲染与编辑
+
+**渲染层**（`draw()` 分层绘制，世界坐标变换内）：
+1. drawGrid 网格
+2. drawField 场可视化（磁场⊙/⊗、电场箭头）
+3. drawGround 地面
+4. drawSegments 线段+法线箭头+内侧填充
+5. drawArcsVisually 弧线平滑描边（按 groupId 分组）
+6. drawTrails 运动轨迹
+7. drawObjects 质点（光晕+圆+名称）
+8. drawVelocity 速度箭头
+9. drawForces 受力分析（重力 mg / 电场力 qE / 洛伦兹力 qvB / 支持力 N / 摩擦力 f）
+10. drawPreviewLine/drawPreviewArc 绘制预览
+11. drawSelectionHighlight 选中高亮
+12. drawSelectionRect 框选矩形
+13. drawShiftFlash Shift 防重叠绿色闪烁
+
+**交互层**：
+- **中键平移**：任何场景下可用（已修复，原被 editMode 拦截）
+- **滚轮缩放**：鼠标为中心，0.3~5x
+- **右键框选**：矩形选择 + 批量拖拽 + 批量删除
+- **左键拖拽**：ball 工具只检测圆（避免点击线段拦截），其他工具完整 hitTest
+- **Shift 防重叠**：添加小球前检测重叠，沿法线迭代推出
+- **圆弧工具**：三次点击（圆心→半径起点→终点角度），Shift 反向
+- **平台工具**：拖拽绘制线段，Shift 吸附水平/垂直
+
+### 4.5 App.vue — 状态编排
+
+**职责**：场景切换、播放控制、自定义场景 localStorage 持久化、播放前快照（重置恢复）、导入导出、Delete 批量删除。
+
+---
+
+
+### 5.9 src/components/PhysicsCanvas.vue
+
+（此文件 1476 行，为项目核心。由于篇幅极长，以下列出关键结构与函数签名，完整代码见上文读取结果。）
+
+```vue
+<template>
+  <div class="canvas-wrap">
+    <canvas ref="canvasRef" @mousedown="onMouseDown" @mousemove="onMouseMove"
+      @mouseup="onMouseUp" @click="onCanvasClick" @wheel.prevent="onWheel"
+      @contextmenu.prevent :style="{ cursor: cursorStyle }"></canvas>
+    <div v-if="editMode" class="edit-toolbar">
+      <button class="tool-btn" :class="{ active: tool === 'ball' }" @click="tool = 'ball'">⚽ 小球</button>
+      <button class="tool-btn" :class="{ active: tool === 'platform' }" @click="tool = 'platform'">➖ 平台</button>
+      <button class="tool-btn" :class="{ active: tool === 'arc' }" @click="tool = 'arc'">⤵ 圆弧</button>
+      <button class="tool-btn" :class="{ active: chargeMode }" @click="chargeMode = !chargeMode">⚡ 带电</button>
+      <button class="tool-btn" @click="$emit('export-scene')">💾 导出</button>
+      <button class="tool-btn" @click="$emit('import-scene')">📂 导入</button>
+    </div>
+  </div>
+</template>
+
+<script setup>
+// 关键函数清单：
+// screenToWorld / getMousePos / genId
+// onCanvasClick — 添加小球 + Shift 防重叠
+// findOverlap / pushOutOfOverlap — 重叠检测与迭代推出
+// hitTest(pos, skipSegments) — 物体命中检测（ball 工具跳过线段）
+// onMouseDown — 中键平移 / 右键框选 / 左键拖拽+批量拖拽+绘制+圆弧
+// generateArcSegments — 8 段弧线离散 + groupId + arc 元数据
+// onMouseMove — 平移 / 框选 / 批量拖拽 / 弧线预览 / 线段绘制 / 物体拖拽
+// onMouseUp — 框选完成 / 批量拖拽完成 / 线段绘制完成 / 拖拽结束
+// getObjectsInRect — 矩形选框内物体计算
+// onWheel — 鼠标为中心缩放
+// draw() — 13 层分层绘制
+// drawGrid/drawField/drawGround/drawSegments/drawArcsVisually/drawTrails/
+// drawObjects/drawVelocity/drawForces/drawPreviewLine/drawPreviewArc/
+// drawSelectionHighlight/drawSelectionRect/drawShiftFlash/drawWatermark/drawAIToast/drawEditUI
+// findContactSegment — 受力分析用接触线段查找
+// loop — requestAnimationFrame 主循环（editMode 跳过物理更新）
+</script>
+```
+
+### 5.10 src/components/ObjectList.vue
+
+```vue
+<template>
+  <div class="object-list">
+    <div class="panel-title">物体列表</div>
+    <div class="list">
+      <div v-for="obj in objects" :key="obj.id" class="item"
+        :class="{ selected: obj.id === selectedId, 'multi-selected': selectedIds.includes(obj.id) }"
+        @click="$emit('select', obj.id)">
+        <span class="name">{{ obj.name }}</span>
+        <div class="item-right">
+          <span class="type">{{ obj.type }}</span>
+          <button v-if="removable" class="del-btn" title="删除"
+            @click.stop="$emit('remove', obj.id)">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+defineProps({
+  objects: { type: Array, required: true },
+  selectedId: { type: Number, default: null },
+  selectedIds: { type: Array, default: () => [] },
+  removable: { type: Boolean, default: false }
+})
+defineEmits(['select', 'remove'])
+</script>
+```
+
+### 5.11 src/components/PropertyPanel.vue
+
+属性面板：质点属性（名称/质量/位置/速度/电荷）、线段属性（端点/恢复系数/法线方向 6 按钮/法线 XY）、场设置（重力 m/s² 显示/电场 Ex,Ey/磁场 B）、内嵌 ForceEditor。
+
+### 5.12 src/components/ControlBar.vue
+
+播放/暂停、重置、受力显示开关、分步回放 4 按钮。
+
+### 5.13 src/components/Timeline.vue
+
+回放时间轴：滑块拖动帧 + 关键帧标记（黄色竖线）+ 上一/下一关键帧导航。
+
+### 5.14 src/components/AIInput.vue
+
+Mock AI 题目解析：关键词匹配场景 + 正则提取数字参数（质量 kg / 速度 m/s / 倾角 / 电荷），emit `load-preset` + `update-params`（不直接改 state）。
+
+### 5.15 src/components/ForceEditor.vue
+
+附加力编辑：Fx/Fy 输入 + 添加/删除，绑定 objectId。
+
+### 5.16 src/components/SceneTabs.vue
+
+6 个场景标签：抛体运动 / 斜面滑块 / 弹性碰撞 / 磁场圆周 / 电场偏转 / 自定义。
+
+---
+
+## 六、功能清单
+
+| 功能 | 状态 |
+|------|------|
+| 5 个预设场景 + 自定义场景 | ✅ |
+| 欧拉积分物理引擎 | ✅ |
+| 地面/质点间/线段/弧线碰撞 | ✅ |
+| 重力 + 自定义力 + 电场力 qE + 洛伦兹力 qvB | ✅ |
+| 受力分析可视化（mg/N/f/qE/qvB） | ✅ |
+| 600 帧快照回放 + 关键帧导航 | ✅ |
+| 自定义场景编辑器（小球/平台/圆弧） | ✅ |
+| 圆弧三次点击 + 8 段离散 + 平滑描边 | ✅ |
+| 右键框选 + 批量拖拽 + 批量删除 | ✅ |
+| Shift 防重叠放置 + 绿色闪烁 | ✅ |
+| 中键平移 + 滚轮缩放（所有场景） | ✅ |
+| localStorage 自动保存/恢复自定义场景 | ✅ |
+| 场景导入/导出（剪贴板 JSON） | ✅ |
+| AI 题目解析（Mock） | ✅ |
+| 世界坐标系（worldOffset/worldScale） | ✅ |
+
+---
+
+## 七、已知限制
+
+1. **无 TypeScript**：纯 JS，无类型约束
+2. **MAX_SNAPSHOTS=600**：超过 10 秒后旧帧丢弃
+3. **质点碰撞共享 restitution**：未独立配置
+4. **AI 解析为 Mock**：关键词匹配，非真实 AI
+5. **findContactSegment 阈值 radius+4**：弧线受力分析可能误检
+
+以上为项目完整内容与分析。

@@ -5,15 +5,8 @@
 
 import { state, loadScene, PIXELS_PER_METER } from './usePhysics'
 import type { PhysicsObject, ParticleObject, SegmentObject, SpringObject, FieldState } from './usePhysics'
-import type { ParsedProblem, ParsedObject } from './useAIParser'
-
-/** 默认画布尺寸（像素），用于自动缩放计算 */
-const DEFAULT_CANVAS_WIDTH = 800
-const DEFAULT_CANVAS_HEIGHT = 500
-/** 画布边距（像素） */
-const CANVAS_MARGIN = 60
-/** 画布中地面基准线（像素），AI 的 y=0 对应此位置 */
-const GROUND_BASELINE = 400
+import type { ParsedProblem, ParsedObject, ParsedArc, ParsedSpring } from './useAIParser'
+import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, CANVAS_MARGIN, GROUND_BASELINE } from '../constants'
 
 /** 物体颜色池 */
 const COLOR_POOL = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb7185']
@@ -32,12 +25,13 @@ function computeAutoScale(parsed: ParsedProblem): number {
   }
 
   // 否则根据物体范围计算
+  // 联合类型：用 in 操作符做类型守卫，访问各类型特有字段
   const allPoints: { x: number; y: number }[] = []
   for (const obj of parsed.objects) {
-    if (obj.initialPosition) allPoints.push(obj.initialPosition)
-    if (obj.startPoint) allPoints.push(obj.startPoint)
-    if (obj.endPoint) allPoints.push(obj.endPoint)
-    if (obj.center) allPoints.push(obj.center)
+    if ('initialPosition' in obj && obj.initialPosition) allPoints.push(obj.initialPosition)
+    if ('startPoint' in obj && obj.startPoint) allPoints.push(obj.startPoint)
+    if ('endPoint' in obj && obj.endPoint) allPoints.push(obj.endPoint)
+    if ('center' in obj && obj.center) allPoints.push(obj.center)
   }
 
   if (allPoints.length === 0) return PIXELS_PER_METER
@@ -67,7 +61,7 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
 
   if (obj.type === 'ball') {
     const radiusM = obj.radius ?? 0.2
-    const radiusPx = Math.max(radiusM * scale, 8)
+    const radiusPx = Math.max(radiusM * scale, 4)
     // initialPosition.y 语义为"球底高度"（球与下方表面的接触点高度），球心 = 球底 + 半径
     const bottomY = obj.initialPosition?.y ?? 0
     const ball: ParticleObject = {
@@ -115,15 +109,55 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       normalY,
       friction: obj.friction ?? 0,
       restitution: 0.2,
-      color: '#94a3b8',
-      // 传送带速度（SI m/s → 像素/s，y 需翻转）
+      // 颜色按语义区分：传送带（青）/ 板块（红）/ 普通平台（灰），与 useEditTools 工厂保持一致
+      color: obj.beltVelocity ? '#0891b2' : obj.movable ? '#dc2626' : '#94a3b8',
+      // 传送带速度（SI m/s → 像素/s，y 需翻转）；板块需初始 velocity 才能受重力下落
       velocity: obj.beltVelocity ? {
         x: obj.beltVelocity.x * scale,
         y: -obj.beltVelocity.y * scale
-      } : undefined,
+      } : obj.movable ? { x: 0, y: 0 } : undefined,
       // 板块模型：可移动线段
       movable: obj.movable ?? false,
       mass: obj.movable ? (obj.mass ?? 1) : undefined
+    }
+    return segment
+  }
+
+  if (obj.type === 'plate') {
+    const x1 = (obj.startPoint?.x ?? 0) * scale + CANVAS_MARGIN
+    const y1 = GROUND_BASELINE - (obj.startPoint?.y ?? 0) * scale
+    const x2 = (obj.endPoint?.x ?? 1) * scale + CANVAS_MARGIN
+    const y2 = GROUND_BASELINE - (obj.endPoint?.y ?? 0) * scale
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.hypot(dx, dy) || 1
+    // 法线指向上方（normalY < 0）
+    let normalX = -dy / len
+    let normalY = dx / len
+    if (normalY > 0) {
+      normalX = -normalX
+      normalY = -normalY
+    }
+    const segment: SegmentObject = {
+      id: nextId++,
+      name: obj.id || `板块${index + 1}`,
+      type: 'line_segment',
+      subtype: 'plate',
+      x1, y1, x2, y2,
+      normalX,
+      normalY,
+      restitution: 0.2,
+      color: '#dc2626',
+      movable: true,                          // 板块可移动（触发物理更新分支）
+      mass: obj.mass ?? 1,                    // 默认质量 1
+      velocity: { x: 0, y: 0 },               // 初始静止，使重力分支生效
+      // 物理厚度（米→像素），默认 0.1m；参与碰撞与支撑检测
+      physicsThickness: (obj.physicsThickness ?? 0.1) * scale,
+      // 静态倾角（弧度），物理更新中保持不变
+      angle: obj.angle ?? 0,
+      // 强制上下表面摩擦分离；默认 上0.3 / 下0.1
+      frictionTop: obj.frictionTop ?? 0.3,
+      frictionBottom: obj.frictionBottom ?? 0.1
     }
     return segment
   }
@@ -170,16 +204,54 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
 /**
  * 将弧线物体展开为多段线段（20段近似）
  */
-function expandArcToSegments(obj: ParsedObject, scale: number, index: number): SegmentObject[] {
+function expandArcToSegments(obj: ParsedArc, scale: number, index: number): SegmentObject[] {
   const cx = (obj.center?.x ?? 0) * scale + CANVAS_MARGIN
   // 弧线圆心 y 翻转
   const cy = GROUND_BASELINE - (obj.center?.y ?? 0) * scale
   const r = Math.max((obj.arcRadius ?? 1) * scale, 10)
-  const startA = obj.startAngle ?? 0
-  const endA = obj.endAngle ?? Math.PI
+  // 角度从数学坐标系（y向上）转为画布坐标系（y向下）：取反
+  // questionBank/useAIParser 中的角度是数学坐标系下的，
+  // 需转为画布坐标系与 detectArcCollision/updateArcGates 的 atan2(obj.y-cy, obj.x-cx) 一致
+  const startA = -(obj.startAngle ?? 0)
+  const endA = -(obj.endAngle ?? Math.PI)
   const segments = 20
   const arcGroupId = nextId++
   const result: SegmentObject[] = []
+
+  // 弧线缺口定义：角度取反转为画布坐标系（halfWidth 无方向性，不取反）；触发器配置透传
+  const entryGap = obj.entryGap
+    ? {
+        centerAngle: -obj.entryGap.centerAngle,
+        halfWidth: obj.entryGap.halfWidth,
+        initiallyOpen: obj.entryGap.initiallyOpen,
+        triggerType: obj.entryGap.triggerType,
+        triggerAngle: obj.entryGap.triggerAngle !== undefined
+          ? -obj.entryGap.triggerAngle
+          : undefined,
+        triggerAction: obj.entryGap.triggerAction
+      }
+    : undefined
+  const exitGap = obj.exitGap
+    ? {
+        centerAngle: -obj.exitGap.centerAngle,
+        halfWidth: obj.exitGap.halfWidth,
+        initiallyOpen: obj.exitGap.initiallyOpen,
+        triggerType: obj.exitGap.triggerType,
+        triggerAngle: obj.exitGap.triggerAngle !== undefined
+          ? -obj.exitGap.triggerAngle
+          : undefined,
+        triggerAction: obj.exitGap.triggerAction
+      }
+    : undefined
+  const hasGates = !!(entryGap || exitGap)
+  // 仅第一段携带 arcGateState（detectArcCollision/updateArcGates 通过 groupId 去重，只处理第一段）
+  // 初始开关状态由 gap.initiallyOpen 决定（默认 false = 关闭）
+  const arcGateState = hasGates ? {
+    entryOpen: entryGap?.initiallyOpen ?? false,
+    exitOpen: exitGap?.initiallyOpen ?? false,
+    prevAngle: undefined,
+    wasInside: undefined
+  } : undefined
 
   for (let i = 0; i < segments; i++) {
     const a1 = startA + (endA - startA) * (i / segments)
@@ -191,10 +263,12 @@ function expandArcToSegments(obj: ParsedObject, scale: number, index: number): S
     const dx = x2 - x1
     const dy = y2 - y1
     const len = Math.hypot(dx, dy) || 1
-    // 法线：确保指向上方（normalY < 0）
+    // 法线：弧线默认指向上方（normalY < 0）；完整圆轨物体在内侧绕圈，法线应指向圆心（不翻转）
+    const angleSpan = Math.abs(endA - startA)
+    const isFullCircle = Math.abs(angleSpan - 2 * Math.PI) < 0.01
     let nx = -dy / len
     let ny = dx / len
-    if (ny > 0) { nx = -nx; ny = -ny }
+    if (!isFullCircle && ny > 0) { nx = -nx; ny = -ny }
     result.push({
       id: nextId++,
       name: `${obj.id || `弧线${index + 1}`}-${i + 1}`,
@@ -206,7 +280,12 @@ function expandArcToSegments(obj: ParsedObject, scale: number, index: number): S
       restitution: 0.2,
       color: '#a78bfa',
       groupId: arcGroupId,
-      arc: { cx, cy, r, startAngle: startA, endAngle: endA }
+      arc: { cx, cy, r, startAngle: startA, endAngle: endA, entryGap, exitGap },
+      // 仅第一段携带运行时状态 + 约束动力学开关
+      ...(i === 0 ? {
+        ...(arcGateState ? { arcGateState } : {}),
+        constraintEnabled: true
+      } : {})
     })
   }
   return result
@@ -217,7 +296,7 @@ function expandArcToSegments(obj: ParsedObject, scale: number, index: number): S
  * 需要在所有球体转换完成后调用（依赖 idMap 解析连接关系）
  */
 function convertSpring(
-  obj: ParsedObject, scale: number, index: number, idMap: Map<string, number>
+  obj: ParsedSpring, scale: number, index: number, idMap: Map<string, number>
 ): SpringObject | null {
   if (!obj.ballId || !idMap.has(obj.ballId)) return null
   const ballId = idMap.get(obj.ballId)!
