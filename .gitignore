@@ -18,6 +18,13 @@ dist-ssr
 *.local
 .vite
 
+# VitePress build cache
+docs/.vitepress/cache
+docs/.vitepress/dist
+
+# Test coverage output
+coverage/
+
 # Environment variables
 .env
 

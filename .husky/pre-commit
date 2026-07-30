@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+# 测试完整性保护：拦截测试文件删除/重命名 + tests/contracts/ 任何修改
+# 详见 CLAUDE.md「测试纪律」章节
+
+# 1. 检测 tests/ 下被删除或重命名的文件
+DELETED_TESTS=$(git diff --cached --name-status --diff-filter=D -- 'tests/' | head -1)
+if [ -n "$DELETED_TESTS" ]; then
+  echo "❌ pre-commit 拒绝：检测到 tests/ 下测试文件被删除。"
+  echo "   AI 不得通过删除测试让构建变绿。如确需删除，请人工执行 git commit --no-verify 并在提交信息说明理由。"
+  echo "   被删除：$DELETED_TESTS"
+  exit 1
+fi
+
+# 2. 检测 tests/contracts/ 下任何修改（仅允许首次添加 A，M/D 全拒）
+CONTRACTS_CHANGE=$(git diff --cached --name-status -- 'tests/contracts/' | head -1)
+if [ -n "$CONTRACTS_CHANGE" ]; then
+  STATUS=$(echo "$CONTRACTS_CHANGE" | cut -f1)
+  if [ "$STATUS" != "A" ]; then
+    echo "❌ pre-commit 拒绝：tests/contracts/ 为物理定律契约目录，禁止修改/删除。"
+    echo "   仅允许首次添加（A）。如需修改契约，请人工执行 git commit --no-verify 并说明理由。"
+    echo "   变更：$CONTRACTS_CHANGE"
+    exit 1
+  fi
+fi
+
+# 3. lint-staged：对暂存的 ts/vue 变更跑 eslint --fix + prettier --write
+npx lint-staged
+
+# 4. 测试完整性检测（skip 标记 / 断言弱化 / 断言减少）
+node scripts/check-test-integrity.mjs HEAD CACHED
+if [ $? -ne 0 ]; then
+  echo "❌ pre-commit 拒绝：检测到测试完整性问题（skip 标记/断言弱化/断言减少）。"
+  echo "   AI 不得通过跳过或弱化测试让构建变绿。如确为合理修改，请人工 git commit --no-verify 并说明理由。"
+  exit 1
+fi
+
+# 5. 全量测试（测试纪律：提交前必跑，确保不引入回归）
+#    注：不通过 lint-staged 传文件给 vitest，避免非测试文件被当作过滤器导致误判
+npm run test
