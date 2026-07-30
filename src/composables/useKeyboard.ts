@@ -26,12 +26,19 @@ export function useKeyboard(ctx: KeyboardContext) {
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
       e.preventDefault()
       ctx.onUndo()
-    } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+    } else if (
+      (e.ctrlKey || e.metaKey) &&
+      (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))
+    ) {
       e.preventDefault()
       ctx.onRedo()
     }
   }
 
-  onMounted(() => { window.addEventListener('keydown', onKeydown) })
-  onUnmounted(() => { window.removeEventListener('keydown', onKeydown) })
+  onMounted(() => {
+    window.addEventListener('keydown', onKeydown)
+  })
+  onUnmounted(() => {
+    window.removeEventListener('keydown', onKeydown)
+  })
 }

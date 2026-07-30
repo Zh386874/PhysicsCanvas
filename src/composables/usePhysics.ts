@@ -1,16 +1,28 @@
 import { reactive } from 'vue'
 import { checkCollision } from './useCollision'
-import { snapshots, currentFrame, keyframeIndices, recordSnapshot, clearSnapshots } from './useSnapshotManager'
+import {
+  snapshots,
+  currentFrame,
+  keyframeIndices,
+  recordSnapshot,
+  clearSnapshots
+} from './useSnapshotManager'
 import { calculateTotalForce } from './useForces'
 import { MAX_SUBSTEPS, MAX_STEP_DIST, TRAIL_LENGTH, GROUND_DISABLED } from '../constants'
 
 // ===== 类型定义 =====
 
 /** 二维向量 */
-interface Vec2 { x: number; y: number }
+interface Vec2 {
+  x: number
+  y: number
+}
 
 /** 运动轨迹点 */
-interface TrailPoint { x: number; y: number }
+interface TrailPoint {
+  x: number
+  y: number
+}
 
 /** 物体类型字面量 */
 type ObjectType = '质点' | '刚体' | 'line_segment'
@@ -189,15 +201,54 @@ const GRAVITY: number = GRAVITY_SI * PIXELS_PER_METER // 像素/s^2 = 490
 
 // 初始物体数据
 const initialObjects: ParticleObject[] = [
-  { id: 1, name: '小球A', type: '质点', mass: 1.0, x: 100, y: 100, vx: 80, vy: 0, radius: 15, color: '#60a5fa', trail: [] },
-  { id: 2, name: '滑块B', type: '刚体', mass: 2.0, x: 300, y: 200, vx: -40, vy: 0, radius: 20, color: '#a78bfa', trail: [] },
-  { id: 3, name: '小球C', type: '质点', mass: 0.5, x: 500, y: 80, vx: 60, vy: 20, radius: 12, color: '#f472b6', trail: [] }
+  {
+    id: 1,
+    name: '小球A',
+    type: '质点',
+    mass: 1.0,
+    x: 100,
+    y: 100,
+    vx: 80,
+    vy: 0,
+    radius: 15,
+    color: '#60a5fa',
+    trail: []
+  },
+  {
+    id: 2,
+    name: '滑块B',
+    type: '刚体',
+    mass: 2.0,
+    x: 300,
+    y: 200,
+    vx: -40,
+    vy: 0,
+    radius: 20,
+    color: '#a78bfa',
+    trail: []
+  },
+  {
+    id: 3,
+    name: '小球C',
+    type: '质点',
+    mass: 0.5,
+    x: 500,
+    y: 80,
+    vx: 60,
+    vy: 20,
+    radius: 12,
+    color: '#f472b6',
+    trail: []
+  }
 ]
 
 // ===== 全局状态 =====
 
 const state = reactive<PhysicsState>({
-  objects: JSON.parse(JSON.stringify(initialObjects)).map((o: ParticleObject) => ({ ...o, trail: [] })),
+  objects: JSON.parse(JSON.stringify(initialObjects)).map((o: ParticleObject) => ({
+    ...o,
+    trail: []
+  })),
   forces: [],
   field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
   time: 0,
@@ -265,15 +316,17 @@ function subStepPhysics(subDt: number): boolean {
     // 2. 位置更新（x、y 同步平移，保持形状不旋转）
     const vx = seg.velocity?.x ?? 0
     const vy = seg.velocity?.y ?? 0
-    seg.x1 += vx * subDt; seg.x2 += vx * subDt
-    seg.y1 += vy * subDt; seg.y2 += vy * subDt
+    seg.x1 += vx * subDt
+    seg.x2 += vx * subDt
+    seg.y1 += vy * subDt
+    seg.y2 += vy * subDt
     // 3. 地面/平台支撑检测（用下表面 y：板块中心 + 物理厚度/2，沿画布 y 正方向）
     //    法线指向上方（normalY<0），下表面 = 中心 + physicsThickness/2（画布 y 向下为正）
     const segMidY = (seg.y1 + seg.y2) / 2
     const segMidX = (seg.x1 + seg.x2) / 2
     const segHalfLen = Math.abs(seg.x2 - seg.x1) / 2
     const halfThickness = seg.physicsThickness ? seg.physicsThickness / 2 : 0
-    const bottomY = segMidY + halfThickness  // 下表面 y（画布坐标）
+    const bottomY = segMidY + halfThickness // 下表面 y（画布坐标）
     let supportY: number | null = null
     let supportFriction = 0
     let supportVx = 0
@@ -297,7 +350,7 @@ function subStepPhysics(subDt: number): boolean {
           supportY = s2MidY
           // 板块下表面摩擦优先（frictionBottom），否则用支撑面 friction
           supportFriction = seg.frictionBottom ?? s2.friction ?? 0.1
-          supportVx = s2.velocity?.x ?? 0  // 传送带速度
+          supportVx = s2.velocity?.x ?? 0 // 传送带速度
           break
         }
       }
@@ -305,13 +358,14 @@ function subStepPhysics(subDt: number): boolean {
     // 4. 应用支撑：下表面归位到 supportY + vy 清零 + 摩擦减速 vx（相对支撑面速度）
     if (supportY !== null && seg.velocity) {
       const dy = supportY - bottomY
-      seg.y1 += dy; seg.y2 += dy
+      seg.y1 += dy
+      seg.y2 += dy
       seg.velocity.y = 0
       if (supportFriction > 0) {
         const vRel = seg.velocity.x - supportVx
         const a = supportFriction * state.gravity * subDt
         if (Math.abs(vRel) <= a) {
-          seg.velocity.x = supportVx  // 与支撑面共速
+          seg.velocity.x = supportVx // 与支撑面共速
         } else {
           seg.velocity.x -= Math.sign(vRel) * a
         }
@@ -322,8 +376,8 @@ function subStepPhysics(subDt: number): boolean {
     if (Math.abs(seg.y1 - seg.y2) < 3 && seg.velocity) {
       const segLeftX = Math.min(seg.x1, seg.x2)
       const segRightX = Math.max(seg.x1, seg.x2)
-      const segTopY = segMidY - halfThickness    // 板块上表面
-      const segBottomY2 = bottomY                // 板块下表面
+      const segTopY = segMidY - halfThickness // 板块上表面
+      const segBottomY2 = bottomY // 板块下表面
       for (const o2 of state.objects) {
         if (o2.id === seg.id || o2.type !== 'line_segment') continue
         const s2 = o2 as SegmentObject
@@ -338,22 +392,31 @@ function subStepPhysics(subDt: number): boolean {
         // 板块右端撞墙（墙在右侧，板块向右移动越过墙）
         if (wallX > segRightX && segRightX >= wallX - 1) {
           const dx = wallX - segRightX
-          seg.x1 += dx; seg.x2 += dx
-          seg.velocity.x = 0  // 立即静止
+          seg.x1 += dx
+          seg.x2 += dx
+          seg.velocity.x = 0 // 立即静止
           break
         }
         // 板块左端撞墙（墙在左侧，板块向左移动越过墙）
         if (wallX < segLeftX && segLeftX <= wallX + 1) {
           const dx = wallX - segLeftX
-          seg.x1 += dx; seg.x2 += dx
-          seg.velocity.x = 0  // 立即静止
+          seg.x1 += dx
+          seg.x2 += dx
+          seg.velocity.x = 0 // 立即静止
           break
         }
       }
     }
   }
 
-  return checkCollision(state.objects, state.groundY, state.groundRestitution, state.particleRestitution, subDt, state.gravity)
+  return checkCollision(
+    state.objects,
+    state.groundY,
+    state.groundRestitution,
+    state.particleRestitution,
+    subDt,
+    state.gravity
+  )
 }
 
 /**
@@ -373,7 +436,7 @@ function updatePhysics(dt: number): void {
     }
   }
 
-  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(maxVelMag * dt / MAX_STEP_DIST)))
+  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil((maxVelMag * dt) / MAX_STEP_DIST)))
   const subDt = dt / steps
 
   for (let i = 0; i < steps; i++) {
@@ -392,7 +455,7 @@ function updatePhysics(dt: number): void {
   const frame: SnapshotFrame = {
     objects: state.objects
       .filter((o): o is ParticleObject => o.type === '质点' || o.type === '刚体')
-      .map(o => ({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy })),
+      .map((o) => ({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy })),
     field: JSON.parse(JSON.stringify(state.field)),
     groundY: state.groundY,
     gravity: state.gravity,
@@ -416,11 +479,14 @@ function capturePlayStart(): void {
  * 重置合并：物理状态（位置/速度/几何/运行时字段）从 baseline 恢复，配置参数保留 current。
  * 用于 reset() —— 重置物理但保留用户配置修改（缺口/摩擦/质量等）。
  */
-export function mergeResetState(current: PhysicsObject[], baseline: PhysicsObject[]): PhysicsObject[] {
+export function mergeResetState(
+  current: PhysicsObject[],
+  baseline: PhysicsObject[]
+): PhysicsObject[] {
   const baselineById = new Map<number, PhysicsObject>()
   for (const o of baseline) baselineById.set(o.id, o)
 
-  return current.map(obj => {
+  return current.map((obj) => {
     const b = baselineById.get(obj.id)
     if (!b) {
       // 无基线（防御性，播放期间不会新增物体）：保留当前状态，质点清轨迹
@@ -432,10 +498,12 @@ export function mergeResetState(current: PhysicsObject[], baseline: PhysicsObjec
       const p = obj as ParticleObject
       const bp = b as ParticleObject
       return {
-        ...p,                       // 配置(mass/charge/radius/friction/color/name)保留 current
-        x: bp.x, y: bp.y,           // 位置从 baseline 恢复
-        vx: bp.vx, vy: bp.vy,       // 速度从 baseline 恢复
-        trail: [],                  // 运行时重置
+        ...p, // 配置(mass/charge/radius/friction/color/name)保留 current
+        x: bp.x,
+        y: bp.y, // 位置从 baseline 恢复
+        vx: bp.vx,
+        vy: bp.vy, // 速度从 baseline 恢复
+        trail: [], // 运行时重置
         prevX: undefined,
         prevY: undefined,
         constrainedArcGroupId: undefined
@@ -445,12 +513,15 @@ export function mergeResetState(current: PhysicsObject[], baseline: PhysicsObjec
     if (obj.type === 'line_segment') {
       const s = obj as SegmentObject
       const bs = b as SegmentObject
-      const merged: SegmentObject = { ...s }  // 配置保留 current
+      const merged: SegmentObject = { ...s } // 配置保留 current
       if (s.velocity || s.movable) {
         // 传送带/板块：物理会平移，几何与法线从 baseline 恢复
-        merged.x1 = bs.x1; merged.y1 = bs.y1
-        merged.x2 = bs.x2; merged.y2 = bs.y2
-        merged.normalX = bs.normalX; merged.normalY = bs.normalY
+        merged.x1 = bs.x1
+        merged.y1 = bs.y1
+        merged.x2 = bs.x2
+        merged.y2 = bs.y2
+        merged.normalX = bs.normalX
+        merged.normalY = bs.normalY
       }
       // 静态线段：几何保留 current（用户可能编辑过端点）
       if (s.movable) {
@@ -492,7 +563,7 @@ function addForce(force: CustomForce): void {
 }
 
 function removeForce(forceId: number): void {
-  const idx = state.forces.findIndex(f => f.id === forceId)
+  const idx = state.forces.findIndex((f) => f.id === forceId)
   if (idx !== -1) state.forces.splice(idx, 1)
 }
 
@@ -504,7 +575,7 @@ function clearForces(): void {
  * 更新指定物体的单个属性
  */
 function updateObjectProperty(id: number, key: string, value: unknown): void {
-  const obj = state.objects.find(o => o.id === id) as Record<string, unknown> | undefined
+  const obj = state.objects.find((o) => o.id === id) as Record<string, unknown> | undefined
   if (obj) obj[key] = value
 }
 
@@ -513,7 +584,7 @@ function addObject(obj: PhysicsObject): void {
 }
 
 function removeObject(id: number): void {
-  const idx = state.objects.findIndex(o => o.id === id)
+  const idx = state.objects.findIndex((o) => o.id === id)
   if (idx !== -1) state.objects.splice(idx, 1)
 }
 
@@ -528,9 +599,11 @@ function loadScene(
   gravity: number,
   groundY: number | null | undefined
 ): void {
-  state.objects = objects.map(o => ({ ...o, trail: [] }))
+  state.objects = objects.map((o) => ({ ...o, trail: [] }))
   state.forces = forces ? [...forces] : []
-  state.field = field ? JSON.parse(JSON.stringify(field)) : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
+  state.field = field
+    ? JSON.parse(JSON.stringify(field))
+    : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
   state.gravity = gravity !== undefined ? gravity : GRAVITY
   if (groundY === null) {
     state.groundY = GROUND_DISABLED
@@ -540,7 +613,7 @@ function loadScene(
   state.time = 0
   state.isPlaying = false
   snapshot = JSON.parse(JSON.stringify(objects))
-  playStartSnapshot = null  // 新场景：重置回退到 loadScene 快照
+  playStartSnapshot = null // 新场景：重置回退到 loadScene 快照
   clearSnapshots()
 }
 

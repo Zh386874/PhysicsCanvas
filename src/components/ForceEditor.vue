@@ -44,16 +44,14 @@ const props = defineProps({
   objectId: { type: Number, default: null }
 })
 
-const objectForces = computed(() =>
-  state.forces.filter(f => f.targetId === props.objectId)
-)
+const objectForces = computed(() => state.forces.filter((f) => f.targetId === props.objectId))
 
 function onAddForce() {
   addForce({ id: nextId(), fx: 0, fy: 0, targetId: props.objectId })
 }
 
 function updateForce(forceId, key, value) {
-  const force = state.forces.find(f => f.id === forceId)
+  const force = state.forces.find((f) => f.id === forceId)
   if (force) force[key] = value
 }
 </script>

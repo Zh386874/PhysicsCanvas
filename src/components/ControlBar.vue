@@ -1,32 +1,16 @@
 <template>
   <div class="control-bar">
-    <button
-      class="btn"
-      :disabled="mode === 'replay'"
-      @click="$emit('toggle-play')"
-    >
+    <button class="btn" :disabled="mode === 'replay'" @click="$emit('toggle-play')">
       {{ isPlaying ? '暂停' : '播放' }}
     </button>
     <button class="btn" @click="$emit('reset')">重置</button>
-    <button
-      class="btn"
-      :class="{ active: showForce }"
-      @click="$emit('toggle-force')"
-    >
+    <button class="btn" :class="{ active: showForce }" @click="$emit('toggle-force')">
       受力显示
     </button>
-    <button
-      class="btn"
-      :class="{ active: showGateColors }"
-      @click="$emit('toggle-gate-colors')"
-    >
+    <button class="btn" :class="{ active: showGateColors }" @click="$emit('toggle-gate-colors')">
       🎨 触发器颜色
     </button>
-    <button
-      class="btn"
-      :class="{ active: mode === 'replay' }"
-      @click="$emit('toggle-replay')"
-    >
+    <button class="btn" :class="{ active: mode === 'replay' }" @click="$emit('toggle-replay')">
       ⏪ 分步回放
     </button>
   </div>

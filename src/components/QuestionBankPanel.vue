@@ -8,11 +8,7 @@
 
     <div v-show="embedded || !collapsed" class="panel-body">
       <!-- 搜索框 -->
-      <input
-        v-model="searchKeyword"
-        class="search-input"
-        placeholder="🔍 搜索题目..."
-      />
+      <input v-model="searchKeyword" class="search-input" placeholder="🔍 搜索题目..." />
 
       <!-- 筛选栏 -->
       <div class="filters">
@@ -49,17 +45,11 @@
             <span v-for="tag in q.tags" :key="tag" class="tag-badge">{{ tag }}</span>
           </div>
         </div>
-        <div v-if="filteredQuestions.length === 0" class="empty-hint">
-          没有匹配的题目
-        </div>
+        <div v-if="filteredQuestions.length === 0" class="empty-hint">没有匹配的题目</div>
       </div>
 
       <!-- 加载按钮 -->
-      <button
-        class="apply-btn"
-        :disabled="!selectedQuestion"
-        @click="handleApply"
-      >
+      <button class="apply-btn" :disabled="!selectedQuestion" @click="handleApply">
         {{ selectedQuestion ? '▶ 加载场景并播放' : '请选择题目' }}
       </button>
     </div>

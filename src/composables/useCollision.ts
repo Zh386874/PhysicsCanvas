@@ -2,9 +2,15 @@ import type { ParticleObject, SegmentObject, PhysicsObject } from './usePhysics'
 
 // ===== 类型定义 =====
 
-interface Vec2 { x: number; y: number }
+interface Vec2 {
+  x: number
+  y: number
+}
 
-interface TrailPoint { x: number; y: number }
+interface TrailPoint {
+  x: number
+  y: number
+}
 
 interface ArcMeta {
   cx: number
@@ -12,8 +18,22 @@ interface ArcMeta {
   r: number
   startAngle: number
   endAngle: number
-  entryGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
-  exitGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  entryGap?: {
+    centerAngle: number
+    halfWidth: number
+    initiallyOpen?: boolean
+    triggerType?: 'angleCross' | 'enterRing'
+    triggerAngle?: number
+    triggerAction?: 'open' | 'close'
+  }
+  exitGap?: {
+    centerAngle: number
+    halfWidth: number
+    initiallyOpen?: boolean
+    triggerType?: 'angleCross' | 'enterRing'
+    triggerAngle?: number
+    triggerAction?: 'open' | 'close'
+  }
 }
 
 // ParticleObject / SegmentObject / PhysicsObject 从 usePhysics.ts 导入，避免重复定义
@@ -35,8 +55,12 @@ interface Point {
  * 法线 = (dy, -dx) 归一化，与当前法线点积为负则翻转
  */
 export function autoComputeNormal(segment: {
-  x1: number; y1: number; x2: number; y2: number
-  normalX?: number; normalY?: number
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  normalX?: number
+  normalY?: number
 }): NormalResult {
   const dx = segment.x2 - segment.x1
   const dy = segment.y2 - segment.y1
@@ -46,7 +70,10 @@ export function autoComputeNormal(segment: {
   let ny = -dx / len
   const curNx = segment.normalX || 0
   const curNy = segment.normalY || 0
-  if (curNx * nx + curNy * ny < 0) { nx = -nx; ny = -ny }
+  if (curNx * nx + curNy * ny < 0) {
+    nx = -nx
+    ny = -ny
+  }
   return { normalX: nx, normalY: ny }
 }
 
@@ -80,9 +107,12 @@ export function checkParticleCollision(
     const overlap = minDist - dist
     const nx = dx / dist
     const ny = dy / dist
-    a.x -= nx * overlap / 2; a.y -= ny * overlap / 2
-    b.x += nx * overlap / 2; b.y += ny * overlap / 2
-    const ma = a.mass, mb = b.mass
+    a.x -= (nx * overlap) / 2
+    a.y -= (ny * overlap) / 2
+    b.x += (nx * overlap) / 2
+    b.y += (ny * overlap) / 2
+    const ma = a.mass,
+      mb = b.mass
     const va = a.vx * nx + a.vy * ny
     const vb = b.vx * nx + b.vy * ny
     let vaNew: number, vbNew: number
@@ -92,11 +122,18 @@ export function checkParticleCollision(
       vaNew = vCommon
       vbNew = vCommon
     } else {
-      vaNew = ((ma - mb) * va + 2 * mb * vb) / (ma + mb) * restitution
-      vbNew = ((mb - ma) * vb + 2 * ma * va) / (ma + mb) * restitution
+      // 通用动量守恒公式：e=1 退化为弹性碰撞，e=0 退化为共速（与上方 vCommon 分支一致）
+      // 推导：碰后相对速度 = -e × 碰前相对速度，联立动量守恒解得
+      //   vaNew = (ma*va + mb*vb + mb*e*(vb-va)) / (ma+mb)
+      //   vbNew = (ma*va + mb*vb + ma*e*(va-vb)) / (ma+mb)
+      // 旧实现 `* restitution` 乘在整个弹性公式上，e∈(0,1) 破坏动量守恒，已修复
+      vaNew = (ma * va + mb * vb + mb * restitution * (vb - va)) / (ma + mb)
+      vbNew = (ma * va + mb * vb + ma * restitution * (va - vb)) / (ma + mb)
     }
-    a.vx += (vaNew - va) * nx; a.vy += (vaNew - va) * ny
-    b.vx += (vbNew - vb) * nx; b.vy += (vbNew - vb) * ny
+    a.vx += (vaNew - va) * nx
+    a.vy += (vaNew - va) * ny
+    b.vx += (vbNew - vb) * nx
+    b.vy += (vbNew - vb) * ny
     return true
   }
   return false
@@ -113,25 +150,34 @@ export function detectSegmentCollision(
   const prevX = obj.prevX !== undefined ? obj.prevX : obj.x
   const prevY = obj.prevY !== undefined ? obj.prevY : obj.y
   const { x1, y1, x2, y2 } = segment
-  const nx = segment.normalX, ny = segment.normalY
+  const nx = segment.normalX,
+    ny = segment.normalY
 
   const d1 = cross(x1, y1, x2, y2, prevX, prevY)
   const d2 = cross(x1, y1, x2, y2, obj.x, obj.y)
   const d3 = cross(prevX, prevY, obj.x, obj.y, x1, y1)
   const d4 = cross(prevX, prevY, obj.x, obj.y, x2, y2)
-  const intersect = ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-                     ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  const intersect =
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
 
-  let hit = false, hitX = obj.x, hitY = obj.y
+  let hit = false,
+    hitX = obj.x,
+    hitY = obj.y
   if (intersect) {
     const pt = segmentIntersection(prevX, prevY, obj.x, obj.y, x1, y1, x2, y2)
-    if (pt) { hitX = pt.x; hitY = pt.y; hit = true }
+    if (pt) {
+      hitX = pt.x
+      hitY = pt.y
+      hit = true
+    }
   }
   if (!hit) {
     const dist = pointToSegmentDistance(obj.x, obj.y, x1, y1, x2, y2)
     if (dist <= radius) {
       const P = closestPointOnSegment(obj.x, obj.y, x1, y1, x2, y2)
-      hitX = P.x; hitY = P.y; hit = true
+      hitX = P.x
+      hitY = P.y
+      hit = true
     }
   }
   if (!hit) {
@@ -152,15 +198,20 @@ export function detectSegmentCollision(
   // 摩擦力源：板块上下表面摩擦系数不同（法线同向=上表面，反向=下表面），其他线段取 friction
   let friction: number
   const segDefNdotN = (segment.normalX || 0) * nx + (segment.normalY || 0) * ny
-  if (segment.movable && (segment.frictionTop !== undefined || segment.frictionBottom !== undefined)) {
-    friction = segDefNdotN >= 0
-      ? (segment.frictionTop ?? segment.friction ?? obj.friction ?? 0)
-      : (segment.frictionBottom ?? segment.friction ?? obj.friction ?? 0)
+  if (
+    segment.movable &&
+    (segment.frictionTop !== undefined || segment.frictionBottom !== undefined)
+  ) {
+    friction =
+      segDefNdotN >= 0
+        ? (segment.frictionTop ?? segment.friction ?? obj.friction ?? 0)
+        : (segment.frictionBottom ?? segment.friction ?? obj.friction ?? 0)
   } else {
     friction = segment.friction ?? obj.friction ?? 0
   }
   if (friction > 0) {
-    const tx = -ny, ty = nx
+    const tx = -ny,
+      ty = nx
     // 传送带/板块：摩擦力基于物体相对线段的速度
     const segVx = segment.velocity?.x ?? 0
     const segVy = segment.velocity?.y ?? 0
@@ -186,7 +237,7 @@ export function detectSegmentCollision(
       obj.vy += dVtActual * ty
       // 板块模型：牛顿第三定律，反作用力作用于可移动线段
       if (segment.movable && segment.mass) {
-        const segDv = -obj.mass * dVtActual / segment.mass
+        const segDv = (-obj.mass * dVtActual) / segment.mass
         if (segment.velocity) {
           segment.velocity.x += segDv * tx
           segment.velocity.y += segDv * ty
@@ -237,8 +288,11 @@ function isAngleInGap(angle: number, centerAngle: number, halfWidth: number): bo
  * @param dist 球心到圆心距离；过小时退化为纯角度判断
  */
 function isBallVolumeInGap(
-  angle: number, centerAngle: number, halfWidth: number,
-  ballRadius: number, dist: number
+  angle: number,
+  centerAngle: number,
+  halfWidth: number,
+  ballRadius: number,
+  dist: number
 ): boolean {
   if (dist <= 1e-9) return isAngleInGap(angle, centerAngle, halfWidth)
   const angularRadius = Math.asin(Math.min(ballRadius / dist, 1))
@@ -271,9 +325,13 @@ function didAngleCross(prev: number, curr: number, target: number): boolean {
  * 反向弧（endAngle < startAngle，Shift 绘制）覆盖角度区间 [endAngle, startAngle] 的反向走法
  */
 function closestPointOnArc(
-  px: number, py: number,
-  cx: number, cy: number, r: number,
-  startAngle: number, endAngle: number
+  px: number,
+  py: number,
+  cx: number,
+  cy: number,
+  r: number,
+  startAngle: number,
+  endAngle: number
 ): { x: number; y: number; dist: number } {
   const TWO_PI = Math.PI * 2
   let delta = endAngle - startAngle
@@ -302,8 +360,13 @@ function closestPointOnArc(
  * 线段-圆相交参数解（返回最早的 t ∈ [0,1]，若无交点返回 -1）
  */
 function lineCircleIntersect(
-  x1: number, y1: number, x2: number, y2: number,
-  cx: number, cy: number, radius: number
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  cx: number,
+  cy: number,
+  radius: number
 ): number {
   const dx = x2 - x1
   const dy = y2 - y1
@@ -347,17 +410,27 @@ export function detectArcCollision(
   const outerRadius = r + radius
   const innerRadius = r > radius ? r - radius : 0
 
-  let tOuter = lineCircleIntersect(prevX, prevY, obj.x, obj.y, cx, cy, outerRadius)
-  let tInner = lineCircleIntersect(prevX, prevY, obj.x, obj.y, cx, cy, innerRadius)
+  const tOuter = lineCircleIntersect(prevX, prevY, obj.x, obj.y, cx, cy, outerRadius)
+  const tInner = lineCircleIntersect(prevX, prevY, obj.x, obj.y, cx, cy, innerRadius)
 
   // 找最早的交点
   let t = -1
   let fromOutside = true // true = 从外向内进入弧线
   if (tOuter >= 0 && tInner >= 0) {
-    if (tOuter < tInner) { t = tOuter; fromOutside = true }
-    else { t = tInner; fromOutside = false }
-  } else if (tOuter >= 0) { t = tOuter; fromOutside = true }
-  else if (tInner >= 0) { t = tInner; fromOutside = false }
+    if (tOuter < tInner) {
+      t = tOuter
+      fromOutside = true
+    } else {
+      t = tInner
+      fromOutside = false
+    }
+  } else if (tOuter >= 0) {
+    t = tOuter
+    fromOutside = true
+  } else if (tInner >= 0) {
+    t = tInner
+    fromOutside = false
+  }
 
   let isCCDHit = false // 标记是否为 CCD 路径命中（高速冲击场景）
   if (t >= 0) {
@@ -373,10 +446,30 @@ export function detectArcCollision(
   const objAngle = Math.atan2(obj.y - cy, obj.x - cx)
   const objDist = Math.hypot(obj.x - cx, obj.y - cy)
   if (seg.arcGateState) {
-    if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
-        isBallVolumeInGap(objAngle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth, radius, objDist)) return false
-    if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
-        isBallVolumeInGap(objAngle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth, radius, objDist)) return false
+    if (
+      seg.arcGateState.entryOpen &&
+      seg.arc.entryGap &&
+      isBallVolumeInGap(
+        objAngle,
+        seg.arc.entryGap.centerAngle,
+        seg.arc.entryGap.halfWidth,
+        radius,
+        objDist
+      )
+    )
+      return false
+    if (
+      seg.arcGateState.exitOpen &&
+      seg.arc.exitGap &&
+      isBallVolumeInGap(
+        objAngle,
+        seg.arc.exitGap.centerAngle,
+        seg.arc.exitGap.halfWidth,
+        radius,
+        objDist
+      )
+    )
+      return false
   }
   // 完整圆（2π）isAngleInRange 恒 true，不会触发；非完整弧仍保留静态缺口放行
   if (!isAngleInRange(objAngle, startAngle, endAngle)) return false
@@ -401,14 +494,16 @@ export function detectArcCollision(
   let nx: number, ny: number
   if (fromOutside) {
     // 从外向内进入弧线：推向外侧
-    nx = hitDx / hitDist; ny = hitDy / hitDist
+    nx = hitDx / hitDist
+    ny = hitDy / hitDist
   } else {
     // 从内向外离开弧线：推向内侧
-    nx = -hitDx / hitDist; ny = -hitDy / hitDist
+    nx = -hitDx / hitDist
+    ny = -hitDy / hitDist
   }
 
   // 位置修正：将粒子推到碰撞点（加上半径偏移）
-  const targetRadius = fromOutside ? (r + radius) : (r - radius)
+  const targetRadius = fromOutside ? r + radius : r - radius
   obj.x = cx + (hitDx / hitDist) * targetRadius
   obj.y = cy + (hitDy / hitDist) * targetRadius
 
@@ -429,7 +524,8 @@ export function detectArcCollision(
   // 切向摩擦（优先取线段摩擦系数）
   const friction = seg.friction ?? obj.friction ?? 0
   if (friction > 0) {
-    const tx = -ny, ty = nx
+    const tx = -ny,
+      ty = nx
     const v_tangent = obj.vx * tx + obj.vy * ty
     if (Math.abs(v_tangent) > 1e-6) {
       // 法向力 N = m·g·cos(θ)，θ 为弧线切线与水平面夹角
@@ -475,8 +571,8 @@ function applyArcConstraint(
 
   const objDist = Math.hypot(obj.x - cx, obj.y - cy)
   const isInside = objDist < r
-  const surfaceR = isInside ? (r - radius) : (r + radius)
-  if (surfaceR <= 0) return false  // 弧线半径过小，无法约束
+  const surfaceR = isInside ? r - radius : r + radius
+  if (surfaceR <= 0) return false // 弧线半径过小，无法约束
 
   const angle = Math.atan2(obj.y - cy, obj.x - cx)
 
@@ -488,13 +584,31 @@ function applyArcConstraint(
 
   // —— 结构性脱离：进入开启的缺口（题库场景出口 E）——
   if (seg.arcGateState) {
-    if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
-        isBallVolumeInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth, radius, objDist)) {
+    if (
+      seg.arcGateState.entryOpen &&
+      seg.arc.entryGap &&
+      isBallVolumeInGap(
+        angle,
+        seg.arc.entryGap.centerAngle,
+        seg.arc.entryGap.halfWidth,
+        radius,
+        objDist
+      )
+    ) {
       obj.constrainedArcGroupId = undefined
       return false
     }
-    if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
-        isBallVolumeInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth, radius, objDist)) {
+    if (
+      seg.arcGateState.exitOpen &&
+      seg.arc.exitGap &&
+      isBallVolumeInGap(
+        angle,
+        seg.arc.exitGap.centerAngle,
+        seg.arc.exitGap.halfWidth,
+        radius,
+        objDist
+      )
+    ) {
       obj.constrainedArcGroupId = undefined
       return false
     }
@@ -509,9 +623,9 @@ function applyArcConstraint(
   const threshold = -gravity * surfaceR * Math.sin(angle)
   let shouldDepart = false
   if (isInside) {
-    if (v2 < threshold) shouldDepart = true   // 速度不足，坠落
+    if (v2 < threshold) shouldDepart = true // 速度不足，坠落
   } else {
-    if (v2 > threshold) shouldDepart = true    // 速度过大，飞出
+    if (v2 > threshold) shouldDepart = true // 速度过大，飞出
   }
   if (shouldDepart) {
     obj.constrainedArcGroupId = undefined
@@ -558,10 +672,7 @@ function applyArcConstraint(
  * 复用 closestPointOnArc 的距离判定（与碰撞检测一致的触发条件）。
  * 激活后立即投影位置与速度，避免一帧偏移导致视觉跳跃。
  */
-function tryActivateArcConstraint(
-  obj: ParticleObject,
-  seg: SegmentObject
-): boolean {
+function tryActivateArcConstraint(obj: ParticleObject, seg: SegmentObject): boolean {
   if (!seg.arc || !seg.groupId) return false
   if (obj.constrainedArcGroupId !== undefined) return false
 
@@ -577,10 +688,30 @@ function tryActivateArcConstraint(
 
   // 缺口区域不激活（让球穿过缺口进入/离开）：按球碰撞体积判定，球体触及缺口即放行
   if (seg.arcGateState) {
-    if (seg.arcGateState.entryOpen && seg.arc.entryGap &&
-        isBallVolumeInGap(angle, seg.arc.entryGap.centerAngle, seg.arc.entryGap.halfWidth, radius, objDist)) return false
-    if (seg.arcGateState.exitOpen && seg.arc.exitGap &&
-        isBallVolumeInGap(angle, seg.arc.exitGap.centerAngle, seg.arc.exitGap.halfWidth, radius, objDist)) return false
+    if (
+      seg.arcGateState.entryOpen &&
+      seg.arc.entryGap &&
+      isBallVolumeInGap(
+        angle,
+        seg.arc.entryGap.centerAngle,
+        seg.arc.entryGap.halfWidth,
+        radius,
+        objDist
+      )
+    )
+      return false
+    if (
+      seg.arcGateState.exitOpen &&
+      seg.arc.exitGap &&
+      isBallVolumeInGap(
+        angle,
+        seg.arc.exitGap.centerAngle,
+        seg.arc.exitGap.halfWidth,
+        radius,
+        objDist
+      )
+    )
+      return false
   }
 
   // 距离判定
@@ -588,7 +719,8 @@ function tryActivateArcConstraint(
   // 场景：球从缺口进入后门关闭，球离弧面较远（> radius），但应在弧面上
   // 无此特例时，球会穿过圆环底部（closest.dist > radius 导致约束和碰撞都失效）
   const isInside = objDist < r
-  const allGatesClosed = !!seg.arcGateState && !seg.arcGateState.entryOpen && !seg.arcGateState.exitOpen
+  const allGatesClosed =
+    !!seg.arcGateState && !seg.arcGateState.entryOpen && !seg.arcGateState.exitOpen
   const isGatedArcInsideCatchUp = allGatesClosed && isInside
   if (!isGatedArcInsideCatchUp && closest.dist > radius) return false
 
@@ -597,7 +729,7 @@ function tryActivateArcConstraint(
 
   // 立即投影位置与速度（避免一帧偏移导致视觉跳跃）
   // objDist/isInside 已在距离判定中计算，此处复用
-  const surfaceR = isInside ? (r - radius) : (r + radius)
+  const surfaceR = isInside ? r - radius : r + radius
   if (surfaceR <= 0) {
     obj.constrainedArcGroupId = undefined
     return false
@@ -614,8 +746,14 @@ function tryActivateArcConstraint(
 }
 
 function segmentIntersection(
-  x1: number, y1: number, x2: number, y2: number,
-  x3: number, y3: number, x4: number, y4: number
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  x3: number,
+  y3: number,
+  x4: number,
+  y4: number
 ): Point | null {
   const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
   if (Math.abs(denom) < 1e-10) return null
@@ -626,9 +764,15 @@ function segmentIntersection(
 }
 
 function pointToSegmentDistance(
-  px: number, py: number, x1: number, y1: number, x2: number, y2: number
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
 ): number {
-  const dx = x2 - x1, dy = y2 - y1
+  const dx = x2 - x1,
+    dy = y2 - y1
   const len2 = dx * dx + dy * dy
   if (len2 < 1e-10) return Math.hypot(px - x1, py - y1)
   let t = ((px - x1) * dx + (py - y1) * dy) / len2
@@ -637,9 +781,15 @@ function pointToSegmentDistance(
 }
 
 function closestPointOnSegment(
-  px: number, py: number, x1: number, y1: number, x2: number, y2: number
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
 ): Point {
-  const dx = x2 - x1, dy = y2 - y1
+  const dx = x2 - x1,
+    dy = y2 - y1
   const len2 = dx * dx + dy * dy
   if (len2 < 1e-10) return { x: x1, y: y1 }
   let t = ((px - x1) * dx + (py - y1) * dy) / len2
@@ -654,23 +804,25 @@ function closestPointOnSegment(
  * - 碰撞响应：法向反射 + 动量守恒（考虑板块 mass），**不计算摩擦**
  * @returns true 表示发生端面碰撞（已处理响应）
  */
-function detectPlateEndCollision(
-  obj: ParticleObject,
-  seg: SegmentObject
-): boolean {
+function detectPlateEndCollision(obj: ParticleObject, seg: SegmentObject): boolean {
   if (!seg.physicsThickness) return false
   const radius = obj.radius || 10
   const restitution = seg.restitution !== undefined ? seg.restitution : 0.3
   const { x1, y1, x2, y2 } = seg
-  const nx = seg.normalX || 0, ny = seg.normalY || 0
+  const nx = seg.normalX || 0,
+    ny = seg.normalY || 0
   const t = seg.physicsThickness
   // 下表面端点：上表面沿法线反方向偏移 physicsThickness（法线 normalY<0 指上，反方向向下 y 增大）
-  const x3 = x1 - nx * t, y3 = y1 - ny * t
-  const x4 = x2 - nx * t, y4 = y2 - ny * t
+  const x3 = x1 - nx * t,
+    y3 = y1 - ny * t
+  const x4 = x2 - nx * t,
+    y4 = y2 - ny * t
   // 切线方向（沿板块长度，从端点1指向端点2）
-  const dx = x2 - x1, dy = y2 - y1
+  const dx = x2 - x1,
+    dy = y2 - y1
   const len = Math.hypot(dx, dy) || 1
-  const tx = dx / len, ty = dy / len
+  const tx = dx / len,
+    ty = dy / len
   // 端面列表：左端面法线指向 -切线，右端面法线指向 +切线
   const endFaces = [
     { ax: x1, ay: y1, bx: x3, by: y3, enx: -tx, eny: -ty },
@@ -690,12 +842,16 @@ function detectPlateEndCollision(
       // 使用带恢复系数的正确碰撞公式（动量守恒 + e=-(v1'-v2')/(v1-v2)）：
       //   v_obj' = ((m_obj - e*m_seg)*v_obj + (1+e)*m_seg*v_seg) / M
       //   v_seg' = ((1+e)*m_obj*v_obj + (m_seg - e*m_obj)*v_seg) / M
-      const m_obj = obj.mass, m_seg = seg.mass || 1
-      const segVx = seg.velocity?.x ?? 0, segVy = seg.velocity?.y ?? 0
+      const m_obj = obj.mass,
+        m_seg = seg.mass || 1
+      const segVx = seg.velocity?.x ?? 0,
+        segVy = seg.velocity?.y ?? 0
       const v_seg_n = segVx * face.enx + segVy * face.eny
       const totalM = m_obj + m_seg
-      const v_obj_n_new = ((m_obj - restitution * m_seg) * v_obj_n + (1 + restitution) * m_seg * v_seg_n) / totalM
-      const v_seg_n_new = ((1 + restitution) * m_obj * v_obj_n + (m_seg - restitution * m_obj) * v_seg_n) / totalM
+      const v_obj_n_new =
+        ((m_obj - restitution * m_seg) * v_obj_n + (1 + restitution) * m_seg * v_seg_n) / totalM
+      const v_seg_n_new =
+        ((1 + restitution) * m_obj * v_obj_n + (m_seg - restitution * m_obj) * v_seg_n) / totalM
       // 更新质点速度
       obj.vx += (v_obj_n_new - v_obj_n) * face.enx
       obj.vy += (v_obj_n_new - v_obj_n) * face.eny
@@ -755,12 +911,20 @@ function updateArcGates(objects: PhysicsObject[]): void {
       // angleCross 触发：小球角度穿越 triggerAngle
       const angle = Math.atan2(p.y - cy, p.x - cx)
       if (gate.prevAngle !== undefined) {
-        if (entryGap?.triggerType === 'angleCross' && entryGap.triggerAngle !== undefined && entryGap.triggerAction) {
+        if (
+          entryGap?.triggerType === 'angleCross' &&
+          entryGap.triggerAngle !== undefined &&
+          entryGap.triggerAction
+        ) {
           if (didAngleCross(gate.prevAngle, angle, entryGap.triggerAngle)) {
             gate.entryOpen = entryGap.triggerAction === 'open'
           }
         }
-        if (exitGap?.triggerType === 'angleCross' && exitGap.triggerAngle !== undefined && exitGap.triggerAction) {
+        if (
+          exitGap?.triggerType === 'angleCross' &&
+          exitGap.triggerAngle !== undefined &&
+          exitGap.triggerAction
+        ) {
           if (didAngleCross(gate.prevAngle, angle, exitGap.triggerAngle)) {
             gate.exitOpen = exitGap.triggerAction === 'open'
           }
@@ -805,14 +969,14 @@ export function checkCollision(
     const p = obj as ParticleObject
     if (p.constrainedArcGroupId === undefined) continue
     const seg = objects.find(
-      s => s.type === 'line_segment' && s.groupId === p.constrainedArcGroupId
+      (s) => s.type === 'line_segment' && s.groupId === p.constrainedArcGroupId
     ) as SegmentObject | undefined
     if (!seg || !seg.arc) {
-      p.constrainedArcGroupId = undefined  // 弧线已被删除
+      p.constrainedArcGroupId = undefined // 弧线已被删除
       continue
     }
     if (seg.constraintEnabled === false) {
-      p.constrainedArcGroupId = undefined  // 用户关闭了约束
+      p.constrainedArcGroupId = undefined // 用户关闭了约束
       continue
     }
     applyArcConstraint(p, seg, dt, gravity)
@@ -831,15 +995,15 @@ export function checkCollision(
         // 已约束小球跳过弧线碰撞/激活（约束维持遍历已处理）
         if (p.constrainedArcGroupId !== undefined) continue
         if (seg.constraintEnabled !== false) {
-            // 约束开启：尝试激活；激活失败则回退到碰撞检测（防止小球穿过弧线）
-            // detectArcCollision 内部已处理缺口放行（gate 开 + 在缺口范围 → return false），回退安全
-            if (!tryActivateArcConstraint(p, seg)) {
-              if (detectArcCollision(p, seg, dt, gravity)) collided = true
-            }
-          } else {
-            // 约束关闭：走原有碰撞检测
+          // 约束开启：尝试激活；激活失败则回退到碰撞检测（防止小球穿过弧线）
+          // detectArcCollision 内部已处理缺口放行（gate 开 + 在缺口范围 → return false），回退安全
+          if (!tryActivateArcConstraint(p, seg)) {
             if (detectArcCollision(p, seg, dt, gravity)) collided = true
           }
+        } else {
+          // 约束关闭：走原有碰撞检测
+          if (detectArcCollision(p, seg, dt, gravity)) collided = true
+        }
       } else {
         if (detectSegmentCollision(p, seg, dt, gravity)) collided = true
       }
@@ -849,10 +1013,12 @@ export function checkCollision(
   // 质点间碰撞（跳过线段和弹簧）
   for (let i = 0; i < objects.length; i++) {
     for (let j = i + 1; j < objects.length; j++) {
-      const a = objects[i], b = objects[j]
+      const a = objects[i],
+        b = objects[j]
       if (a.type !== '质点' && a.type !== '刚体') continue
       if (b.type !== '质点' && b.type !== '刚体') continue
-      if (checkParticleCollision(a as ParticleObject, b as ParticleObject, particleRestitution)) collided = true
+      if (checkParticleCollision(a as ParticleObject, b as ParticleObject, particleRestitution))
+        collided = true
     }
   }
 
