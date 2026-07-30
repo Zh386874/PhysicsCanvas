@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 需要历史以对比测试文件数量与 contracts 篡改
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint 检查
+        run: npm run lint:check
+      - name: 类型检查
+        run: npm run type-check
+      - run: npm run build
+      - name: 运行测试（含覆盖率）
+        run: npm run test:coverage
+
+      - name: 检测测试完整性（skip 标记/断言弱化）
+        run: |
+          BASE="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "无基线，跳过测试完整性检测"
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "基线提交不可访问（浅克隆），跳过测试完整性检测"
+            exit 0
+          fi
+          node scripts/check-test-integrity.mjs "$BASE" HEAD
+
+      - name: 检测覆盖率回归
+        run: |
+          if [ ! -f scripts/.coverage-baseline.json ]; then
+            echo "无覆盖率基线文件，跳过回归检测"
+            exit 0
+          fi
+          node scripts/check-coverage-regression.mjs
+
+      - name: 检测测试文件数量是否减少
+        run: |
+          BASE="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          # 空或全零 sha（新分支/force push）视为无基线，跳过
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "无基线，跳过数量检查"
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "基线提交不可访问（浅克隆），跳过数量检查"
+            exit 0
+          fi
+          BEFORE=$(git ls-tree -r --name-only "$BASE" -- 'tests/' | grep -E '\.(test|spec)\.ts$' | wc -l)
+          AFTER=$(git ls-tree -r --name-only HEAD -- 'tests/' | grep -E '\.(test|spec)\.ts$' | wc -l)
+          echo "测试文件数量：基线=$BEFORE 当前=$AFTER"
+          if [ "$AFTER" -lt "$BEFORE" ]; then
+            echo "❌ CI 拒绝：测试文件数量从 $BEFORE 减少到 $AFTER"
+            echo "疑似为通过 CI 而删除测试。如确为合理删除，请在 PR 说明中写明理由并由人工批准。"
+            exit 1
+          fi
+
+      - name: 检测 tests/contracts/ 是否被篡改
+        run: |
+          BASE="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            exit 0
+          fi
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            exit 0
+          fi
+          # contracts 目录下除首次添加（A）外的任何修改/删除均拒绝
+          CHANGES=$(git diff --name-status "$BASE" HEAD -- 'tests/contracts/' | grep -vE '^A' || true)
+          if [ -n "$CHANGES" ]; then
+            echo "❌ CI 拒绝：tests/contracts/ 契约测试被修改/删除："
+            echo "$CHANGES"
+            echo "契约测试为物理铁律，不可篡改。如确需修改，请人工批准并在 PR 说明中写明理由。"
+            exit 1
+          fi
