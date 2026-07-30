@@ -164,14 +164,16 @@ CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI �
 
 `useHistory.ts:27` 剥离运行时字段时使用 `o as any`，而 `useSceneIO.ts:20` 同类操作已改用 `as unknown as Record<string, unknown>`。建议对齐写法以保持一致性。
 
-### 3.2 【测试覆盖】物理引擎核心逻辑测试缺口（🟡 P1）
+### 3.2 【测试覆盖】物理引擎核心逻辑测试缺口（🟡 P1，部分缓解）
 
-当前 Vitest 12 个测试集中在**弧线碰撞与约束**（collision.test.ts / ring-scene.test.ts / ball-through-ring.test.ts）。以下核心逻辑仍无自动化测试覆盖：
-- `usePhysics.ts` 欧拉积分（自由落体、平抛、弹簧周期）
+当前 Vitest 32 个测试覆盖弧线碰撞、圆环场景、球穿环回归、板块定义、重置合并，以及**物理定律契约**（`tests/contracts/`，覆盖自由落体匀加速、匀速运动、弹性碰撞动量/能量守恒、非弹性碰撞动量守恒）。以下核心逻辑仍无自动化测试覆盖：
+- `usePhysics.ts` 欧拉积分（平抛、弹簧周期）— 自由落体已由契约测试覆盖
 - `useForces.ts` 合力计算策略（重力、场力、弹簧力）
-- `useCollision.ts` 地面碰撞、质点间碰撞、线段 CCD 碰撞
+- `useCollision.ts` 地面碰撞、线段 CCD 碰撞 — 质点间碰撞已由契约测试覆盖
 
 详见 [TESTING.md - 未来测试计划](TESTING.md#十未来测试计划) 第二阶段。
+
+> 💡 同时已建立四层测试完整性防御（`CLAUDE.md` 规则 + `tests/contracts/` 契约 + `.husky/pre-commit` 拦截 + `.github/workflows/ci.yml` 门禁），防止 AI IDE 为通过测试而删除/篡改测试。详见 [TESTING.md - 1.4 测试完整性政策](TESTING.md#14-测试完整性政策)。
 
 ### 3.3 【SRP 残留】useCanvasInteraction 模块级状态（🟢 P2）
 
@@ -223,3 +225,4 @@ CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI �
 | 2.8 KISS 长函数 | 移至 useSceneIO，提取 deepCopyObjects/validateObject 纯函数 |
 | 2.9 魔法数字 | 集中至 src/constants.ts |
 | 2.10 prevX/prevY | 重新评估为 CCD 核心字段，非 YAGNI，合理保留 |
+| 新增：测试完整性防御 | 四层防御：`CLAUDE.md` 规则 + `tests/contracts/` 物理定律契约 + `.husky/pre-commit` 拦截 + `.github/workflows/ci.yml` CI 门禁 |

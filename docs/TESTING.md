@@ -8,7 +8,7 @@
 
 ### 1.1 当前状态
 
-项目已建立 **Vitest 自动化测试体系**，覆盖弧线碰撞检测、圆环场景物理循环、球穿环 bug 回归，共 **12 个测试** 跨 3 个文件（unit / integration / regression 三层）。物理引擎其余部分（积分、摩擦、电磁场）仍依赖手动验证。
+项目已建立 **Vitest 自动化测试体系**，覆盖弧线碰撞检测、圆环场景物理循环、球穿环 bug 回归、板块定义、重置合并、**物理定律契约**，共 **32 个测试** 跨 7 个文件（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，摩擦与电磁场仍依赖手动验证。
 
 ### 1.2 测试目标
 
@@ -24,14 +24,34 @@
 ```
 tests/
 ├── helpers/
-│   └── sceneBuilder.ts          ← 测试夹具：构建圆环场景 + 单步模拟（不依赖 Vue reactive）
-├── unit/
-│   └── collision.test.ts        ← 单元测试：弧线碰撞与约束激活（6 测试）
+│   └── sceneBuilder.ts              ← 测试夹具：构建圆环场景 + 单步模拟（不依赖 Vue reactive）
+├── unit/                            ← 单元测试
+│   ├── collision.test.ts            ← 弧线碰撞与约束激活（6 测试）
+│   ├── plate-definition.test.ts     ← 板块 type:plate 定义与默认值（7 测试）
+│   └── reset-merge.test.ts          ← 重置合并策略（6 测试）
 ├── integration/
-│   └── ring-scene.test.ts       ← 集成测试：2023 浙江题圆环完整物理循环（3 测试）
-└── regression/
-    └── ball-through-ring.test.ts ← 回归测试：球穿环 bug 修复验证（3 测试）
+│   └── ring-scene.test.ts           ← 集成测试：2023 浙江题圆环完整物理循环（3 测试）
+├── regression/
+│   ├── ball-through-ring.test.ts    ← 回归测试：球穿环 bug 修复验证（3 测试）
+│   └── entry-stuck-outside.test.ts  ← 回归测试：球卡环外 bug 修复验证（3 测试）
+└── contracts/                       ← 物理定律契约（不可篡改，详见 1.4）
+    └── physics-laws.test.ts         ← 自由落体/匀速/弹性碰撞/非弹性碰撞（4 测试）
 ```
+
+### 1.4 测试完整性政策
+
+为防止 AI IDE 为"让测试变绿"而删除、跳过、弱化测试断言，本项目建立**四层防御**：
+
+| 层 | 机制 | 文件 | 作用 |
+|----|------|------|------|
+| 规则层 | AI 协作纪律 | `CLAUDE.md` | 明确禁止删测试/skip/弱化断言，失败必须修生产代码 |
+| 契约层 | 物理铁律契约 | `tests/contracts/` | 能量/动量守恒等铁律，AI 不可修改 |
+| 本地层 | pre-commit 拦截 | `.husky/pre-commit` | 删除测试文件 / 篡改 contracts → 拒绝提交 |
+| 远程层 | CI 门禁 | `.github/workflows/ci.yml` | 测试数量减少 / contracts 篡改 → 拒绝合并 |
+
+**合法修改测试的流程**：如确需删除或修改测试（如测试本身有 bug、需求变更），须由人工执行 `git commit --no-verify` 并在提交信息中写明理由。`tests/contracts/` 的修改还需在 PR 说明中单独说明。
+
+详见 [`CLAUDE.md`](../CLAUDE.md) 「测试纪律」与「物理定律契约测试」章节。
 
 ---
 
@@ -241,9 +261,9 @@ measure()
 
 ### 10.2 第二阶段：扩展单元测试覆盖 🚧
 
-- [ ] 为 `usePhysics.ts` 积分逻辑编写单元测试（自由落体、平抛、弹簧周期）
+- [x] 为 `usePhysics.ts` 积分逻辑编写单元测试（自由落体匀加速已由 `tests/contracts/physics-laws.test.ts` 覆盖；平抛、弹簧周期待补）
 - [ ] 为 `useForces.ts` 合力计算策略编写单元测试
-- [ ] 覆盖地面碰撞、质点间碰撞、线段 CCD 碰撞
+- [ ] 覆盖地面碰撞、线段 CCD 碰撞（质点间弹性/非弹性碰撞已由契约测试覆盖）
 
 ### 10.3 第三阶段：组件测试 🚧
 

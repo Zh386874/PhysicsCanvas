@@ -17,8 +17,8 @@
 
 当前内置 1 道高考真题场景：
 
-| ID | 题目 | 难度 | 核心知识点 |
-|----|------|------|------------|
+| ID            | 题目                           | 难度 | 核心知识点                                       |
+| ------------- | ------------------------------ | ---- | ------------------------------------------------ |
 | plate-2023-zj | 2023·浙江·高考真题（游戏装置） | hard | 斜面 + 螺旋圆轨 + 板块模型 + 动量守恒 + 能量守恒 |
 
 > 该题螺旋圆轨受 2D 拓扑限制简化为单圆弧，并采用动态缺口（entryGap/exitGap 触发器）+ 弧线约束动力学还原小球穿环过程；轨道等比例放大 ×1.6、小球半径缩至 0.08m 以缓解碰撞卡顿。详见 [题库文档](docs/QUESTION_BANK.md)。
@@ -54,16 +54,16 @@
 
 ## 🛠 技术栈
 
-| 类别 | 技术 |
-|------|------|
-| 框架 | Vue 3.5（Composition API，`<script setup>`） |
-| 构建工具 | Vite 6.3 |
-| 语言 | JavaScript + TypeScript（渐进式迁移） |
-| 渲染 | Canvas 2D + requestAnimationFrame |
+| 类别     | 技术                                                    |
+| -------- | ------------------------------------------------------- |
+| 框架     | Vue 3.5（Composition API，`<script setup>`）            |
+| 构建工具 | Vite 6.3                                                |
+| 语言     | JavaScript + TypeScript（渐进式迁移）                   |
+| 渲染     | Canvas 2D + requestAnimationFrame                       |
 | 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 + 弧线约束动力学 |
-| AI | DeepSeek API（可选） |
-| 测试 | Vitest 4（单元 / 集成 / 回归三层） |
-| 部署 | GitHub Actions → GitHub Pages |
+| AI       | DeepSeek API（可选）                                    |
+| 测试     | Vitest 4（单元 / 集成 / 回归三层）                      |
+| 部署     | GitHub Actions → GitHub Pages                           |
 
 ## 📦 快速开始
 
@@ -165,27 +165,51 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 
 ## 📖 文档
 
-| 文档 | 说明 |
-|------|------|
-| [需求文档](docs/REQUIREMENTS.md) | 功能需求、验收标准、发展路线图 |
-| [接口文档](docs/API.md) | 组件 props/emit、composable 导出函数、数据结构定义 |
-| [架构设计](docs/ARCHITECTURE.md) | 分层架构、单向数据流、模块职责划分 |
-| [物理模型](docs/PHYSICS.md) | 单位系统、积分方法、碰撞检测、力模型 |
-| [题库文档](docs/QUESTION_BANK.md) | 题库结构、题目列表、添加新题目 |
-| [部署文档](docs/DEPLOYMENT.md) | GitHub Pages 部署流程、CI/CD 配置 |
-| [测试文档](docs/TESTING.md) | 测试策略与用例 |
-| [代码质量审查](docs/CODE_QUALITY_REVIEW.md) | SOLID 原则审查与现状评估 |
-| [变更日志](CHANGELOG.md) | 版本变更记录 |
+| 文档                                        | 说明                                               |
+| ------------------------------------------- | -------------------------------------------------- |
+| [需求文档](docs/REQUIREMENTS.md)            | 功能需求、验收标准、发展路线图                     |
+| [接口文档](docs/API.md)                     | 组件 props/emit、composable 导出函数、数据结构定义 |
+| [架构设计](docs/ARCHITECTURE.md)            | 分层架构、单向数据流、模块职责划分                 |
+| [物理模型](docs/PHYSICS.md)                 | 单位系统、积分方法、碰撞检测、力模型               |
+| [题库文档](docs/QUESTION_BANK.md)           | 题库结构、题目列表、添加新题目                     |
+| [部署文档](docs/DEPLOYMENT.md)              | GitHub Pages 部署流程、CI/CD 配置                  |
+| [测试文档](docs/TESTING.md)                 | 测试策略与用例                                     |
+| [代码质量审查](docs/CODE_QUALITY_REVIEW.md) | SOLID 原则审查与现状评估                           |
+| [变更日志](CHANGELOG.md)                    | 版本变更记录                                       |
 
 ## 🔑 核心常量
 
-| 常量 | 值 | 说明 |
-|------|-----|------|
-| `PIXELS_PER_METER` | 50 | 1 米 = 50 像素 |
-| `GRAVITY` | 490 px/s² | 重力加速度（9.8 m/s² × 50） |
-| `MAX_SUBSTEPS` | 200 | 子步循环上限（防卡顿） |
-| `MAX_SNAPSHOTS` | 1200 | 快照缓冲区（20 秒 × 60fps） |
-| `MAX_HISTORY` | 50 | 撤销/重做历史上限 |
+| 常量               | 值        | 说明                        |
+| ------------------ | --------- | --------------------------- |
+| `PIXELS_PER_METER` | 50        | 1 米 = 50 像素              |
+| `GRAVITY`          | 490 px/s² | 重力加速度（9.8 m/s² × 50） |
+| `MAX_SUBSTEPS`     | 200       | 子步循环上限（防卡顿）      |
+| `MAX_SNAPSHOTS`    | 1200      | 快照缓冲区（20 秒 × 60fps） |
+| `MAX_HISTORY`      | 50        | 撤销/重做历史上限           |
+
+## 🔒 已知安全风险
+
+`npm audit` 当前报告 3 项漏洞，均源自同一条依赖链 `vitepress@1.6.4` → 内置 `vite@5.4.21` → `esbuild@0.21.5`：
+
+| 漏洞                                                          | 严重度   | 状态         |
+| ------------------------------------------------------------- | -------- | ------------ |
+| [esbuild GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) | moderate | 上游无修复版本 |
+| `vite@5.4.21`（依赖上述 esbuild）                              | high     | 上游无修复版本 |
+| `vitepress@1.6.4`（依赖上述 vite）                             | moderate | 上游无修复版本 |
+
+**影响范围**：仅 `npm run docs:dev`（文档开发服务器）受影响——理论上任意网站可向该开发服务器发送请求并读取响应。
+
+**不受影响**：
+- 主应用 `vite@6.4.3`（内置 `esbuild@0.25.12`，已修复，安全）
+- `npm run docs:build` 产物（静态 HTML，部署后无开发服务器）
+- `npm run build` / `npm run dev`（主应用构建与开发服务器）
+
+**缓解措施**：
+- 不在不受信网络环境下运行 `npm run docs:dev`
+- 生产文档部署使用 `npm run docs:build` 产出的静态文件
+- 上游 vitepress 发布修复版本后升级
+
+> 历史漏洞（brace-expansion / minimatch 链，eslint@9.x、vue-tsc@2.x）已于 2026-07-30 通过升级 eslint→10.8.0、eslint-plugin-vue→10.10.0、@eslint/js→10.0.1、vue-tsc→3.3.8 全部消除。
 
 ## 📄 License
 
