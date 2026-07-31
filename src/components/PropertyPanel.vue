@@ -5,19 +5,11 @@
     <form v-else class="form">
       <div class="field">
         <label>名称</label>
-        <input
-          type="text"
-          :value="object.name"
-          @input="update('name', $event.target.value)"
-        />
+        <input type="text" :value="object.name" @input="update('name', $event.target.value)" />
       </div>
       <div class="field">
         <label>类型</label>
-        <input
-          type="text"
-          :value="object.type"
-          @input="update('type', $event.target.value)"
-        />
+        <input type="text" :value="object.type" @input="update('type', $event.target.value)" />
       </div>
       <div class="field">
         <label>质量 (kg)</label>
@@ -178,8 +170,14 @@
               type="number"
               step="0.05"
               min="0.01"
-              :value="object.physicsThickness !== undefined ? (object.physicsThickness / PIXELS_PER_METER).toFixed(2) : 0.1"
-              @input="update('physicsThickness', parseFloat($event.target.value) * PIXELS_PER_METER)"
+              :value="
+                object.physicsThickness !== undefined
+                  ? (object.physicsThickness / PIXELS_PER_METER).toFixed(2)
+                  : 0.1
+              "
+              @input="
+                update('physicsThickness', parseFloat($event.target.value) * PIXELS_PER_METER)
+              "
             />
           </div>
           <div class="field">
@@ -226,12 +224,34 @@
         <div class="field">
           <label>法线方向</label>
           <div class="normal-buttons">
-            <button type="button" class="normal-btn" @click="setNormal(0, -1)" title="向上">↑</button>
-            <button type="button" class="normal-btn" @click="setNormal(0, 1)" title="向下">↓</button>
-            <button type="button" class="normal-btn" @click="setNormal(-1, 0)" title="向左">←</button>
-            <button type="button" class="normal-btn" @click="setNormal(1, 0)" title="向右">→</button>
-            <button type="button" class="normal-btn" @click="setNormal(-0.707, -0.707)" title="左上 45°">↖</button>
-            <button type="button" class="normal-btn" @click="setNormal(0.707, -0.707)" title="右上 -45°">↗</button>
+            <button type="button" class="normal-btn" @click="setNormal(0, -1)" title="向上">
+              ↑
+            </button>
+            <button type="button" class="normal-btn" @click="setNormal(0, 1)" title="向下">
+              ↓
+            </button>
+            <button type="button" class="normal-btn" @click="setNormal(-1, 0)" title="向左">
+              ←
+            </button>
+            <button type="button" class="normal-btn" @click="setNormal(1, 0)" title="向右">
+              →
+            </button>
+            <button
+              type="button"
+              class="normal-btn"
+              @click="setNormal(-0.707, -0.707)"
+              title="左上 45°"
+            >
+              ↖
+            </button>
+            <button
+              type="button"
+              class="normal-btn"
+              @click="setNormal(0.707, -0.707)"
+              title="右上 -45°"
+            >
+              ↗
+            </button>
           </div>
           <div class="hint">
             当前: ({{ (object.normalX || 0).toFixed(2) }}, {{ (object.normalY || 0).toFixed(2) }})
@@ -266,45 +286,87 @@
                 :checked="object.constraintEnabled !== false"
                 @change="update('constraintEnabled', $event.target.checked)"
               />
-              <span class="hint">{{ object.constraintEnabled !== false ? '已开启' : '已关闭' }}</span>
+              <span class="hint">
+                {{ object.constraintEnabled !== false ? '已开启' : '已关闭' }}
+              </span>
             </div>
             <div class="hint">
-              开启：小球锁定弧面，能量守恒，自然脱离（法向力=0时释放）<br/>
+              开启：小球锁定弧面，能量守恒，自然脱离（法向力=0时释放）
+              <br />
               关闭：使用碰撞响应（可能有能量损失）
             </div>
           </div>
 
           <!-- 缺口与触发器配置 -->
           <div class="hint color-legend">
-            <span style="color: #f59e0b">●</span> 触发器弧线
-            <span style="color: #22c55e">●</span> 允许通过
-            <span style="color: #ef4444">●</span> 禁止通过
+            <span style="color: #f59e0b">●</span>
+            触发器弧线
+            <span style="color: #22c55e">●</span>
+            允许通过
+            <span style="color: #ef4444">●</span>
+            禁止通过
           </div>
 
           <!-- 入口缺口 -->
           <div class="gap-section">
             <label>入口缺口</label>
-            <button v-if="!object.arc.entryGap" type="button" class="gap-btn" @click="setArcGap('entryGap', { centerAngle: 0, halfWidth: 0.3, initiallyOpen: false, triggerAngle: undefined, triggerAction: 'open' })">+ 添加</button>
+            <button
+              v-if="!object.arc.entryGap"
+              type="button"
+              class="gap-btn"
+              @click="
+                setArcGap('entryGap', {
+                  centerAngle: 0,
+                  halfWidth: 0.3,
+                  initiallyOpen: false,
+                  triggerAngle: undefined,
+                  triggerAction: 'open'
+                })
+              "
+            >
+              + 添加
+            </button>
             <template v-else>
-              <button type="button" class="gap-btn danger" @click="setArcGap('entryGap', null)">删除</button>
+              <button type="button" class="gap-btn danger" @click="setArcGap('entryGap', null)">
+                删除
+              </button>
               <div class="field">
                 <label>中心角 (rad)</label>
-                <input type="number" step="0.1" :value="object.arc.entryGap.centerAngle" @input="updateArcGap('entryGap', 'centerAngle', parseFloat($event.target.value))" />
+                <input
+                  type="number"
+                  step="0.1"
+                  :value="object.arc.entryGap.centerAngle"
+                  @input="updateArcGap('entryGap', 'centerAngle', parseFloat($event.target.value))"
+                />
               </div>
               <div class="field">
                 <label>半宽 (rad)</label>
-                <input type="number" step="0.05" min="0.01" :value="object.arc.entryGap.halfWidth" @input="updateArcGap('entryGap', 'halfWidth', parseFloat($event.target.value))" />
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0.01"
+                  :value="object.arc.entryGap.halfWidth"
+                  @input="updateArcGap('entryGap', 'halfWidth', parseFloat($event.target.value))"
+                />
               </div>
               <div class="field">
                 <label>初始状态</label>
-                <select :value="object.arc.entryGap.initiallyOpen ? 'open' : 'closed'" @change="updateArcGap('entryGap', 'initiallyOpen', $event.target.value === 'open')">
+                <select
+                  :value="object.arc.entryGap.initiallyOpen ? 'open' : 'closed'"
+                  @change="
+                    updateArcGap('entryGap', 'initiallyOpen', $event.target.value === 'open')
+                  "
+                >
                   <option value="closed">关闭（禁止通过）</option>
                   <option value="open">打开（允许通过）</option>
                 </select>
               </div>
               <div class="field">
                 <label>触发类型</label>
-                <select :value="getTriggerType(object.arc.entryGap)" @change="onTriggerTypeChange('entryGap', $event.target.value)">
+                <select
+                  :value="getTriggerType(object.arc.entryGap)"
+                  @change="onTriggerTypeChange('entryGap', $event.target.value)"
+                >
                   <option value="none">无触发器</option>
                   <option value="angleCross">角度穿越</option>
                   <option value="enterRing">进入圆环</option>
@@ -312,11 +374,19 @@
               </div>
               <div v-if="getTriggerType(object.arc.entryGap) === 'angleCross'" class="field">
                 <label>触发角度 (rad)</label>
-                <input type="number" step="0.1" :value="object.arc.entryGap.triggerAngle" @input="updateArcGap('entryGap', 'triggerAngle', parseFloat($event.target.value))" />
+                <input
+                  type="number"
+                  step="0.1"
+                  :value="object.arc.entryGap.triggerAngle"
+                  @input="updateArcGap('entryGap', 'triggerAngle', parseFloat($event.target.value))"
+                />
               </div>
               <div v-if="getTriggerType(object.arc.entryGap) !== 'none'" class="field">
                 <label>触发动作</label>
-                <select :value="object.arc.entryGap.triggerAction || 'open'" @change="updateArcGap('entryGap', 'triggerAction', $event.target.value)">
+                <select
+                  :value="object.arc.entryGap.triggerAction || 'open'"
+                  @change="updateArcGap('entryGap', 'triggerAction', $event.target.value)"
+                >
                   <option value="open">打开缺口</option>
                   <option value="close">关闭缺口</option>
                 </select>
@@ -327,27 +397,61 @@
           <!-- 出口缺口 -->
           <div class="gap-section">
             <label>出口缺口</label>
-            <button v-if="!object.arc.exitGap" type="button" class="gap-btn" @click="setArcGap('exitGap', { centerAngle: 3.14, halfWidth: 0.3, initiallyOpen: false, triggerAngle: undefined, triggerAction: 'open' })">+ 添加</button>
+            <button
+              v-if="!object.arc.exitGap"
+              type="button"
+              class="gap-btn"
+              @click="
+                setArcGap('exitGap', {
+                  centerAngle: 3.14,
+                  halfWidth: 0.3,
+                  initiallyOpen: false,
+                  triggerAngle: undefined,
+                  triggerAction: 'open'
+                })
+              "
+            >
+              + 添加
+            </button>
             <template v-else>
-              <button type="button" class="gap-btn danger" @click="setArcGap('exitGap', null)">删除</button>
+              <button type="button" class="gap-btn danger" @click="setArcGap('exitGap', null)">
+                删除
+              </button>
               <div class="field">
                 <label>中心角 (rad)</label>
-                <input type="number" step="0.1" :value="object.arc.exitGap.centerAngle" @input="updateArcGap('exitGap', 'centerAngle', parseFloat($event.target.value))" />
+                <input
+                  type="number"
+                  step="0.1"
+                  :value="object.arc.exitGap.centerAngle"
+                  @input="updateArcGap('exitGap', 'centerAngle', parseFloat($event.target.value))"
+                />
               </div>
               <div class="field">
                 <label>半宽 (rad)</label>
-                <input type="number" step="0.05" min="0.01" :value="object.arc.exitGap.halfWidth" @input="updateArcGap('exitGap', 'halfWidth', parseFloat($event.target.value))" />
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0.01"
+                  :value="object.arc.exitGap.halfWidth"
+                  @input="updateArcGap('exitGap', 'halfWidth', parseFloat($event.target.value))"
+                />
               </div>
               <div class="field">
                 <label>初始状态</label>
-                <select :value="object.arc.exitGap.initiallyOpen ? 'open' : 'closed'" @change="updateArcGap('exitGap', 'initiallyOpen', $event.target.value === 'open')">
+                <select
+                  :value="object.arc.exitGap.initiallyOpen ? 'open' : 'closed'"
+                  @change="updateArcGap('exitGap', 'initiallyOpen', $event.target.value === 'open')"
+                >
                   <option value="closed">关闭（禁止通过）</option>
                   <option value="open">打开（允许通过）</option>
                 </select>
               </div>
               <div class="field">
                 <label>触发类型</label>
-                <select :value="getTriggerType(object.arc.exitGap)" @change="onTriggerTypeChange('exitGap', $event.target.value)">
+                <select
+                  :value="getTriggerType(object.arc.exitGap)"
+                  @change="onTriggerTypeChange('exitGap', $event.target.value)"
+                >
                   <option value="none">无触发器</option>
                   <option value="angleCross">角度穿越</option>
                   <option value="enterRing">进入圆环</option>
@@ -355,11 +459,19 @@
               </div>
               <div v-if="getTriggerType(object.arc.exitGap) === 'angleCross'" class="field">
                 <label>触发角度 (rad)</label>
-                <input type="number" step="0.1" :value="object.arc.exitGap.triggerAngle" @input="updateArcGap('exitGap', 'triggerAngle', parseFloat($event.target.value))" />
+                <input
+                  type="number"
+                  step="0.1"
+                  :value="object.arc.exitGap.triggerAngle"
+                  @input="updateArcGap('exitGap', 'triggerAngle', parseFloat($event.target.value))"
+                />
               </div>
               <div v-if="getTriggerType(object.arc.exitGap) !== 'none'" class="field">
                 <label>触发动作</label>
-                <select :value="object.arc.exitGap.triggerAction || 'open'" @change="updateArcGap('exitGap', 'triggerAction', $event.target.value)">
+                <select
+                  :value="object.arc.exitGap.triggerAction || 'open'"
+                  @change="updateArcGap('exitGap', 'triggerAction', $event.target.value)"
+                >
                   <option value="open">打开缺口</option>
                   <option value="close">关闭缺口</option>
                 </select>
@@ -429,17 +541,17 @@
       </div>
       <div class="field">
         <label>场类型</label>
-        <select
-          :value="state.field.type"
-          @change="onFieldTypeChange($event.target.value)"
-        >
+        <select :value="state.field.type" @change="onFieldTypeChange($event.target.value)">
           <option value="none">无场</option>
           <option value="electric">匀强电场</option>
           <option value="magnetic">匀强磁场</option>
           <option value="composite">复合场（电+磁）</option>
         </select>
       </div>
-      <div v-if="state.field.type === 'electric' || state.field.type === 'composite'" class="field-group">
+      <div
+        v-if="state.field.type === 'electric' || state.field.type === 'composite'"
+        class="field-group"
+      >
         <div class="field">
           <label>Ex (N/C)</label>
           <input
@@ -459,7 +571,10 @@
           />
         </div>
       </div>
-      <div v-if="state.field.type === 'magnetic' || state.field.type === 'composite'" class="field-group">
+      <div
+        v-if="state.field.type === 'magnetic' || state.field.type === 'composite'"
+        class="field-group"
+      >
         <div class="field">
           <label>B (T)</label>
           <input
@@ -628,7 +743,8 @@ label {
   color: #94a3b8;
 }
 
-input, select {
+input,
+select {
   padding: 0.45rem 0.6rem;
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(59, 130, 246, 0.2);
@@ -639,7 +755,8 @@ input, select {
   transition: border-color 0.2s;
 }
 
-input:focus, select:focus {
+input:focus,
+select:focus {
   border-color: rgba(59, 130, 246, 0.5);
 }
 
@@ -701,7 +818,7 @@ select {
   gap: 0.5rem;
 }
 
-.toggle-row input[type="checkbox"] {
+.toggle-row input[type='checkbox'] {
   width: 1.1rem;
   height: 1.1rem;
   cursor: pointer;

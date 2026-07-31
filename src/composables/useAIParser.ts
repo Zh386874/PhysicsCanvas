@@ -11,7 +11,10 @@ import { ref, computed } from 'vue'
  */
 
 /** 二维向量 */
-export interface ParsedVec2 { x: number; y: number }
+export interface ParsedVec2 {
+  x: number
+  y: number
+}
 
 /** 物体基类：仅包含公共字段 */
 export interface BaseParsedObject {
@@ -68,9 +71,31 @@ export interface ParsedArc extends BaseParsedObject {
   endAngle?: number
   friction?: number
   /** 螺旋圆轨动态入口缺口（B点），运行时由状态机控制开关 */
-  entryGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  entryGap?: {
+    centerAngle: number
+    halfWidth: number
+    initiallyOpen?: boolean
+    triggerType?: 'angleCross' | 'enterRing' | 'spotOverlap'
+    triggerAngle?: number
+    triggerAction?: 'open' | 'close'
+    /** 触发点在环上的弧度（场景 y-up 坐标系）。triggerType='spotOverlap' 时使用 */
+    triggerSpotAngle?: number
+    /** 触发点半径（米）。缺省运行时取球半径 1.5 倍 */
+    triggerSpotRadius?: number
+  }
   /** 螺旋圆轨动态出口缺口（E点），运行时由状态机控制开关 */
-  exitGap?: { centerAngle: number; halfWidth: number; initiallyOpen?: boolean; triggerType?: 'angleCross' | 'enterRing'; triggerAngle?: number; triggerAction?: 'open' | 'close' }
+  exitGap?: {
+    centerAngle: number
+    halfWidth: number
+    initiallyOpen?: boolean
+    triggerType?: 'angleCross' | 'enterRing' | 'spotOverlap'
+    triggerAngle?: number
+    triggerAction?: 'open' | 'close'
+    /** 触发点在环上的弧度（场景 y-up 坐标系）。triggerType='spotOverlap' 时使用 */
+    triggerSpotAngle?: number
+    /** 触发点半径（米）。缺省运行时取球半径 1.5 倍 */
+    triggerSpotRadius?: number
+  }
 }
 
 /** 弹簧 */
@@ -88,7 +113,13 @@ export type ParsedObject = ParsedBall | ParsedPlatform | ParsedPlate | ParsedArc
 export interface ParsedProblem {
   title?: string
   description?: string
-  topic: 'projectile' | 'slope' | 'elastic_collision' | 'magnetic_circle' | 'electric_deflection' | 'custom'
+  topic:
+    | 'projectile'
+    | 'slope'
+    | 'elastic_collision'
+    | 'magnetic_circle'
+    | 'electric_deflection'
+    | 'custom'
   objects: ParsedObject[]
   field: {
     type: 'none' | 'electric' | 'magnetic' | 'composite'
@@ -202,9 +233,24 @@ interface ModelConfig {
 }
 
 const MODELS: ModelConfig[] = [
-  { id: 'deepseek', name: 'DeepSeek', apiBase: 'https://api.deepseek.com/v1/chat/completions', modelName: 'deepseek-chat' },
-  { id: 'glm', name: '智谱 GLM', apiBase: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', modelName: 'glm-4-flash' },
-  { id: 'openai', name: 'OpenAI', apiBase: 'https://api.openai.com/v1/chat/completions', modelName: 'gpt-4o-mini' }
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    apiBase: 'https://api.deepseek.com/v1/chat/completions',
+    modelName: 'deepseek-chat'
+  },
+  {
+    id: 'glm',
+    name: '智谱 GLM',
+    apiBase: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    modelName: 'glm-4-flash'
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    apiBase: 'https://api.openai.com/v1/chat/completions',
+    modelName: 'gpt-4o-mini'
+  }
 ]
 
 const STORAGE_KEY = 'ai_api_config'
@@ -215,8 +261,22 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const config = JSON.parse(raw)
-    const model = MODELS.find(m => m.id === config.modelId)
-    if (!model || !config.apiKey) return null
+    if (!config.apiKey) return null
+    // 自定义模型：从保存字段构造 ModelConfig
+    if (config.modelId === 'custom') {
+      if (!config.customApiBase || !config.customModelName) return null
+      return {
+        model: {
+          id: 'custom',
+          name: config.customName || '自定义',
+          apiBase: config.customApiBase,
+          modelName: config.customModelName
+        },
+        apiKey: config.apiKey
+      }
+    }
+    const model = MODELS.find((m) => m.id === config.modelId)
+    if (!model) return null
     return { model, apiKey: config.apiKey }
   } catch {
     return null
@@ -253,7 +313,7 @@ export async function parsePhysicsProblem(text: string): Promise<ParsedProblem> 
     const response = await fetch(model.apiBase, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -346,10 +406,4 @@ export function convertToSceneParams(parsed: ParsedProblem): {
   return { sceneName, params }
 }
 
-export {
-  loading,
-  errorMsg,
-  result,
-  isAIConfigured,
-  configuredModelName
-}
+export { loading, errorMsg, result, isAIConfigured, configuredModelName }

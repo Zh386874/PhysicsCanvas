@@ -19,18 +19,19 @@ const searchKeyword = ref('')
 /** 所有可用标签 */
 const allTags = computed(() => {
   const tags = new Set<string>()
-  questions.value.forEach(q => q.tags.forEach(t => tags.add(t)))
+  questions.value.forEach((q) => q.tags.forEach((t) => tags.add(t)))
   return Array.from(tags).sort()
 })
 
 /** 筛选后的题目列表 */
 const filteredQuestions = computed(() => {
-  return questions.value.filter(q => {
+  return questions.value.filter((q) => {
     if (filterDifficulty.value !== 'all' && q.difficulty !== filterDifficulty.value) return false
     if (filterTag.value && !q.tags.includes(filterTag.value)) return false
     if (searchKeyword.value) {
       const kw = searchKeyword.value.toLowerCase()
-      if (!q.title.toLowerCase().includes(kw) && !q.description.toLowerCase().includes(kw)) return false
+      if (!q.title.toLowerCase().includes(kw) && !q.description.toLowerCase().includes(kw))
+        return false
     }
     return true
   })
@@ -38,15 +39,15 @@ const filteredQuestions = computed(() => {
 
 /** 当前选中的题目 */
 const selectedQuestion = computed(() => {
-  return questions.value.find(q => q.id === selectedId.value) || null
+  return questions.value.find((q) => q.id === selectedId.value) || null
 })
 
 /** 难度统计 */
 const difficultyStats = computed(() => ({
   total: questions.value.length,
-  easy: questions.value.filter(q => q.difficulty === 'easy').length,
-  medium: questions.value.filter(q => q.difficulty === 'medium').length,
-  hard: questions.value.filter(q => q.difficulty === 'hard').length
+  easy: questions.value.filter((q) => q.difficulty === 'easy').length,
+  medium: questions.value.filter((q) => q.difficulty === 'medium').length,
+  hard: questions.value.filter((q) => q.difficulty === 'hard').length
 }))
 
 /** 选中题目 */

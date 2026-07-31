@@ -30,12 +30,15 @@ export function isPlatformTool(t: string): boolean {
  */
 function createPlatformLikeObject(
   toolType: 'platform' | 'conveyor' | 'plate',
-  x1: number, y1: number, x2: number, y2: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
   objects: PhysicsObject[]
 ): SegmentObject {
   const normal = autoComputeNormal({ x1, y1, x2, y2 })
   // 按子类型属性（velocity/movable）统计同类物体数量，避免依赖 name 前缀（用户可能重命名）
-  const sameTypeCount = objects.filter(o => {
+  const sameTypeCount = objects.filter((o) => {
     if (o.type !== 'line_segment') return false
     const seg = o as SegmentObject
     if (toolType === 'conveyor') return !!seg.velocity
@@ -47,7 +50,10 @@ function createPlatformLikeObject(
     id: genId(),
     name: '',
     type: 'line_segment',
-    x1, y1, x2, y2,
+    x1,
+    y1,
+    x2,
+    y2,
     normalX: normal.normalX,
     normalY: normal.normalY,
     restitution: 0.3,
@@ -64,12 +70,12 @@ function createPlatformLikeObject(
       subtype: 'plate',
       movable: true,
       mass: 1,
-      thickness: 20,                              // 视觉厚度（像素）保留
-      physicsThickness: 0.1 * PIXELS_PER_METER,   // 物理厚度初始 0.1m（用户可调）
-      angle: 0,                                    // 静态倾角，默认水平
-      frictionTop: 0.3,                            // 默认上表面 0.3
-      frictionBottom: 0.1,                         // 默认下表面 0.1
-      velocity: { x: 0, y: 0 }  // 初始静止，使物理更新分支能进入
+      thickness: 20, // 视觉厚度（像素）保留
+      physicsThickness: 0.1 * PIXELS_PER_METER, // 物理厚度初始 0.1m（用户可调）
+      angle: 0, // 静态倾角，默认水平
+      frictionTop: 0.3, // 默认上表面 0.3
+      frictionBottom: 0.1, // 默认下表面 0.1
+      velocity: { x: 0, y: 0 } // 初始静止，使物理更新分支能进入
     }
   }
   return { ...base, name: `平台${index}`, color: '#475569' }
@@ -85,8 +91,11 @@ let arcCenter: { x: number; y: number } | null = null
 let arcRadius = 0
 let arcStartAngle = 0
 const previewArc = ref<{
-  cx: number; cy: number; r: number
-  startAngle: number; endAngle: number
+  cx: number
+  cy: number
+  r: number
+  startAngle: number
+  endAngle: number
   phase?: string
 } | null>(null)
 
@@ -150,8 +159,11 @@ function handleArcClick(
     if (arcRadius > 10) {
       arcPhase = 'angle'
       previewArc.value = {
-        cx: arcCenter!.x, cy: arcCenter!.y, r: arcRadius,
-        startAngle: arcStartAngle, endAngle: arcStartAngle
+        cx: arcCenter!.x,
+        cy: arcCenter!.y,
+        r: arcRadius,
+        startAngle: arcStartAngle,
+        endAngle: arcStartAngle
       }
     } else {
       resetArcState()
@@ -159,7 +171,16 @@ function handleArcClick(
     return true
   } else {
     const endAngle = Math.atan2(pos.y - arcCenter!.y, pos.x - arcCenter!.x)
-    generateArcSegments(arcCenter!.x, arcCenter!.y, arcRadius, arcStartAngle, endAngle, shiftKey, onAddObject, objects)
+    generateArcSegments(
+      arcCenter!.x,
+      arcCenter!.y,
+      arcRadius,
+      arcStartAngle,
+      endAngle,
+      shiftKey,
+      onAddObject,
+      objects
+    )
     resetArcState()
     return true
   }
@@ -172,12 +193,23 @@ function updateArcPreview(pos: { x: number; y: number }): void {
   if (!arcCenter) return
   if (arcPhase === 'radius') {
     const r = Math.hypot(pos.x - arcCenter.x, pos.y - arcCenter.y)
-    previewArc.value = { cx: arcCenter.x, cy: arcCenter.y, r, startAngle: 0, endAngle: 0, phase: 'radius' }
+    previewArc.value = {
+      cx: arcCenter.x,
+      cy: arcCenter.y,
+      r,
+      startAngle: 0,
+      endAngle: 0,
+      phase: 'radius'
+    }
   } else if (arcPhase === 'angle') {
     const endAngle = Math.atan2(pos.y - arcCenter.y, pos.x - arcCenter.x)
     previewArc.value = {
-      cx: arcCenter.x, cy: arcCenter.y, r: arcRadius,
-      startAngle: arcStartAngle, endAngle, phase: 'angle'
+      cx: arcCenter.x,
+      cy: arcCenter.y,
+      r: arcRadius,
+      startAngle: arcStartAngle,
+      endAngle,
+      phase: 'angle'
     }
   }
 }
@@ -186,8 +218,11 @@ function updateArcPreview(pos: { x: number; y: number }): void {
  * 生成圆弧的离散线段（任意起止角度，8 条线段近似）
  */
 function generateArcSegments(
-  cx: number, cy: number, r: number,
-  startAngle: number, endAngle: number,
+  cx: number,
+  cy: number,
+  r: number,
+  startAngle: number,
+  endAngle: number,
   reverse: boolean,
   onAddObject: (obj: SegmentObject) => void,
   objects: PhysicsObject[]
@@ -198,7 +233,9 @@ function generateArcSegments(
   if (reverse) delta = delta - Math.PI * 2
   const step = delta / numSegments
   const groupId = genId()
-  const arcName = '弧线' + (Math.floor(objects.filter(o => o.name?.startsWith('弧线')).length / numSegments) + 1)
+  const arcName =
+    '弧线' +
+    (Math.floor(objects.filter((o) => o.name?.startsWith('弧线')).length / numSegments) + 1)
   for (let i = 0; i < numSegments; i++) {
     const a1 = startAngle + i * step
     const a2 = startAngle + (i + 1) * step
@@ -214,7 +251,10 @@ function generateArcSegments(
       name: arcName,
       type: 'line_segment',
       arc: { cx, cy, r, startAngle, endAngle: startAngle + delta },
-      x1, y1, x2, y2,
+      x1,
+      y1,
+      x2,
+      y2,
       normalX: normal.normalX,
       normalY: normal.normalY,
       restitution: 0.3,
@@ -257,9 +297,11 @@ function handleSpringClick(
     return true
   }
   // 第二次点击：查找点击的球
-  const ball = objects.find(o =>
-    (o.type === '质点' || o.type === '刚体') &&
-    Math.hypot((o as ParticleObject).x - pos.x, (o as ParticleObject).y - pos.y) <= (o as ParticleObject).radius
+  const ball = objects.find(
+    (o) =>
+      (o.type === '质点' || o.type === '刚体') &&
+      Math.hypot((o as ParticleObject).x - pos.x, (o as ParticleObject).y - pos.y) <=
+        (o as ParticleObject).radius
   ) as ParticleObject | undefined
 
   if (ball) {
@@ -268,7 +310,7 @@ function handleSpringClick(
     const naturalLength = Math.max(Math.hypot(dx, dy), 10)
     const newObj: SpringObject = {
       id: genId(),
-      name: '弹簧' + (objects.filter(o => o.type === 'spring').length + 1),
+      name: '弹簧' + (objects.filter((o) => o.type === 'spring').length + 1),
       type: 'spring',
       anchorX: springAnchor.x,
       anchorY: springAnchor.y,
@@ -295,8 +337,16 @@ function updateSpringPreview(pos: { x: number; y: number }): void {
 // ===== Shift 防重叠 =====
 
 /** 点到线段距离 */
-function pointToSegmentDist(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
-  const dx = x2 - x1, dy = y2 - y1
+function pointToSegmentDist(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number {
+  const dx = x2 - x1,
+    dy = y2 - y1
   const len2 = dx * dx + dy * dy
   if (len2 < 1e-10) return Math.hypot(px - x1, py - y1)
   let t = ((px - x1) * dx + (py - y1) * dy) / len2
@@ -316,27 +366,45 @@ interface OverlapResult {
  * 检测 (x,y) 半径 r 的新球是否与现有物体重叠
  * 返回首个重叠障碍物，nx/ny 为从障碍物指向新球中心的法线方向
  */
-function findOverlap(x: number, y: number, r: number, objects: PhysicsObject[]): OverlapResult | null {
+function findOverlap(
+  x: number,
+  y: number,
+  r: number,
+  objects: PhysicsObject[]
+): OverlapResult | null {
   const threshold = 2
   for (const obj of objects) {
     if (obj.type === '质点' || obj.type === '刚体') {
       const p = obj as ParticleObject
-      const dx = x - p.x, dy = y - p.y
+      const dx = x - p.x,
+        dy = y - p.y
       const dist = Math.hypot(dx, dy)
       const minDist = r + (p.radius || 10) + threshold
       if (dist < minDist) {
         const safeDist = dist > 1e-6 ? dist : 1
-        return { type: 'circle', obj, penetration: minDist - dist, nx: dx / safeDist, ny: dy / safeDist }
+        return {
+          type: 'circle',
+          obj,
+          penetration: minDist - dist,
+          nx: dx / safeDist,
+          ny: dy / safeDist
+        }
       }
     } else if (obj.type === 'line_segment') {
       const seg = obj as SegmentObject
       const dist = pointToSegmentDist(x, y, seg.x1, seg.y1, seg.x2, seg.y2)
       const minDist = r + threshold
       if (dist < minDist) {
-        let nx = seg.normalX || 0, ny = seg.normalY || 0
-        const cx = (seg.x1 + seg.x2) / 2, cy = (seg.y1 + seg.y2) / 2
-        const toBallX = x - cx, toBallY = y - cy
-        if (nx * toBallX + ny * toBallY < 0) { nx = -nx; ny = -ny }
+        let nx = seg.normalX || 0,
+          ny = seg.normalY || 0
+        const cx = (seg.x1 + seg.x2) / 2,
+          cy = (seg.y1 + seg.y2) / 2
+        const toBallX = x - cx,
+          toBallY = y - cy
+        if (nx * toBallX + ny * toBallY < 0) {
+          nx = -nx
+          ny = -ny
+        }
         return { type: 'segment', obj, penetration: minDist - dist, nx, ny }
       }
     }
@@ -348,8 +416,14 @@ function findOverlap(x: number, y: number, r: number, objects: PhysicsObject[]):
  * 从重叠位置沿法线迭代推出，直到不重叠或达到最大尝试次数
  * 返回修正后的 {x, y}，若无需修正返回 null
  */
-function pushOutOfOverlap(x: number, y: number, r: number, objects: PhysicsObject[]): { x: number; y: number } | null {
-  let cx = x, cy = y
+function pushOutOfOverlap(
+  x: number,
+  y: number,
+  r: number,
+  objects: PhysicsObject[]
+): { x: number; y: number } | null {
+  let cx = x,
+    cy = y
   const maxAttempts = 200
   for (let i = 0; i < maxAttempts; i++) {
     const overlap = findOverlap(cx, cy, r, objects)
@@ -366,7 +440,10 @@ function pushOutOfOverlap(x: number, y: number, r: number, objects: PhysicsObjec
  * 排除弧线子段（arc）。返回吸附后圆心坐标，无吸附返回 null
  */
 function snapToSegmentSurface(
-  x: number, y: number, r: number, objects: PhysicsObject[]
+  x: number,
+  y: number,
+  r: number,
+  objects: PhysicsObject[]
 ): { x: number; y: number } | null {
   let best: { x: number; y: number; dist: number } | null = null
   for (const obj of objects) {
@@ -374,7 +451,8 @@ function snapToSegmentSurface(
     const seg = obj as SegmentObject
     if (seg.arc) continue
     // 求圆心到线段的最近点（垂足，t 参数化，与 pointToSegmentDistance 内部一致）
-    const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1
+    const dx = seg.x2 - seg.x1,
+      dy = seg.y2 - seg.y1
     const len2 = dx * dx + dy * dy
     if (len2 < 1e-10) continue
     let t = ((x - seg.x1) * dx + (y - seg.y1) * dy) / len2
@@ -385,9 +463,14 @@ function snapToSegmentSurface(
     if (dist > SNAP_THRESHOLD + r) continue
     if (best && dist >= best.dist) continue
     // 法线方向调整为指向小球一侧（与 findOverlap 一致）
-    let nx = seg.normalX || 0, ny = seg.normalY || 0
-    const cx = (seg.x1 + seg.x2) / 2, cy = (seg.y1 + seg.y2) / 2
-    if (nx * (x - cx) + ny * (y - cy) < 0) { nx = -nx; ny = -ny }
+    let nx = seg.normalX || 0,
+      ny = seg.normalY || 0
+    const cx = (seg.x1 + seg.x2) / 2,
+      cy = (seg.y1 + seg.y2) / 2
+    if (nx * (x - cx) + ny * (y - cy) < 0) {
+      nx = -nx
+      ny = -ny
+    }
     best = { x: closestX + nx * r, y: closestY + ny * r, dist }
   }
   return best ? { x: best.x, y: best.y } : null

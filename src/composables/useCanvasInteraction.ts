@@ -9,11 +9,20 @@
 import { ref, type Ref } from 'vue'
 import { autoComputeNormal } from './useCollision'
 import {
-  tool, chargeMode, previewLine, genId,
-  isPlatformTool, createPlatformLikeObject,
-  handleArcClick, updateArcPreview,
-  getSpringAnchor, handleSpringClick, updateSpringPreview,
-  pushOutOfOverlap, snapToSegmentSurface, triggerShiftFlash
+  tool,
+  chargeMode,
+  previewLine,
+  genId,
+  isPlatformTool,
+  createPlatformLikeObject,
+  handleArcClick,
+  updateArcPreview,
+  getSpringAnchor,
+  handleSpringClick,
+  updateSpringPreview,
+  pushOutOfOverlap,
+  snapToSegmentSurface,
+  triggerShiftFlash
 } from './useEditTools'
 import { pointToSegmentDistance } from './useCanvasRenderer'
 import type { PhysicsObject, ParticleObject, SegmentObject } from './usePhysics'
@@ -108,17 +117,33 @@ let emitFn: (event: string, ...args: unknown[]) => void = () => {}
 let stateAccess: PhysicsStateAccess = { objects: [], groundY: 400 }
 
 // ===== Getter（供渲染层和组件使用） =====
-export function getDpr(): number { return dpr }
-export function getCssW(): number { return cssW }
-export function getCssH(): number { return cssH }
+export function getDpr(): number {
+  return dpr
+}
+export function getCssW(): number {
+  return cssW
+}
+export function getCssH(): number {
+  return cssH
+}
 export function getSelectionState() {
   return { active: selectionActive, start: selectionStart, end: selectionEnd }
 }
-export function isPanning(): boolean { return panning }
-export function isDragging(): boolean { return dragging }
-export function isBatchDragging(): boolean { return batchDragging }
-export function isDrawing(): boolean { return drawing }
-export function isSelectionActive(): boolean { return selectionActive }
+export function isPanning(): boolean {
+  return panning
+}
+export function isDragging(): boolean {
+  return dragging
+}
+export function isBatchDragging(): boolean {
+  return batchDragging
+}
+export function isDrawing(): boolean {
+  return drawing
+}
+export function isSelectionActive(): boolean {
+  return selectionActive
+}
 
 /**
  * 初始化交互层：注入 canvasRef、props getter、emit、stateAccess
@@ -286,19 +311,21 @@ function onMouseDown(e: MouseEvent): void {
     if (props.selectedIds.length > 1 && props.selectedIds.includes(hit.id)) {
       batchDragging = true
       batchDragStartPos = pos
-      batchDragInitial = props.selectedIds.map((id: number): BatchDragItem | null => {
-        const o = stateAccess.objects.find(o => o.id === id)
-        if (!o) return null
-        if (o.type === '质点' || o.type === '刚体') return { id, x: o.x, y: o.y }
-        if (o.type === 'line_segment') return { id, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 }
-        return null
-      }).filter((item): item is BatchDragItem => item !== null)
+      batchDragInitial = props.selectedIds
+        .map((id: number): BatchDragItem | null => {
+          const o = stateAccess.objects.find((o) => o.id === id)
+          if (!o) return null
+          if (o.type === '质点' || o.type === '刚体') return { id, x: o.x, y: o.y }
+          if (o.type === 'line_segment') return { id, x1: o.x1, y1: o.y1, x2: o.x2, y2: o.y2 }
+          return null
+        })
+        .filter((item): item is BatchDragItem => item !== null)
       return
     }
     // 单选拖拽
     dragging = true
     dragTarget = hit
-    const obj = stateAccess.objects.find(o => o.id === hit.id)
+    const obj = stateAccess.objects.find((o) => o.id === hit.id)
     if (!obj) return
     if (hit.mode === 'circle') {
       const p = obj as ParticleObject
@@ -374,13 +401,16 @@ function onMouseMove(e: MouseEvent): void {
   if (batchDragging && batchDragInitial) {
     const dx = pos.x - batchDragStartPos!.x
     const dy = pos.y - batchDragStartPos!.y
-    const updates = batchDragInitial.map(item => {
+    const updates = batchDragInitial.map((item) => {
       if (item.x !== undefined) {
         // 质点/刚体：x 和 y 同时存在
         return { id: item.id, props: { x: item.x + dx, y: item.y! + dy } }
       }
       // 线段：x1/y1/x2/y2 同时存在
-      return { id: item.id, props: { x1: item.x1! + dx, y1: item.y1! + dy, x2: item.x2! + dx, y2: item.y2! + dy } }
+      return {
+        id: item.id,
+        props: { x1: item.x1! + dx, y1: item.y1! + dy, x2: item.x2! + dx, y2: item.y2! + dy }
+      }
     })
     emitFn('batch-update', updates)
     return
@@ -421,7 +451,7 @@ function onMouseMove(e: MouseEvent): void {
   if (dragging && dragTarget) {
     // 模块级 let 变量在函数调用后会丢失窄化，用局部 const 保存以保持非空类型
     const target = dragTarget
-    const obj = stateAccess.objects.find(o => o.id === target.id)
+    const obj = stateAccess.objects.find((o) => o.id === target.id)
     if (!obj) return
     if (target.mode === 'circle') {
       let targetX = pos.x - target.offsetX!
@@ -438,9 +468,14 @@ function onMouseMove(e: MouseEvent): void {
       }
       emitFn('update-object', { id: obj.id, props: { x: targetX, y: targetY } })
     } else if (target.mode === 'endpoint') {
-      const newProps: { x1?: number; y1?: number; x2?: number; y2?: number; normalX?: number; normalY?: number } = target.endpointIdx === 0
-        ? { x1: pos.x, y1: pos.y }
-        : { x2: pos.x, y2: pos.y }
+      const newProps: {
+        x1?: number
+        y1?: number
+        x2?: number
+        y2?: number
+        normalX?: number
+        normalY?: number
+      } = target.endpointIdx === 0 ? { x1: pos.x, y1: pos.y } : { x2: pos.x, y2: pos.y }
       // 自动重算法线
       const tempSeg = { ...obj, ...newProps } as SegmentObject
       const normal = autoComputeNormal(tempSeg)
@@ -490,7 +525,9 @@ function onMouseUp(e: MouseEvent): void {
     batchDragStartPos = null
     batchDragInitial = null
     justDragged = true
-    setTimeout(() => { justDragged = false }, 0)
+    setTimeout(() => {
+      justDragged = false
+    }, 0)
     return
   }
 
@@ -512,7 +549,11 @@ function onMouseUp(e: MouseEvent): void {
       // isPlatformTool 已保证 tool.value 为 'platform' | 'conveyor' | 'plate'，类型断言安全
       const newObj = createPlatformLikeObject(
         tool.value as 'platform' | 'conveyor' | 'plate',
-        drawStart!.x, drawStart!.y, endX, endY, stateAccess.objects
+        drawStart!.x,
+        drawStart!.y,
+        endX,
+        endY,
+        stateAccess.objects
       )
       emitFn('add-object', newObj)
     }
@@ -527,14 +568,19 @@ function onMouseUp(e: MouseEvent): void {
     dragTarget = null
     // 标记刚结束拖拽，阻止紧随其后的 click 事件误添加小球
     justDragged = true
-    setTimeout(() => { justDragged = false }, 0)
+    setTimeout(() => {
+      justDragged = false
+    }, 0)
   }
 }
 
 // ===== 矩形选框计算 =====
 // 圆：圆心在矩形内；线段：任一端点在矩形内
 
-function getObjectsInRect(p1: { x: number; y: number } | null, p2: { x: number; y: number } | null): number[] {
+function getObjectsInRect(
+  p1: { x: number; y: number } | null,
+  p2: { x: number; y: number } | null
+): number[] {
   if (!p1 || !p2) return []
   const minX = Math.min(p1.x, p2.x)
   const maxX = Math.max(p1.x, p2.x)
@@ -570,16 +616,24 @@ function onWheel(e: WheelEvent): void {
   // 以鼠标为中心缩放：保持鼠标点对应的世界坐标不变
   const worldX = (mouseX - worldOffset.value.x) / worldScale.value
   const worldY = (mouseY - worldOffset.value.y) / worldScale.value
-  worldOffset.value = clampOffset({
-    x: mouseX - worldX * newScale,
-    y: mouseY - worldY * newScale
-  }, newScale, canvas)
+  worldOffset.value = clampOffset(
+    {
+      x: mouseX - worldX * newScale,
+      y: mouseY - worldY * newScale
+    },
+    newScale,
+    canvas
+  )
   worldScale.value = newScale
 }
 
 // ===== 限制 worldOffset 范围，防止场景完全移出视野 =====
 
-function clampOffset(offset: { x: number; y: number }, scale: number, _canvas: HTMLCanvasElement): { x: number; y: number } {
+function clampOffset(
+  offset: { x: number; y: number },
+  scale: number,
+  _canvas: HTMLCanvasElement
+): { x: number; y: number } {
   // 用 CSS 逻辑尺寸计算（与绘制坐标一致）
   const halfW = cssW / 2
   const halfH = cssH / 2
@@ -623,12 +677,4 @@ function resizeCanvas(): void {
   }
 }
 
-export {
-  onCanvasClick,
-  onMouseDown,
-  onMouseMove,
-  onMouseUp,
-  onWheel,
-  resetView,
-  resizeCanvas
-}
+export { onCanvasClick, onMouseDown, onMouseMove, onMouseUp, onWheel, resetView, resizeCanvas }

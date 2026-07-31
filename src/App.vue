@@ -15,7 +15,11 @@
           <QuestionBankPanel embedded @load-question="onLoadQuestion" />
         </div>
       </div>
-      <button class="api-config-btn" :class="{ configured: isAIConfigured }" @click="showApiKeyDialog = true">
+      <button
+        class="api-config-btn"
+        :class="{ configured: isAIConfigured }"
+        @click="showApiKeyDialog = true"
+      >
         <span class="api-icon">🔑</span>
         <span class="api-text">{{ isAIConfigured ? configuredModelName : 'AI 配置' }}</span>
       </button>
@@ -30,7 +34,11 @@
 
     <div class="main">
       <div class="left-panel">
-        <AIInput @load-preset="handleLoadPreset" @update-params="handleUpdateParams" @scene-built="handleSceneBuilt" />
+        <AIInput
+          @load-preset="handleLoadPreset"
+          @update-params="handleUpdateParams"
+          @scene-built="handleSceneBuilt"
+        />
         <ObjectList
           :objects="state.objects"
           :selectedId="selectedId"
@@ -40,10 +48,7 @@
           @select-group="onSelectGroup"
           @remove="handleRemoveObject"
         />
-        <PropertyPanel
-          :object="selectedObject"
-          @update:object="onObjectUpdate"
-        />
+        <PropertyPanel :object="selectedObject" @update:object="onObjectUpdate" />
       </div>
 
       <div class="right-area">
@@ -73,6 +78,16 @@
           :keyframeIndices="keyframeIndices"
           @update:currentFrame="currentFrame = $event"
         />
+        <div v-if="mode === 'replay' && !showChart" class="chart-toggle-bar">
+          <button class="chart-toggle-btn" @click="showChart = true">📊 显示数据图表</button>
+        </div>
+        <DataChart
+          v-if="mode === 'replay' && showChart"
+          :snapshots="snapshots"
+          :objects="state.objects"
+          :currentFrame="currentFrame"
+          @collapse="showChart = false"
+        />
         <ControlBar
           :isPlaying="isPlaying"
           :showForce="showForce"
@@ -97,6 +112,7 @@ import PropertyPanel from './components/PropertyPanel.vue'
 import ControlBar from './components/ControlBar.vue'
 import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
+import DataChart from './components/DataChart.vue'
 import AIInput from './components/AIInput.vue'
 import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import QuestionBankPanel from './components/QuestionBankPanel.vue'
@@ -166,16 +182,19 @@ const showApiKeyDialog = ref(false)
 
 function onApiKeySaved() {
   aiToast.value = '✅ AI 配置已保存'
-  setTimeout(() => aiToast.value = '', 2000)
+  setTimeout(() => (aiToast.value = ''), 2000)
 }
 function onApiKeyCleared() {
   aiToast.value = '⚠️ AI 配置已清除，已切换为本地解析'
-  setTimeout(() => aiToast.value = '', 2000)
+  setTimeout(() => (aiToast.value = ''), 2000)
 }
 
 // ===== 真题库浮层（本地 UI 状态） =====
 const showQBank = ref(false)
 const qbankTriggerRef = ref(null)
+
+// ===== 数据图表面板（回放模式下的 v-t 图/能量曲线） =====
+const showChart = ref(true)
 
 // 加载题目后关闭浮层
 function onLoadQuestion(question) {
@@ -219,7 +238,7 @@ const showGateColors = computed(() => state.showGateColors)
   background: rgba(15, 23, 42, 0.9);
   border-bottom: 1px solid rgba(59, 130, 246, 0.25);
   backdrop-filter: blur(10px);
-  z-index: 10;
+  z-index: 20;
 }
 
 .api-config-btn {
@@ -377,5 +396,27 @@ const showGateColors = computed(() => state.showGateColors)
 .qbank-popover::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.3);
   border-radius: 3px;
+}
+
+.chart-toggle-bar {
+  padding: 0.4rem 0.75rem;
+  background: rgba(15, 23, 42, 0.9);
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.chart-toggle-btn {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.05);
+  color: #93c5fd;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.2s;
+}
+
+.chart-toggle-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.5);
 }
 </style>

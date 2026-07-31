@@ -24,8 +24,22 @@
           </div>
         </div>
 
+        <!-- 自定义模型字段（仅自定义选项显示） -->
+        <div v-if="selectedModel === 'custom'" class="form-group custom-fields">
+          <label class="form-label">显示名称</label>
+          <input v-model="customName" class="custom-input" placeholder="如：我的 Claude" />
+          <label class="form-label">API URL</label>
+          <input
+            v-model="customApiBase"
+            class="custom-input"
+            placeholder="https://your-api.com/v1/chat/completions"
+          />
+          <label class="form-label">模型标识符</label>
+          <input v-model="customModelName" class="custom-input" placeholder="如：gpt-4o-mini" />
+        </div>
+
         <!-- API Key 输入 -->
-        <div class="form-group">
+        <div class="form-group api-key-group">
           <label class="form-label">API Key</label>
           <input
             v-model="apiKey"
@@ -39,8 +53,9 @@
         </div>
 
         <!-- 获取 Key 提示 -->
-        <div class="key-hint">
-          获取 API Key：<a :href="currentModel.docUrl" target="_blank">{{ currentModel.docUrl }}</a>
+        <div v-if="currentModel.docUrl" class="key-hint">
+          获取 API Key：
+          <a :href="currentModel.docUrl" target="_blank">{{ currentModel.docUrl }}</a>
         </div>
 
         <!-- 当前状态 -->
@@ -48,17 +63,17 @@
           <div v-if="savedConfig" class="status-active">
             ✅ 已配置 {{ savedConfig.modelName }}（Key: {{ savedConfig.maskedKey }}）
           </div>
-          <div v-else class="status-inactive">
-            ⚠️ 未配置，当前使用本地关键词解析
-          </div>
+          <div v-else class="status-inactive">⚠️ 未配置，当前使用本地关键词解析</div>
         </div>
 
         <!-- 操作按钮 -->
         <div class="dialog-actions">
-          <button v-if="savedConfig" class="btn-clear" @click="onClear">
-            清除配置
-          </button>
-          <button class="btn-save" :disabled="!apiKey.trim()" @click="onSave">
+          <button v-if="savedConfig" class="btn-clear" @click="onClear">清除配置</button>
+          <button
+            class="btn-save"
+            :disabled="!apiKey.trim() || (selectedModel === 'custom' && !isCustomValid)"
+            @click="onSave"
+          >
             保存配置
           </button>
         </div>
@@ -103,6 +118,15 @@ const models = [
     docUrl: 'https://platform.openai.com/api-keys',
     apiBase: 'https://api.openai.com/v1/chat/completions',
     modelName: 'gpt-4o-mini'
+  },
+  {
+    id: 'custom',
+    name: '自定义',
+    icon: '🔧',
+    placeholder: '在此粘贴你的 API Key',
+    docUrl: '',
+    apiBase: '',
+    modelName: ''
   }
 ]
 
@@ -111,9 +135,14 @@ const STORAGE_KEY = 'ai_api_config'
 const selectedModel = ref('deepseek')
 const apiKey = ref('')
 const showKey = ref(false)
+const customName = ref('')
+const customApiBase = ref('')
+const customModelName = ref('')
 
-const currentModel = computed(() =>
-  models.find(m => m.id === selectedModel.value) || models[0]
+const currentModel = computed(() => models.find((m) => m.id === selectedModel.value) || models[0])
+
+const isCustomValid = computed(
+  () => customName.value.trim() && customApiBase.value.trim() && customModelName.value.trim()
 )
 
 // 已保存的配置（从 localStorage 读取）
@@ -122,13 +151,14 @@ const savedConfig = computed(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const config = JSON.parse(raw)
-    const model = models.find(m => m.id === config.modelId)
-    if (!model) return null
     // 掩码显示 Key
     const key = config.apiKey || ''
-    const maskedKey = key.length > 8
-      ? key.slice(0, 4) + '****' + key.slice(-4)
-      : '****'
+    const maskedKey = key.length > 8 ? key.slice(0, 4) + '****' + key.slice(-4) : '****'
+    if (config.modelId === 'custom') {
+      return { ...config, modelName: config.customName || '自定义', maskedKey }
+    }
+    const model = models.find((m) => m.id === config.modelId)
+    if (!model) return null
     return {
       ...config,
       modelName: model.name,
@@ -141,12 +171,21 @@ const savedConfig = computed(() => {
 
 function onSave() {
   if (!apiKey.value.trim()) return
+  if (selectedModel.value === 'custom' && !isCustomValid.value) return
   const config = {
     modelId: selectedModel.value,
     apiKey: apiKey.value.trim()
   }
+  if (selectedModel.value === 'custom') {
+    config.customName = customName.value.trim()
+    config.customApiBase = customApiBase.value.trim()
+    config.customModelName = customModelName.value.trim()
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
   apiKey.value = ''
+  customName.value = ''
+  customApiBase.value = ''
+  customModelName.value = ''
   showKey.value = false
   emit('saved', config)
   emit('close')
@@ -155,12 +194,18 @@ function onSave() {
 function onClear() {
   localStorage.removeItem(STORAGE_KEY)
   apiKey.value = ''
+  customName.value = ''
+  customApiBase.value = ''
+  customModelName.value = ''
   emit('cleared')
   emit('close')
 }
 
 function onClose() {
   apiKey.value = ''
+  customName.value = ''
+  customApiBase.value = ''
+  customModelName.value = ''
   showKey.value = false
   emit('close')
 }
@@ -183,8 +228,12 @@ function onClose() {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .api-key-dialog {
@@ -198,8 +247,14 @@ function onClose() {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dialog-header {
@@ -322,8 +377,33 @@ function onClose() {
   padding: 0.2rem 0.4rem;
 }
 
-.form-group:nth-child(2) {
+.api-key-group {
   position: relative;
+}
+
+.custom-fields {
+  gap: 0.4rem;
+}
+
+.custom-input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 6px;
+  color: #e0e6ff;
+  font-size: 0.82rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.custom-input:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+.custom-input::placeholder {
+  color: #475569;
 }
 
 .key-hint {

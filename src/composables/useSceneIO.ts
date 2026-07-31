@@ -16,10 +16,15 @@ const VALID_OBJECT_TYPES = ['质点', '刚体', 'line_segment', 'spring'] as con
  * 深拷贝物体数组，剥离运行时字段（trail/prevX/prevY/arcGateState/constrainedArcGroupId）
  */
 export function deepCopyObjects(objs: PhysicsObject[]): PhysicsObject[] {
-  return JSON.parse(JSON.stringify(objs.map(o => {
-    const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } = o as unknown as Record<string, unknown>
-    return rest
-  })))
+  return JSON.parse(
+    JSON.stringify(
+      objs.map((o) => {
+        const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } =
+          o as unknown as Record<string, unknown>
+        return rest
+      })
+    )
+  )
 }
 
 /**
@@ -32,14 +37,15 @@ export function validateObject(o: unknown): PhysicsObject | null {
   // 公共字段
   if (typeof obj.id !== 'number' || !isFinite(obj.id)) return null
   if (typeof obj.type !== 'string') return null
-  if (!VALID_OBJECT_TYPES.includes(obj.type as typeof VALID_OBJECT_TYPES[number])) return null
+  if (!VALID_OBJECT_TYPES.includes(obj.type as (typeof VALID_OBJECT_TYPES)[number])) return null
   if (typeof obj.name !== 'string') obj.name = '未命名'
 
   if (obj.type === 'line_segment') {
     for (const k of ['x1', 'y1', 'x2', 'y2']) {
       if (typeof obj[k] !== 'number' || !isFinite(obj[k] as number)) return null
     }
-    if (typeof obj.restitution !== 'number' || !isFinite(obj.restitution as number)) obj.restitution = 0.3
+    if (typeof obj.restitution !== 'number' || !isFinite(obj.restitution as number))
+      obj.restitution = 0.3
     if (typeof obj.normalX !== 'number') obj.normalX = 0
     if (typeof obj.normalY !== 'number') obj.normalY = -1
   } else if (obj.type === 'spring') {
@@ -53,7 +59,8 @@ export function validateObject(o: unknown): PhysicsObject | null {
       if (typeof obj[k] !== 'number' || !isFinite(obj[k] as number)) return null
     }
     if (typeof obj.mass !== 'number' || obj.mass <= 0 || !isFinite(obj.mass as number)) obj.mass = 1
-    if (typeof obj.radius !== 'number' || obj.radius <= 0 || !isFinite(obj.radius as number)) obj.radius = 15
+    if (typeof obj.radius !== 'number' || obj.radius <= 0 || !isFinite(obj.radius as number))
+      obj.radius = 15
     if (typeof obj.charge !== 'number' || !isFinite(obj.charge as number)) obj.charge = 0
   }
   obj.trail = []
@@ -98,7 +105,9 @@ export function useSceneIO(ctx: SceneIOContext) {
       aiToast.value = ''
       return
     }
-    setTimeout(() => { aiToast.value = '' }, 3000)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 3000)
   }
 
   /**
@@ -139,7 +148,8 @@ export function useSceneIO(ctx: SceneIOContext) {
       if (validObjs.length === 0) throw new Error('无有效物体')
       const skipped = rawObjs.length - validObjs.length
       // 导入前推入历史
-      if (activeScene.value === '自定义') pushHistory(state.objects, state.gravity, state.groundY, state.field)
+      if (activeScene.value === '自定义')
+        pushHistory(state.objects, state.gravity, state.groundY, state.field)
       // 清空当前物体，加载导入的
       state.objects.splice(0, state.objects.length)
       for (const o of validObjs) {
@@ -151,13 +161,20 @@ export function useSceneIO(ctx: SceneIOContext) {
       else if (typeof groundY === 'number' && isFinite(groundY)) state.groundY = groundY
       if (field && typeof field === 'object') state.field = JSON.parse(JSON.stringify(field))
       selectedId.value = validObjs[0]?.id ?? null
-      aiToast.value = '场景已导入（' + validObjs.length + ' 个物体' + (skipped > 0 ? '，已忽略 ' + skipped + ' 个非法' : '') + '）'
+      aiToast.value =
+        '场景已导入（' +
+        validObjs.length +
+        ' 个物体' +
+        (skipped > 0 ? '，已忽略 ' + skipped + ' 个非法' : '') +
+        '）'
       saveCustomScene()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       aiToast.value = '导入失败：' + message
     }
-    setTimeout(() => { aiToast.value = '' }, 3000)
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 3000)
   }
 
   return { handleExportScene, handleImportScene }

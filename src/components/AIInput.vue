@@ -16,11 +16,7 @@
         :disabled="aiLoading"
       ></textarea>
 
-      <button
-        class="parse-btn"
-        :disabled="aiLoading || !question.trim()"
-        @click="onParse"
-      >
+      <button class="parse-btn" :disabled="aiLoading || !question.trim()" @click="onParse">
         <span v-if="aiLoading" class="spinner"></span>
         <span v-if="aiLoading">AI 解析中...</span>
         <span v-else-if="isAIConfigured">🔍 AI 解析并生成模拟</span>
@@ -46,18 +42,45 @@
           <div v-for="(obj, idx) in editableObjects" :key="idx" class="edit-object">
             <div class="edit-object-title">物体 {{ idx + 1 }}（{{ obj.type }}）</div>
             <div v-if="obj.type === 'ball'" class="edit-fields">
-              <label>质量(kg)<input type="number" step="0.1" v-model.number="obj.mass" /></label>
-              <label>电荷(C)<input type="number" step="0.0001" v-model.number="obj.charge" /></label>
-              <label>半径(m)<input type="number" step="0.1" v-model.number="obj.radius" /></label>
-              <label>初速 vx(m/s)<input type="number" step="0.1" v-model.number="obj.initialVelocity.x" /></label>
-              <label>初速 vy(m/s)<input type="number" step="0.1" v-model.number="obj.initialVelocity.y" /></label>
+              <label>
+                质量(kg)
+                <input type="number" step="0.1" v-model.number="obj.mass" />
+              </label>
+              <label>
+                电荷(C)
+                <input type="number" step="0.0001" v-model.number="obj.charge" />
+              </label>
+              <label>
+                半径(m)
+                <input type="number" step="0.1" v-model.number="obj.radius" />
+              </label>
+              <label>
+                初速 vx(m/s)
+                <input type="number" step="0.1" v-model.number="obj.initialVelocity.x" />
+              </label>
+              <label>
+                初速 vy(m/s)
+                <input type="number" step="0.1" v-model.number="obj.initialVelocity.y" />
+              </label>
             </div>
           </div>
           <div class="edit-global">
-            <label>重力(m/s²)<input type="number" step="0.1" v-model.number="editableParsed.gravity" /></label>
-            <label v-if="editableParsed.field.B !== undefined">磁场(T)<input type="number" step="0.1" v-model.number="editableParsed.field.B" /></label>
-            <label v-if="editableParsed.field.E">Ex(N/C)<input type="number" step="1" v-model.number="editableParsed.field.E.x" /></label>
-            <label v-if="editableParsed.field.E">Ey(N/C)<input type="number" step="1" v-model.number="editableParsed.field.E.y" /></label>
+            <label>
+              重力(m/s²)
+              <input type="number" step="0.1" v-model.number="editableParsed.gravity" />
+            </label>
+            <label v-if="editableParsed.field.B !== undefined">
+              磁场(T)
+              <input type="number" step="0.1" v-model.number="editableParsed.field.B" />
+            </label>
+            <label v-if="editableParsed.field.E">
+              Ex(N/C)
+              <input type="number" step="1" v-model.number="editableParsed.field.E.x" />
+            </label>
+            <label v-if="editableParsed.field.E">
+              Ey(N/C)
+              <input type="number" step="1" v-model.number="editableParsed.field.E.y" />
+            </label>
           </div>
           <button class="apply-btn" @click="applyEdit">应用修改</button>
         </div>
@@ -66,14 +89,23 @@
       <div v-else-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
 
       <div v-if="isAIConfigured" class="ai-hint">🤖 已接入 DeepSeek AI，支持任意物理题目解析</div>
-      <div v-else class="ai-hint">⚠️ 未配置 API Key，当前为本地关键词解析。配置方法：复制 .env.example 为 .env 并填入 VITE_AI_API_KEY</div>
+      <div v-else class="ai-hint">
+        ⚠️ 未配置 API Key，当前为本地关键词解析。配置方法：复制 .env.example 为 .env 并填入
+        VITE_AI_API_KEY
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { parsePhysicsProblem, convertToSceneParams, loading as aiLoading, errorMsg as aiErrorMsg, isAIConfigured } from '../composables/useAIParser'
+import {
+  parsePhysicsProblem,
+  convertToSceneParams,
+  loading as aiLoading,
+  errorMsg as aiErrorMsg,
+  isAIConfigured
+} from '../composables/useAIParser'
 import { buildScene } from '../composables/useSceneBuilder'
 
 const emit = defineEmits(['load-preset', 'update-params', 'scene-built'])
@@ -84,9 +116,9 @@ const errorMsg = ref('')
 const collapsed = ref(false)
 
 // 参数微调状态
-const lastParsed = ref(null)  // 保存最近一次 AI 解析结果
+const lastParsed = ref(null) // 保存最近一次 AI 解析结果
 const editMode = ref(false)
-const editableParsed = ref(null)  // 可编辑的副本
+const editableParsed = ref(null) // 可编辑的副本
 const editableObjects = ref([])
 
 /** 切换编辑模式 */
@@ -94,7 +126,7 @@ function toggleEdit() {
   if (!editMode.value && lastParsed.value) {
     // 进入编辑：深拷贝一份用于编辑
     editableParsed.value = JSON.parse(JSON.stringify(lastParsed.value))
-    editableObjects.value = editableParsed.value.objects.filter(o => o.type === 'ball')
+    editableObjects.value = editableParsed.value.objects.filter((o) => o.type === 'ball')
   }
   editMode.value = !editMode.value
 }
@@ -220,7 +252,8 @@ async function onParse() {
     if (parsed.field?.E?.x || parsed.field?.E?.y) {
       items.push({ label: '电场强度', value: `(${parsed.field.E.x}, ${parsed.field.E.y}) N/C` })
     }
-    if (parsed.gravity !== undefined) items.push({ label: '重力加速度', value: parsed.gravity + ' m/s²' })
+    if (parsed.gravity !== undefined)
+      items.push({ label: '重力加速度', value: parsed.gravity + ' m/s²' })
 
     result.value = { items }
     // 保存解析结果用于参数微调
@@ -362,7 +395,9 @@ function topicToName(topic) {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .result-card {
@@ -414,13 +449,15 @@ function topicToName(topic) {
   font-weight: 600;
 }
 
-.edit-fields, .edit-global {
+.edit-fields,
+.edit-global {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.3rem;
 }
 
-.edit-fields label, .edit-global label {
+.edit-fields label,
+.edit-global label {
   display: flex;
   flex-direction: column;
   font-size: 0.68rem;
@@ -428,7 +465,8 @@ function topicToName(topic) {
   gap: 0.15rem;
 }
 
-.edit-fields input, .edit-global input {
+.edit-fields input,
+.edit-global input {
   padding: 0.25rem 0.35rem;
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(59, 130, 246, 0.25);
@@ -438,7 +476,8 @@ function topicToName(topic) {
   outline: none;
 }
 
-.edit-fields input:focus, .edit-global input:focus {
+.edit-fields input:focus,
+.edit-global input:focus {
   border-color: rgba(59, 130, 246, 0.6);
 }
 
@@ -460,8 +499,14 @@ function topicToName(topic) {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .result-title {

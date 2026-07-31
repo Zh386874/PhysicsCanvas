@@ -3,19 +3,53 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:contracts": "vitest run tests/contracts",
+    "test:coverage": "vitest run --coverage",
+    "test:integrity": "node scripts/check-test-integrity.mjs HEAD~1 HEAD",
+    "coverage:check": "node scripts/check-coverage-regression.mjs",
+    "coverage:save-baseline": "node scripts/save-coverage-baseline.mjs",
+    "type-check": "vue-tsc --noEmit",
+    "lint": "eslint . --fix",
+    "lint:check": "eslint .",
+    "format": "prettier --write \"src/**/*.{ts,vue}\" \"*.{md,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,vue}\" \"*.{md,json}\"",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "prepare": "husky"
   },
   "dependencies": {
+    "echarts": "^6.1.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^5.2.4",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.3.0",
+    "eslint": "^10.8.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.2.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
     "vite": "^6.3.5",
-    "vitest": "^4.1.10"
+    "vitepress": "2.0.0-alpha.18",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.8"
+  },
+  "lint-staged": {
+    "*.{ts,vue}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
