@@ -930,6 +930,34 @@ function updateArcGates(objects: PhysicsObject[]): void {
           }
         }
       }
+      // spotOverlap 触发：小球碰撞体积与环上固定触发点重叠（一次性，触发后永久失效）
+      // 触发点世界坐标（画布坐标系）：(cx + r*cos(spotAngle), cy + r*sin(spotAngle))
+      if (
+        entryGap?.triggerType === 'spotOverlap' &&
+        entryGap.triggerSpotAngle !== undefined &&
+        !gate.entrySpotTriggered
+      ) {
+        const spotRadius = entryGap.triggerSpotRadius ?? p.radius * 1.5
+        const spotX = cx + r * Math.cos(entryGap.triggerSpotAngle)
+        const spotY = cy + r * Math.sin(entryGap.triggerSpotAngle)
+        if (Math.hypot(p.x - spotX, p.y - spotY) <= p.radius + spotRadius) {
+          gate.entryOpen = entryGap.triggerAction === 'open'
+          gate.entrySpotTriggered = true
+        }
+      }
+      if (
+        exitGap?.triggerType === 'spotOverlap' &&
+        exitGap.triggerSpotAngle !== undefined &&
+        !gate.exitSpotTriggered
+      ) {
+        const spotRadius = exitGap.triggerSpotRadius ?? p.radius * 1.5
+        const spotX = cx + r * Math.cos(exitGap.triggerSpotAngle)
+        const spotY = cy + r * Math.sin(exitGap.triggerSpotAngle)
+        if (Math.hypot(p.x - spotX, p.y - spotY) <= p.radius + spotRadius) {
+          gate.exitOpen = exitGap.triggerAction === 'open'
+          gate.exitSpotTriggered = true
+        }
+      }
       gate.prevAngle = angle
       gate.wasInside = isInside
     }

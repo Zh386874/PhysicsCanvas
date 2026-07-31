@@ -75,18 +75,26 @@ export interface ParsedArc extends BaseParsedObject {
     centerAngle: number
     halfWidth: number
     initiallyOpen?: boolean
-    triggerType?: 'angleCross' | 'enterRing'
+    triggerType?: 'angleCross' | 'enterRing' | 'spotOverlap'
     triggerAngle?: number
     triggerAction?: 'open' | 'close'
+    /** 触发点在环上的弧度（场景 y-up 坐标系）。triggerType='spotOverlap' 时使用 */
+    triggerSpotAngle?: number
+    /** 触发点半径（米）。缺省运行时取球半径 1.5 倍 */
+    triggerSpotRadius?: number
   }
   /** 螺旋圆轨动态出口缺口（E点），运行时由状态机控制开关 */
   exitGap?: {
     centerAngle: number
     halfWidth: number
     initiallyOpen?: boolean
-    triggerType?: 'angleCross' | 'enterRing'
+    triggerType?: 'angleCross' | 'enterRing' | 'spotOverlap'
     triggerAngle?: number
     triggerAction?: 'open' | 'close'
+    /** 触发点在环上的弧度（场景 y-up 坐标系）。triggerType='spotOverlap' 时使用 */
+    triggerSpotAngle?: number
+    /** 触发点半径（米）。缺省运行时取球半径 1.5 倍 */
+    triggerSpotRadius?: number
   }
 }
 
@@ -253,8 +261,22 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const config = JSON.parse(raw)
+    if (!config.apiKey) return null
+    // 自定义模型：从保存字段构造 ModelConfig
+    if (config.modelId === 'custom') {
+      if (!config.customApiBase || !config.customModelName) return null
+      return {
+        model: {
+          id: 'custom',
+          name: config.customName || '自定义',
+          apiBase: config.customApiBase,
+          modelName: config.customModelName
+        },
+        apiKey: config.apiKey
+      }
+    }
     const model = MODELS.find((m) => m.id === config.modelId)
-    if (!model || !config.apiKey) return null
+    if (!model) return null
     return { model, apiKey: config.apiKey }
   } catch {
     return null
