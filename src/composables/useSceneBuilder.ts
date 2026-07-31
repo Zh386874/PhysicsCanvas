@@ -251,6 +251,9 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         triggerType: obj.entryGap.triggerType,
         triggerAngle:
           obj.entryGap.triggerAngle !== undefined ? -obj.entryGap.triggerAngle : undefined,
+        triggerSpotAngle:
+          obj.entryGap.triggerSpotAngle !== undefined ? -obj.entryGap.triggerSpotAngle : undefined,
+        triggerSpotRadius: obj.entryGap.triggerSpotRadius,
         triggerAction: obj.entryGap.triggerAction
       }
     : undefined
@@ -262,6 +265,9 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         triggerType: obj.exitGap.triggerType,
         triggerAngle:
           obj.exitGap.triggerAngle !== undefined ? -obj.exitGap.triggerAngle : undefined,
+        triggerSpotAngle:
+          obj.exitGap.triggerSpotAngle !== undefined ? -obj.exitGap.triggerSpotAngle : undefined,
+        triggerSpotRadius: obj.exitGap.triggerSpotRadius,
         triggerAction: obj.exitGap.triggerAction
       }
     : undefined
@@ -273,7 +279,9 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         entryOpen: entryGap?.initiallyOpen ?? false,
         exitOpen: exitGap?.initiallyOpen ?? false,
         prevAngle: undefined,
-        wasInside: undefined
+        wasInside: undefined,
+        entrySpotTriggered: false,
+        exitSpotTriggered: false
       }
     : undefined
 

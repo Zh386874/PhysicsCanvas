@@ -51,12 +51,16 @@ interface ArcGap {
   halfWidth: number
   /** 初始开关状态（默认 false = 关闭） */
   initiallyOpen?: boolean
-  /** 触发类型：'angleCross' 角度穿越 / 'enterRing' 进入圆环 */
-  triggerType?: 'angleCross' | 'enterRing'
+  /** 触发类型：'angleCross' 角度穿越 / 'enterRing' 进入圆环 / 'spotOverlap' 触发点重叠 */
+  triggerType?: 'angleCross' | 'enterRing' | 'spotOverlap'
   /** 触发角度（画布坐标系弧度）。triggerType='angleCross' 时使用 */
   triggerAngle?: number
   /** 触发动作：'open' 打开缺口 / 'close' 关闭缺口 */
   triggerAction?: 'open' | 'close'
+  /** 触发点在环上的弧度（画布坐标系）。triggerType='spotOverlap' 时使用 */
+  triggerSpotAngle?: number
+  /** 触发点半径（像素）。缺省运行时取球半径 1.5 倍 */
+  triggerSpotRadius?: number
 }
 
 /** 弧线元数据 */
@@ -135,6 +139,9 @@ export interface SegmentObject {
     prevAngle?: number
     /** 上一帧小球是否在环内（enterRing 触发检测）。undefined = 尚未跟踪 */
     wasInside?: boolean
+    /** spotOverlap 一次性触发标志：true=已触发，不再响应。undefined 视为未触发 */
+    entrySpotTriggered?: boolean
+    exitSpotTriggered?: boolean
   }
   /** 弧线约束动力学开关（仅首段，true=约束模式，false=碰撞模式）。未设置视为 true */
   constraintEnabled?: boolean
@@ -535,7 +542,9 @@ export function mergeResetState(
             entryOpen: s.arc.entryGap?.initiallyOpen ?? false,
             exitOpen: s.arc.exitGap?.initiallyOpen ?? false,
             prevAngle: undefined,
-            wasInside: undefined
+            wasInside: undefined,
+            entrySpotTriggered: false,
+            exitSpotTriggered: false
           }
         : undefined
       return merged

@@ -238,7 +238,7 @@ const showGateColors = computed(() => state.showGateColors)
   background: rgba(15, 23, 42, 0.9);
   border-bottom: 1px solid rgba(59, 130, 246, 0.25);
   backdrop-filter: blur(10px);
-  z-index: 10;
+  z-index: 20;
 }
 
 .api-config-btn {
