@@ -801,11 +801,11 @@ const showGateColors = computed(() => state.showGateColors)
   word-break: break-word;
 }
 
-/* 画布（编辑器主体）- 保持渐变不变 */
+/* 画布（编辑器主体）- VS 2019 Dark 深灰底色 */
 .canvas-editor {
   flex: 1;
   min-height: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.95) 100%);
+  background: var(--vsd-bg);
   position: relative;
   overflow: hidden;
 }
