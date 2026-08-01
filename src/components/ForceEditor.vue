@@ -59,7 +59,7 @@ function updateForce(forceId, key, value) {
 <style scoped>
 .force-editor {
   padding: 0.75rem 1rem;
-  border-top: 1px solid rgba(59, 130, 246, 0.15);
+  border-top: 1px solid rgba(var(--vsd-blue-rgb), 0.15);
 }
 
 .section-header {
@@ -71,27 +71,27 @@ function updateForce(forceId, key, value) {
 
 .panel-title {
   font-size: 0.8rem;
-  color: #60a5fa;
+  color: var(--vsd-info);
   letter-spacing: 0.05em;
 }
 
 .btn-add {
   padding: 0.25rem 0.7rem;
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.4);
   border-radius: 6px;
-  color: #60a5fa;
+  color: var(--vsd-info);
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-add:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(var(--vsd-blue-rgb), 0.25);
 }
 
 .empty {
-  color: #475569;
+  color: var(--vsd-text-dim);
   font-size: 0.85rem;
 }
 
@@ -106,8 +106,8 @@ function updateForce(forceId, key, value) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(59, 130, 246, 0.15);
+  background: rgba(var(--vsd-panel-rgb), 0.6);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.15);
   border-radius: 8px;
 }
 
@@ -126,30 +126,30 @@ function updateForce(forceId, key, value) {
 
 .force-field label {
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--vsd-text-dim);
 }
 
 .force-field input {
   padding: 0.35rem 0.5rem;
-  background: rgba(10, 14, 39, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-bg-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   border-radius: 5px;
-  color: #e0e6ff;
+  color: var(--vsd-text);
   font-size: 0.8rem;
   outline: none;
   width: 100%;
 }
 
 .force-field input:focus {
-  border-color: rgba(59, 130, 246, 0.5);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
 }
 
 .btn-del {
   padding: 0.35rem 0.6rem;
   background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(var(--vsd-red-rgb), 0.3);
   border-radius: 5px;
-  color: #f87171;
+  color: var(--vsd-red-muted);
   font-size: 0.75rem;
   cursor: pointer;
   white-space: nowrap;
@@ -157,6 +157,6 @@ function updateForce(forceId, key, value) {
 }
 
 .btn-del:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(var(--vsd-red-rgb), 0.1);
 }
 </style>

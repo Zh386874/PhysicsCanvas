@@ -1,0 +1,89 @@
+/* ============================================================
+ * Visual Studio 2019 Dark Theme
+ * 集中管理所有 UI 颜色，作为全项目唯一引用源
+ * 画布/物理绘制颜色不属于 UI 壳，在各组件内部独立定义
+ * ============================================================ */
+
+:root {
+  /* ===== 背景层级（三级灰） ===== */
+  --vsd-bg: #1e1e1e;              /* 全局背景 / 代码区 / 激活标签 */
+  --vsd-bg-rgb: 30, 30, 30;
+  --vsd-panel: #252526;           /* 侧栏 / 对话框 / 标签容器 */
+  --vsd-panel-rgb: 37, 37, 38;
+  --vsd-panel-light: #2d2d30;     /* 工具栏 / 非激活标签 / 菜单条 */
+  --vsd-panel-light-rgb: 45, 45, 48;
+
+  /* ===== 主色 - VS 经典蓝 ===== */
+  --vsd-blue: #007ACC;            /* 选中指示条 / 确定按钮 / 主色边框 */
+  --vsd-blue-rgb: 0, 122, 204;
+  --vsd-blue-hover: #0A84D4;      /* 悬停蓝色 */
+  --vsd-blue-hover-rgb: 10, 132, 212;
+  --vsd-selection: #264F78;       /* 选中项背景（经典深蓝选择块） */
+  --vsd-selection-rgb: 38, 79, 120;
+
+  /* ===== 按钮 ===== */
+  --vsd-button: #3c3c3c;          /* 普通按钮背景 */
+  --vsd-button-rgb: 60, 60, 60;
+  --vsd-button-hover: #454545;    /* 普通按钮悬停 */
+  --vsd-button-hover-rgb: 69, 69, 69;
+  --vsd-hover: #2a2d2e;           /* 菜单项/列表项悬停 */
+  --vsd-hover-light: #37373d;     /* 工具栏按钮悬停 */
+
+  /* ===== 边框 / 分割线 ===== */
+  --vsd-border: #333333;          /* 容器主边框 */
+  --vsd-border-rgb: 51, 51, 51;
+  --vsd-border-light: #3f3f46;    /* 输入框 / 按钮边框亮 */
+  --vsd-border-light-rgb: 63, 63, 70;
+
+  /* ===== 文字 ===== */
+  --vsd-text: #D4D4D4;            /* 主文字 */
+  --vsd-text-rgb: 212, 212, 212;
+  --vsd-text-muted: #9d9d9d;      /* 次要文字 / 标签标题 */
+  --vsd-text-muted-rgb: 157, 157, 157;
+  --vsd-text-dim: #6b6b6b;        /* 占位符 / 禁用文字 / 注释 */
+  --vsd-text-dim-rgb: 107, 107, 107;
+
+  /* ===== VS 语义色 ===== */
+  --vsd-green: #6A9955;           /* 成功 / VS 绿 */
+  --vsd-green-rgb: 106, 153, 85;
+  --vsd-yellow: #DCDCAA;          /* 警告 / VS 黄 */
+  --vsd-yellow-rgb: 220, 220, 170;
+  --vsd-red: #F44747;             /* 错误 / VS 红 */
+  --vsd-red-rgb: 244, 71, 71;
+  --vsd-red-muted: #CE9178;       /* 删除 hover / 浅红 */
+  --vsd-red-muted-rgb: 206, 145, 120;
+  --vsd-info: #569CD6;            /* 信息 / 链接蓝 */
+  --vsd-info-rgb: 86, 156, 214;
+  --vsd-cyan: #4EC9B0;            /* 次要功能（导入/导出）VS 青 */
+  --vsd-cyan-rgb: 78, 201, 176;
+  --vsd-purple: #C586C0;          /* 确认紫 */
+  --vsd-purple-rgb: 197, 134, 192;
+
+  /* ===== 白 ===== */
+  --vsd-white: #ffffff;
+  --vsd-white-rgb: 255, 255, 255;
+  --vsd-black: #000000;
+  --vsd-black-rgb: 0, 0, 0;
+}
+
+/* ===== 轻量工具类 ===== */
+.bg-vsd-bg { background: var(--vsd-bg); }
+.bg-vsd-panel { background: var(--vsd-panel); }
+.bg-vsd-panel-light { background: var(--vsd-panel-light); }
+.bg-vsd-button { background: var(--vsd-button); }
+.bg-vsd-selection { background: var(--vsd-selection); }
+.bg-vsd-hover { background: var(--vsd-hover); }
+
+.text-vsd { color: var(--vsd-text); }
+.text-vsd-muted { color: var(--vsd-text-muted); }
+.text-vsd-dim { color: var(--vsd-text-dim); }
+.text-vsd-blue { color: var(--vsd-blue); }
+.text-vsd-green { color: var(--vsd-green); }
+.text-vsd-yellow { color: var(--vsd-yellow); }
+.text-vsd-red { color: var(--vsd-red); }
+.text-vsd-info { color: var(--vsd-info); }
+.text-vsd-cyan { color: var(--vsd-cyan); }
+
+.border-vsd { border-color: var(--vsd-border); }
+.border-vsd-light { border-color: var(--vsd-border-light); }
+.border-vsd-blue { border-color: var(--vsd-blue); }

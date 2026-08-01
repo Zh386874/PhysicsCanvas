@@ -174,12 +174,12 @@ function isExpanded(groupId) {
 <style scoped>
 .object-list {
   padding: 1rem;
-  border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+  border-bottom: 1px solid rgba(var(--vsd-blue-rgb), 0.15);
 }
 
 .panel-title {
   font-size: 0.75rem;
-  color: #60a5fa;
+  color: var(--vsd-info);
   margin-bottom: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -199,46 +199,48 @@ function isExpanded(groupId) {
   align-items: center;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(var(--vsd-panel-rgb), 0.4);
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .item:hover {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: rgba(59, 130, 246, 0.3);
+  background: var(--vsd-hover);
+  border-color: rgba(var(--vsd-blue-rgb), 0.3);
 }
 
 .item.selected {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.05));
-  border-color: rgba(59, 130, 246, 0.5);
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.15);
+  background: var(--vsd-selection);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
 }
 
 .item.multi-selected {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.22), rgba(167, 139, 250, 0.12));
-  border-color: rgba(167, 139, 250, 0.8);
-  border-left: 3px solid rgba(167, 139, 250, 0.95);
-  box-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--vsd-info-rgb), 0.22),
+    rgba(var(--vsd-purple-rgb), 0.12)
+  );
+  border-color: rgba(var(--vsd-purple-rgb), 0.8);
+  border-left: 3px solid rgba(var(--vsd-purple-rgb), 0.95);
 }
 
 .item.multi-selected .name {
   font-weight: 600;
-  color: #c4b5fd;
+  color: var(--vsd-purple);
 }
 
 .name {
-  color: #e0e6ff;
+  color: var(--vsd-text);
   font-size: 0.9rem;
 }
 
 .type {
-  color: #64748b;
+  color: var(--vsd-text-dim);
   font-size: 0.72rem;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(var(--vsd-blue-rgb), 0.08);
 }
 
 .item-right {
@@ -250,10 +252,10 @@ function isExpanded(groupId) {
 .del-btn {
   width: 18px;
   height: 18px;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(var(--vsd-red-rgb), 0.3);
   border-radius: 4px;
   background: transparent;
-  color: #ef4444;
+  color: var(--vsd-red);
   cursor: pointer;
   font-size: 0.7rem;
   line-height: 1;
@@ -264,8 +266,8 @@ function isExpanded(groupId) {
 }
 
 .del-btn:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(var(--vsd-red-rgb), 0.15);
+  border-color: rgba(var(--vsd-red-rgb), 0.6);
 }
 
 /* 弧线分组条目 */
@@ -285,7 +287,7 @@ function isExpanded(groupId) {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
   cursor: pointer;
   font-size: 0.65rem;
   line-height: 1;
@@ -297,8 +299,8 @@ function isExpanded(groupId) {
 }
 
 .expand-btn:hover {
-  background: rgba(167, 139, 250, 0.15);
-  color: #c4b5fd;
+  background: rgba(var(--vsd-purple-rgb), 0.15);
+  color: var(--vsd-purple);
 }
 
 /* 子线段列表（展开后） */
@@ -311,13 +313,13 @@ function isExpanded(groupId) {
 
 .child-item {
   padding: 0.4rem 0.6rem;
-  background: rgba(15, 23, 42, 0.25);
+  background: rgba(var(--vsd-panel-rgb), 0.25);
   font-size: 0.8rem;
 }
 
 .child-item .name {
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
 }
 
 .child-item .type {
@@ -325,6 +327,6 @@ function isExpanded(groupId) {
 }
 
 .child-item:hover {
-  background: rgba(59, 130, 246, 0.06);
+  background: rgba(var(--vsd-blue-rgb), 0.06);
 }
 </style>
