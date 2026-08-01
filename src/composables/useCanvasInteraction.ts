@@ -262,7 +262,7 @@ function onCanvasClick(e: MouseEvent): void {
     radius: radius,
     mass: 1,
     charge: chargeMode.value ? 1 : 0,
-    color: chargeMode.value ? '#fbbf24' : '#60a5fa',
+    color: chargeMode.value ? '#DCDCAA' : '#569CD6',
     trail: []
   }
   emitFn('add-object', newObj)

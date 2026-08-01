@@ -801,11 +801,11 @@ const showGateColors = computed(() => state.showGateColors)
   word-break: break-word;
 }
 
-/* 画布（编辑器主体）- 保持渐变不变 */
+/* 画布（编辑器主体）- VS 2019 Dark 深灰底色 */
 .canvas-editor {
   flex: 1;
   min-height: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.95) 100%);
+  background: var(--vsd-bg);
   position: relative;
   overflow: hidden;
 }
@@ -837,5 +837,27 @@ const showGateColors = computed(() => state.showGateColors)
 
 .center-editor > :deep(.control-bar-wrap) {
   flex-shrink: 0;
+}
+
+.chart-toggle-bar {
+  padding: 0.4rem 0.75rem;
+  background: rgba(15, 23, 42, 0.9);
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.chart-toggle-btn {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.05);
+  color: #93c5fd;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.2s;
+}
+
+.chart-toggle-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.5);
 }
 </style>

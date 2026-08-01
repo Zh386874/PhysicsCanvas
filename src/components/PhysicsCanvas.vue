@@ -195,6 +195,9 @@ function draw() {
   // 高 DPI：基础变换设为 dpr 缩放，后续所有绘制用 CSS 像素坐标
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssW, cssH)
+  // 画布 2D 底色：VS 2019 Dark 纯 #1e1e1e，保证画布与外围 UI 色一致
+  ctx.fillStyle = '#1e1e1e'
+  ctx.fillRect(0, 0, cssW, cssH)
 
   const objects = getDisplayObjects()
   const field = getDisplayField()

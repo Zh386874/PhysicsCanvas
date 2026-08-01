@@ -209,6 +209,15 @@ const providerModels = [
     docUrl: 'https://platform.openai.com/api-keys',
     apiBase: 'https://api.openai.com/v1/chat/completions',
     modelName: 'gpt-4o-mini'
+  },
+  {
+    id: 'custom',
+    name: '自定义',
+    icon: '🔧',
+    placeholder: '在此粘贴你的 API Key',
+    docUrl: '',
+    apiBase: '',
+    modelName: ''
   }
 ]
 
@@ -221,6 +230,9 @@ const selectedModel = ref('deepseek')
 // 服务商下 API Key
 const apiKey = ref('')
 const showKey = ref(false)
+const customName = ref('')
+const customApiBase = ref('')
+const customModelName = ref('')
 
 // 自定义配置表单
 const apiFormat = ref('openai-chat')
@@ -277,6 +289,9 @@ const savedConfig = computed(() => {
 
 function resetFormFields() {
   apiKey.value = ''
+  customName.value = ''
+  customApiBase.value = ''
+  customModelName.value = ''
   showKey.value = false
   customApiBase.value = ''
   isFullUrl.value = false
