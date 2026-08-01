@@ -697,13 +697,13 @@ function setArcGap(gapKey, gap) {
 
 .panel-title {
   font-size: 0.8rem;
-  color: #60a5fa;
+  color: var(--vsd-info);
   margin-bottom: 0.75rem;
   letter-spacing: 0.05em;
 }
 
 .empty {
-  color: #475569;
+  color: var(--vsd-text-dim);
   font-size: 0.9rem;
 }
 
@@ -731,7 +731,7 @@ function setArcGap(gapKey, gap) {
 .field-section {
   margin-top: 1rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(59, 130, 246, 0.15);
+  border-top: 1px solid rgba(var(--vsd-blue-rgb), 0.15);
 }
 
 .section-header {
@@ -740,16 +740,16 @@ function setArcGap(gapKey, gap) {
 
 label {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
 }
 
 input,
 select {
   padding: 0.45rem 0.6rem;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-panel-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   border-radius: 6px;
-  color: #e0e6ff;
+  color: var(--vsd-text);
   font-size: 0.85rem;
   outline: none;
   transition: border-color 0.2s;
@@ -757,7 +757,7 @@ select {
 
 input:focus,
 select:focus {
-  border-color: rgba(59, 130, 246, 0.5);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
 }
 
 select {
@@ -766,7 +766,7 @@ select {
 
 .hint {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--vsd-text-dim);
   margin-top: 0.25rem;
 }
 
@@ -778,33 +778,33 @@ select {
 
 .normal-btn {
   padding: 0.35rem 0;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-panel-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   border-radius: 4px;
-  color: #cbd5e1;
+  color: var(--vsd-text);
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .normal-btn:hover {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #93c5fd;
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
+  color: var(--vsd-info);
 }
 
 .arc-advanced {
   margin-top: 0.5rem;
   padding: 0.5rem;
-  border: 1px solid rgba(124, 58, 237, 0.25);
+  border: 1px solid rgba(var(--vsd-purple-rgb), 0.25);
   border-radius: 6px;
-  background: rgba(124, 58, 237, 0.05);
+  background: rgba(var(--vsd-purple-rgb), 0.05);
 }
 
 .arc-advanced summary {
   cursor: pointer;
   font-size: 0.8rem;
-  color: #a78bfa;
+  color: var(--vsd-purple);
   user-select: none;
 }
 
@@ -834,7 +834,7 @@ select {
 .gap-section {
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px dashed rgba(124, 58, 237, 0.2);
+  border-top: 1px dashed rgba(var(--vsd-purple-rgb), 0.2);
 }
 
 .gap-section > label {
@@ -844,10 +844,10 @@ select {
 
 .gap-btn {
   padding: 0.3rem 0.6rem;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(var(--vsd-panel-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.3);
   border-radius: 4px;
-  color: #93c5fd;
+  color: var(--vsd-info);
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -855,17 +855,17 @@ select {
 }
 
 .gap-btn:hover {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
 }
 
 .gap-btn.danger {
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--vsd-red-muted);
+  border-color: rgba(var(--vsd-red-rgb), 0.3);
 }
 
 .gap-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(var(--vsd-red-rgb), 0.15);
+  border-color: rgba(var(--vsd-red-rgb), 0.5);
 }
 </style>

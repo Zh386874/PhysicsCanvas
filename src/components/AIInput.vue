@@ -295,8 +295,8 @@ function topicToName(topic) {
 
 <style scoped>
 .ai-input {
-  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
-  background: rgba(59, 130, 246, 0.05);
+  border-bottom: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
+  background: rgba(var(--vsd-blue-rgb), 0.05);
 }
 
 .ai-header {
@@ -308,15 +308,15 @@ function topicToName(topic) {
 
 .ai-title {
   font-size: 0.85rem;
-  color: #93c5fd;
+  color: var(--vsd-info);
   font-weight: 600;
   letter-spacing: 0.05em;
 }
 
 .collapse-btn {
   background: transparent;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #94a3b8;
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.3);
+  color: var(--vsd-text-muted);
   font-size: 0.7rem;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
@@ -325,8 +325,8 @@ function topicToName(topic) {
 }
 
 .collapse-btn:hover {
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  color: var(--vsd-info);
 }
 
 .ai-body {
@@ -339,10 +339,10 @@ function topicToName(topic) {
 .question-input {
   width: 100%;
   padding: 0.6rem;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(var(--vsd-panel-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
   border-radius: 8px;
-  color: #e0e6ff;
+  color: var(--vsd-text);
   font-size: 0.8rem;
   line-height: 1.5;
   resize: vertical;
@@ -352,11 +352,11 @@ function topicToName(topic) {
 }
 
 .question-input:focus {
-  border-color: rgba(59, 130, 246, 0.6);
+  border-color: rgba(var(--vsd-blue-rgb), 0.6);
 }
 
 .question-input::placeholder {
-  color: #475569;
+  color: var(--vsd-text-dim);
 }
 
 .parse-btn {
@@ -365,7 +365,7 @@ function topicToName(topic) {
   justify-content: center;
   gap: 0.4rem;
   padding: 0.55rem;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background: linear-gradient(135deg, var(--vsd-blue), var(--vsd-blue-hover));
   border: none;
   border-radius: 8px;
   color: #fff;
@@ -376,7 +376,7 @@ function topicToName(topic) {
 }
 
 .parse-btn:hover:not(:disabled) {
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.5);
+  opacity: 0.92;
   transform: translateY(-1px);
 }
 
@@ -401,8 +401,8 @@ function topicToName(topic) {
 }
 
 .result-card {
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(var(--vsd-green-rgb), 0.08);
+  border: 1px solid rgba(var(--vsd-green-rgb), 0.3);
   border-radius: 8px;
   padding: 0.6rem;
   animation: fadeIn 0.3s ease;
@@ -411,10 +411,10 @@ function topicToName(topic) {
 .edit-btn {
   margin-top: 0.5rem;
   padding: 0.3rem 0.7rem;
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.3);
   border-radius: 5px;
-  color: #93c5fd;
+  color: var(--vsd-info);
   font-size: 0.75rem;
   cursor: pointer;
   width: 100%;
@@ -422,14 +422,14 @@ function topicToName(topic) {
 }
 
 .edit-btn:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(var(--vsd-blue-rgb), 0.25);
 }
 
 .edit-panel {
   margin-top: 0.5rem;
   padding: 0.6rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-panel-rgb), 0.6);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -438,13 +438,13 @@ function topicToName(topic) {
 
 .edit-object {
   padding: 0.4rem;
-  background: rgba(30, 41, 59, 0.5);
+  background: rgba(var(--vsd-panel-light-rgb), 0.5);
   border-radius: 4px;
 }
 
 .edit-object-title {
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
   margin-bottom: 0.3rem;
   font-weight: 600;
 }
@@ -461,30 +461,30 @@ function topicToName(topic) {
   display: flex;
   flex-direction: column;
   font-size: 0.68rem;
-  color: #64748b;
+  color: var(--vsd-text-dim);
   gap: 0.15rem;
 }
 
 .edit-fields input,
 .edit-global input {
   padding: 0.25rem 0.35rem;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(var(--vsd-panel-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
   border-radius: 4px;
-  color: #e0e6ff;
+  color: var(--vsd-text);
   font-size: 0.75rem;
   outline: none;
 }
 
 .edit-fields input:focus,
 .edit-global input:focus {
-  border-color: rgba(59, 130, 246, 0.6);
+  border-color: rgba(var(--vsd-blue-rgb), 0.6);
 }
 
 .apply-btn {
   margin-top: 0.3rem;
   padding: 0.4rem;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background: linear-gradient(135deg, var(--vsd-blue), var(--vsd-blue-hover));
   border: none;
   border-radius: 5px;
   color: #fff;
@@ -495,7 +495,7 @@ function topicToName(topic) {
 }
 
 .apply-btn:hover {
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+  opacity: 0.92;
 }
 
 @keyframes fadeIn {
@@ -511,7 +511,7 @@ function topicToName(topic) {
 
 .result-title {
   font-size: 0.8rem;
-  color: #86efac;
+  color: var(--vsd-green);
   margin-bottom: 0.4rem;
   font-weight: 600;
 }
@@ -530,33 +530,33 @@ function topicToName(topic) {
 }
 
 .item-label {
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
 }
 
 .item-value {
-  color: #e0e6ff;
+  color: var(--vsd-text);
   font-weight: 500;
 }
 
 .result-status {
   font-size: 0.75rem;
-  color: #86efac;
+  color: var(--vsd-green);
   padding-top: 0.3rem;
-  border-top: 1px solid rgba(34, 197, 94, 0.2);
+  border-top: 1px solid rgba(var(--vsd-green-rgb), 0.2);
 }
 
 .error-msg {
   padding: 0.5rem;
-  background: rgba(251, 191, 36, 0.08);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: rgba(var(--vsd-yellow-rgb), 0.08);
+  border: 1px solid rgba(var(--vsd-yellow-rgb), 0.3);
   border-radius: 6px;
-  color: #fcd34d;
+  color: var(--vsd-yellow);
   font-size: 0.75rem;
 }
 
 .ai-hint {
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--vsd-text-dim);
   text-align: center;
   padding: 0.2rem 0;
 }

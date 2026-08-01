@@ -230,6 +230,9 @@ interface ModelConfig {
   name: string
   apiBase: string
   modelName: string
+  isMultimodal?: boolean
+  contextWindow?: number
+  modelFamily?: 'general' | 'deepseek' | 'gpt' | 'claude' | 'glm' | 'other'
 }
 
 const MODELS: ModelConfig[] = [
@@ -255,6 +258,11 @@ const MODELS: ModelConfig[] = [
 
 const STORAGE_KEY = 'ai_api_config'
 
+/** 移除字符串末尾斜杠 */
+function stripTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url.slice(0, -1) : url
+}
+
 /** 从 localStorage 读取已保存的 AI 配置 */
 function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
   try {
@@ -265,12 +273,30 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
     // 自定义模型：从保存字段构造 ModelConfig
     if (config.modelId === 'custom') {
       if (!config.customApiBase || !config.customModelName) return null
+
+      // 地址拼接逻辑：
+      // 1. 若显式 isFullUrl=true → 用户填写的是完整地址
+      // 2. 若 isFullUrl=false → baseUrl + /chat/completions
+      // 3. 若 isFullUrl 缺失（旧配置兼容）：
+      //    - 若 customApiBase 已以 /chat/completions 结尾 → 视为完整 URL
+      //    - 否则 → 视为完整 URL（旧版自定义填写的就是完整路径）
+      const isFullUrl = typeof config.isFullUrl === 'boolean' ? config.isFullUrl : true // 旧配置兜底视为完整 URL
+      const resolvedBase = isFullUrl
+        ? config.customApiBase
+        : stripTrailingSlash(config.customApiBase) + '/chat/completions'
+
+      const displayName =
+        (config.customName && config.customName.trim()) || config.customModelName.trim() || '自定义'
+
       return {
         model: {
           id: 'custom',
-          name: config.customName || '自定义',
-          apiBase: config.customApiBase,
-          modelName: config.customModelName
+          name: displayName,
+          apiBase: resolvedBase,
+          modelName: config.customModelName,
+          isMultimodal: config.isMultimodal,
+          contextWindow: config.contextWindow,
+          modelFamily: config.modelFamily
         },
         apiKey: config.apiKey
       }

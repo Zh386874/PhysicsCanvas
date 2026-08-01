@@ -57,7 +57,7 @@ function createPlatformLikeObject(
     normalX: normal.normalX,
     normalY: normal.normalY,
     restitution: 0.3,
-    friction: 0.5
+    friction: 0.2
   }
   if (toolType === 'conveyor') {
     return { ...base, name: `传送带${index}`, color: '#0891b2', velocity: { x: 100, y: 0 } }
@@ -258,7 +258,7 @@ function generateArcSegments(
       normalX: normal.normalX,
       normalY: normal.normalY,
       restitution: 0.3,
-      friction: 0.5,
+      friction: 0.2,
       color: '#7c3aed',
       // 仅首段携带约束动力学开关
       ...(i === 0 ? { constraintEnabled: true } : {})

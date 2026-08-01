@@ -37,6 +37,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { PIXELS_PER_METER } from '../composables/usePhysics'
+import { GROUND_DISABLED } from '../constants'
 
 const props = defineProps({
   snapshots: { type: Array, default: () => [] },
@@ -107,6 +108,7 @@ function renderChart() {
       ? (props.snapshots[0].gravity || 490) / PIXELS_PER_METER // m/s²
       : 9.8
   const groundY = props.snapshots.length > 0 ? props.snapshots[0].groundY : 400
+  const groundDisabled = groundY >= GROUND_DISABLED
 
   // 从 snapshots 提取该物体的时序数据
   const times = [] // 秒
@@ -134,9 +136,9 @@ function renderChart() {
     speedArr.push(+speedMs.toFixed(4))
 
     // 势能：以 groundY 为基准，高度 h = (groundY - snap.y) / PIXELS_PER_METER
-    const h = (groundY - snap.y) / PIXELS_PER_METER
+    const h = groundDisabled ? 0 : (groundY - snap.y) / PIXELS_PER_METER
     const ke = 0.5 * mass * speedMs * speedMs
-    const pe = mass * gravity * Math.max(0, h) // h<0 时势能为 0（地面以下）
+    const pe = groundDisabled ? 0 : mass * gravity * Math.max(0, h) // h<0 时势能为 0（地面以下）
     keArr.push(+ke.toFixed(6))
     peArr.push(+pe.toFixed(6))
     meArr.push(+(ke + pe).toFixed(6))
@@ -247,8 +249,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 <style scoped>
 .data-chart {
-  background: rgba(15, 23, 42, 0.92);
-  border-top: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-panel-rgb), 0.92);
+  border-top: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   padding: 0.5rem 0.75rem;
 }
 
@@ -261,24 +263,24 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 .obj-select {
   padding: 0.25rem 0.5rem;
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(var(--vsd-panel-light-rgb), 0.8);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.3);
   border-radius: 4px;
-  color: #93c5fd;
+  color: var(--vsd-info);
   font-size: 0.78rem;
   outline: none;
 }
 
 .obj-select option {
-  background: #1e293b;
-  color: #e0e6ff;
+  background: var(--vsd-panel-light);
+  color: var(--vsd-text);
 }
 
 .chart-type-toggle {
   display: flex;
   gap: 0.2rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-panel-rgb), 0.6);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   border-radius: 4px;
   padding: 0.1rem;
 }
@@ -288,15 +290,15 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
   cursor: pointer;
   font-size: 0.72rem;
   transition: all 0.2s;
 }
 
 .chart-type-toggle button.active {
-  background: rgba(59, 130, 246, 0.3);
-  color: #93c5fd;
+  background: rgba(var(--vsd-blue-rgb), 0.3);
+  color: var(--vsd-info);
 }
 
 .collapse-btn {
@@ -304,13 +306,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   padding: 0.2rem 0.4rem;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--vsd-text-dim);
   cursor: pointer;
   font-size: 0.85rem;
 }
 
 .collapse-btn:hover {
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
 }
 
 .chart-container {

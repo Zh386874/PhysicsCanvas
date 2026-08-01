@@ -115,16 +115,16 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 1rem;
-  background: rgba(15, 23, 42, 0.9);
-  border-top: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--vsd-panel-rgb), 0.9);
+  border-top: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
 }
 
 .kf-btn {
   padding: 0.3rem 0.55rem;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.3);
   border-radius: 6px;
-  background: rgba(59, 130, 246, 0.05);
-  color: #93c5fd;
+  background: rgba(var(--vsd-blue-rgb), 0.05);
+  color: var(--vsd-info);
   cursor: pointer;
   font-size: 0.8rem;
   transition: all 0.2s;
@@ -132,8 +132,8 @@ onBeforeUnmount(() => {
 }
 
 .kf-btn:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
 }
 
 .kf-btn:disabled {
@@ -142,14 +142,14 @@ onBeforeUnmount(() => {
 }
 
 .play-btn {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #86efac;
+  background: rgba(var(--vsd-green-rgb), 0.15);
+  border-color: rgba(var(--vsd-green-rgb), 0.4);
+  color: var(--vsd-green);
 }
 
 .play-btn:hover:not(:disabled) {
-  background: rgba(34, 197, 94, 0.25);
-  border-color: rgba(34, 197, 94, 0.6);
+  background: rgba(var(--vsd-green-rgb), 0.25);
+  border-color: rgba(var(--vsd-green-rgb), 0.6);
 }
 
 .slider-wrap {
@@ -165,7 +165,11 @@ onBeforeUnmount(() => {
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.4));
+  background: linear-gradient(
+    90deg,
+    rgba(var(--vsd-blue-rgb), 0.2),
+    rgba(var(--vsd-info-rgb), 0.4)
+  );
   border-radius: 3px;
   outline: none;
   position: relative;
@@ -178,20 +182,18 @@ onBeforeUnmount(() => {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #60a5fa;
-  border: 2px solid #1e293b;
+  background: var(--vsd-info);
+  border: 2px solid var(--vsd-panel-light);
   cursor: pointer;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
 }
 
 .slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #60a5fa;
-  border: 2px solid #1e293b;
+  background: var(--vsd-info);
+  border: 2px solid var(--vsd-panel-light);
   cursor: pointer;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
 }
 
 .kf-markers {
@@ -209,10 +211,38 @@ onBeforeUnmount(() => {
   position: absolute;
   width: 3px;
   height: 14px;
-  background: #fbbf24;
+  background: var(--vsd-yellow);
   border-radius: 1px;
   transform: translateX(-50%);
-  box-shadow: 0 0 4px rgba(251, 191, 36, 0.6);
+}
+
+.speed-select {
+  display: flex;
+  gap: 0.2rem;
+  background: rgba(var(--vsd-panel-rgb), 0.6);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
+  border-radius: 6px;
+  padding: 0.15rem;
+}
+
+.speed-btn {
+  padding: 0.2rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vsd-text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  transition: all 0.2s;
+}
+
+.speed-btn:hover {
+  color: var(--vsd-text);
+}
+
+.speed-btn.active {
+  background: rgba(var(--vsd-blue-rgb), 0.3);
+  color: var(--vsd-info);
 }
 
 .speed-select {
@@ -246,7 +276,7 @@ onBeforeUnmount(() => {
 
 .frame-info {
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: var(--vsd-text-muted);
   white-space: nowrap;
   min-width: 130px;
   text-align: right;

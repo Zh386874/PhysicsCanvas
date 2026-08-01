@@ -29,8 +29,6 @@
       <span class="tool-divider"></span>
       <button class="tool-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">↶ 撤销</button>
       <button class="tool-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">↷ 重做</button>
-      <button class="tool-btn" @click="$emit('export-scene')">💾 导出</button>
-      <button class="tool-btn" @click="$emit('import-scene')">📂 导入</button>
     </div>
     <canvas
       ref="canvasRef"
@@ -116,8 +114,6 @@ const emit = defineEmits([
   'add-object',
   'update-object',
   'remove-object',
-  'export-scene',
-  'import-scene',
   'undo',
   'redo',
   'update-selected',
@@ -127,6 +123,7 @@ const emit = defineEmits([
 const canvasRef = ref(null)
 let rafId = null
 let lastTime = 0
+let resizeObserver = null
 
 const cursorStyle = computed(() => {
   if (!props.editMode) return 'default'
@@ -264,19 +261,35 @@ onMounted(() => {
   initCanvasInteraction(canvasRef, () => props, emit, state)
   resizeCanvas()
   window.addEventListener('resize', resizeCanvas)
+
+  // 使用 ResizeObserver 监测 canvas 父容器尺寸变化
+  // 侧栏收起/展开、拖拽 splitter 等都会改变 canvas 可用空间，需要同步更新 backing store
+  // 避免 canvas.width 属性与 CSS 显示尺寸脱节导致浏览器隐式缩放
+  const canvas = canvasRef.value
+  if (canvas && canvas.parentElement) {
+    resizeObserver = new ResizeObserver(() => {
+      resizeCanvas()
+    })
+    resizeObserver.observe(canvas.parentElement)
+  }
+
   rafId = requestAnimationFrame(loop)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(rafId)
   window.removeEventListener('resize', resizeCanvas)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
 })
 </script>
 
 <style scoped>
 .canvas-wrap {
   flex: 1;
-  background: #0a0e27;
+  background: var(--vsd-bg);
   overflow: hidden;
   position: relative;
   display: flex;
@@ -293,8 +306,8 @@ canvas {
   display: flex;
   gap: 0.4rem;
   padding: 0.5rem 0.8rem;
-  background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+  background: rgba(var(--vsd-panel-rgb), 0.95);
+  border-bottom: 1px solid rgba(var(--vsd-purple-rgb), 0.3);
   backdrop-filter: blur(8px);
   z-index: 10;
   flex-wrap: wrap;
@@ -302,7 +315,7 @@ canvas {
 
 .tool-divider {
   width: 1px;
-  background: rgba(167, 139, 250, 0.2);
+  background: rgba(var(--vsd-purple-rgb), 0.2);
   margin: 0 0.2rem;
 }
 
@@ -311,10 +324,10 @@ canvas {
   right: 12px;
   bottom: 12px;
   padding: 0.4rem 0.8rem;
-  border: 1px solid rgba(34, 211, 238, 0.4);
+  border: 1px solid rgba(var(--vsd-cyan-rgb), 0.4);
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #67e8f9;
+  background: rgba(var(--vsd-panel-rgb), 0.85);
+  color: var(--vsd-cyan);
   cursor: pointer;
   font-size: 0.8rem;
   backdrop-filter: blur(8px);
@@ -323,9 +336,9 @@ canvas {
 }
 
 .reset-view-btn:hover {
-  background: rgba(34, 211, 238, 0.18);
-  border-color: rgba(34, 211, 238, 0.7);
-  color: #a5f3fc;
+  background: rgba(var(--vsd-cyan-rgb), 0.18);
+  border-color: rgba(var(--vsd-cyan-rgb), 0.7);
+  color: var(--vsd-cyan);
 }
 
 .shift-hint {
@@ -333,10 +346,10 @@ canvas {
   right: 12px;
   top: 12px;
   padding: 0.4rem 0.8rem;
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  border: 1px solid rgba(var(--vsd-yellow-rgb), 0.4);
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #fbbf24;
+  background: rgba(var(--vsd-panel-rgb), 0.85);
+  color: var(--vsd-yellow);
   font-size: 0.8rem;
   backdrop-filter: blur(8px);
   z-index: 10;
@@ -345,25 +358,28 @@ canvas {
 
 .tool-btn {
   padding: 0.35rem 0.7rem;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.6);
-  color: #94a3b8;
+  background: rgba(var(--vsd-panel-rgb), 0.6);
+  color: var(--vsd-text-muted);
   cursor: pointer;
   font-size: 0.8rem;
   transition: all 0.2s;
 }
 
 .tool-btn:hover {
-  background: rgba(167, 139, 250, 0.15);
-  border-color: rgba(167, 139, 250, 0.5);
-  color: #c4b5fd;
+  background: rgba(var(--vsd-purple-rgb), 0.15);
+  border-color: rgba(var(--vsd-purple-rgb), 0.5);
+  color: var(--vsd-purple);
 }
 
 .tool-btn.active {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(96, 165, 250, 0.1));
-  border-color: rgba(167, 139, 250, 0.6);
-  color: #c4b5fd;
-  box-shadow: 0 0 8px rgba(167, 139, 250, 0.3);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--vsd-purple-rgb), 0.25),
+    rgba(var(--vsd-info-rgb), 0.1)
+  );
+  border-color: rgba(var(--vsd-purple-rgb), 0.6);
+  color: var(--vsd-purple);
 }
 </style>

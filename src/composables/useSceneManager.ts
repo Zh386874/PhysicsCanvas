@@ -22,8 +22,20 @@ import { clearHistory } from './useHistory'
 import { deepCopyObjects } from './useSceneIO'
 import { GROUND_DISABLED } from '../constants'
 
+/** 已保存场景数据类型 */
+export interface SavedSceneData {
+  name: string
+  objects: PhysicsObject[]
+  gravity: number
+  groundY: number | null
+  field: FieldState
+}
+
 /** 自定义场景 localStorage 键名 */
 const CUSTOM_STORAGE_KEY = 'custom_scene_objects'
+
+/** 已保存场景列表 localStorage 键名 */
+const SAVED_SCENES_KEY = 'saved_custom_scenes'
 
 /** AI 解析出的物体信息（由 useSceneBuilder 构建后回传） */
 export interface SceneBuiltInfo {
@@ -51,9 +63,194 @@ export function useSceneManager() {
   const aiToast = ref('')
   const currentQuestionDesc = ref('')
 
-  // 编辑模式：自定义场景下未播放时为 true，允许编辑画布
+  // ===== 已保存场景列表 =====
+  const savedScenes = ref<SavedSceneData[]>(loadSavedScenesFromStorage())
+
+  /** 从 localStorage 读取已保存场景列表 */
+  function loadSavedScenesFromStorage(): SavedSceneData[] {
+    try {
+      const data = localStorage.getItem(SAVED_SCENES_KEY)
+      if (!data) return []
+      const parsed = JSON.parse(data)
+      if (Array.isArray(parsed)) return parsed
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  /** 将已保存场景列表持久化到 localStorage */
+  function persistSavedScenes(): void {
+    try {
+      localStorage.setItem(SAVED_SCENES_KEY, JSON.stringify(savedScenes.value))
+    } catch {
+      // 静默失败
+    }
+  }
+
+  /** 已保存场景名称列表（供 SceneTabs 展示） */
+  const savedSceneNames = computed(() => savedScenes.value.map((s) => s.name))
+
+  /** 自动生成序号名称（"保存1"、"保存2"……） */
+  function autoGenerateSceneName(): string {
+    let maxNum = 0
+    for (const s of savedScenes.value) {
+      const m = s.name.match(/^保存(\d+)$/)
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (n > maxNum) maxNum = n
+      }
+    }
+    return '保存' + (maxNum + 1)
+  }
+
+  // ── 名称输入对话框状态 ──
+  const showNameDialog = ref(false)
+  const nameDialogTitle = ref('')
+  const nameDialogInitialValue = ref('')
+  const nameDialogPlaceholder = ref('')
+  const nameDialogError = ref('')
+
+  // ── 删除确认对话框状态 ──
+  const showDeleteConfirm = ref(false)
+  const pendingDeleteName = ref('')
+
+  /**
+   * 保存当前场景为已保存场景
+   * 打开名称输入对话框，用户确认后由 handleSaveNameConfirm 执行实际保存
+   */
+  function saveCurrentScene(): void {
+    if (state.objects.length === 0) {
+      aiToast.value = '场景为空，无法保存'
+      setTimeout(() => {
+        aiToast.value = ''
+      }, 2000)
+      return
+    }
+    nameDialogError.value = ''
+    nameDialogTitle.value = '保存场景'
+    nameDialogInitialValue.value = ''
+    nameDialogPlaceholder.value = '请输入场景名称'
+    showNameDialog.value = true
+  }
+
+  /**
+   * 处理名称对话框确认（保存或取消）
+   * @param name 用户输入的名称；null 表示取消，空字符串表示使用自动生成名称
+   * @returns true 表示保存成功（可关闭对话框），false 表示需要保持对话框打开
+   */
+  function handleSaveNameConfirm(name: string | null): boolean {
+    if (name === null) return true // 取消，由调用方关闭对话框
+    nameDialogError.value = ''
+    const finalName = name.trim() || autoGenerateSceneName()
+    // 检查重名
+    if (savedScenes.value.some((s) => s.name === finalName)) {
+      nameDialogError.value = '名称已存在，请重新命名'
+      return false
+    }
+    const sceneData: SavedSceneData = {
+      name: finalName,
+      objects: deepCopyObjects(state.objects),
+      gravity: state.gravity,
+      groundY: state.groundY >= GROUND_DISABLED ? null : state.groundY,
+      field: JSON.parse(JSON.stringify(state.field))
+    }
+    savedScenes.value.push(sceneData)
+    persistSavedScenes()
+    activeScene.value = finalName
+    currentQuestionDesc.value = ''
+    selectedId.value = state.objects[0]?.id ?? null
+    mode.value = 'live'
+    aiToast.value = '已保存场景：' + finalName
+    setTimeout(() => {
+      aiToast.value = ''
+    }, 2000)
+    return true
+  }
+
+  /**
+   * 加载已保存场景
+   */
+  function loadSavedScene(name: string): void {
+    const found = savedScenes.value.find((s) => s.name === name)
+    if (!found) return
+    clearHistory()
+    activeScene.value = name
+    currentQuestionDesc.value = ''
+    loadScene(found.objects, [], found.field, found.gravity, found.groundY ?? undefined)
+    selectedId.value = found.objects[0]?.id ?? null
+    mode.value = 'live'
+  }
+
+  /**
+   * 删除已保存场景（弹出确认对话框）
+   */
+  function deleteSavedScene(name: string): void {
+    pendingDeleteName.value = name
+    showDeleteConfirm.value = true
+  }
+
+  /** 确认删除已保存场景 */
+  function confirmDeleteScene(): void {
+    showDeleteConfirm.value = false
+    const name = pendingDeleteName.value
+    pendingDeleteName.value = ''
+    const idx = savedScenes.value.findIndex((s) => s.name === name)
+    if (idx === -1) return
+    savedScenes.value.splice(idx, 1)
+    persistSavedScenes()
+    // 如果当前正在查看被删除的场景，切回自定义
+    if (activeScene.value === name) {
+      savedSceneEditing.value = false
+      activeScene.value = '自定义'
+      const preset = getPreset('自定义')
+      loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
+      state.isPlaying = false
+      restoreCustomScene()
+      capturePlayStart()
+    }
+  }
+
+  /** 取消删除已保存场景 */
+  function cancelDeleteScene(): void {
+    showDeleteConfirm.value = false
+    pendingDeleteName.value = ''
+  }
+
+  /**
+   * 重命名已保存场景
+   */
+  function renameSavedScene(oldName: string, newName: string): boolean {
+    const found = savedScenes.value.find((s) => s.name === oldName)
+    if (!found) return false
+    // 检查新名称是否已存在
+    if (savedScenes.value.some((s) => s.name === newName)) return false
+    found.name = newName
+    persistSavedScenes()
+    if (activeScene.value === oldName) {
+      activeScene.value = newName
+    }
+    return true
+  }
+
+  /** 是否正在编辑已保存场景 */
+  const savedSceneEditing = ref(false)
+
+  /** 切换已保存场景的编辑模式 */
+  function toggleSavedSceneEdit(): void {
+    savedSceneEditing.value = !savedSceneEditing.value
+    if (savedSceneEditing.value) {
+      capturePlayStart()
+    }
+  }
+
+  // 编辑模式：自定义场景下或已保存场景+编辑模式时，未播放且为 live 模式允许编辑
   const editMode = computed(
-    () => activeScene.value === '自定义' && mode.value === 'live' && !state.isPlaying
+    () =>
+      (activeScene.value === '自定义' ||
+        (savedSceneNames.value.includes(activeScene.value) && savedSceneEditing.value)) &&
+      mode.value === 'live' &&
+      !state.isPlaying
   )
 
   // 初始化默认场景：自定义（首屏即自定义页面，尝试恢复上次保存的自定义场景）
@@ -147,25 +344,22 @@ export function useSceneManager() {
    * 场景切换：加载预设或自定义场景
    */
   function onSceneSwitch(sceneName: string): void {
-    // 从自定义场景切出时二次确认（编辑内容已自动保存，确认避免误操作）
-    if (activeScene.value === '自定义' && sceneName !== '自定义' && state.objects.length > 0) {
-      if (
-        !window.confirm(
-          '确定切换到「' + sceneName + '」场景？自定义场景内容已自动保存，可随时切回恢复。'
-        )
-      ) {
-        return
-      }
-    }
+    // 切换场景时退出编辑模式
+    savedSceneEditing.value = false
     // 场景切换清空撤销/重做历史，避免跨场景撤销
     clearHistory()
     activeScene.value = sceneName
     currentQuestionDesc.value = ''
+    mode.value = 'live'
+    // 判断是否已保存场景
+    const isSaved = savedScenes.value.some((s) => s.name === sceneName)
+    if (isSaved) {
+      loadSavedScene(sceneName)
+      return
+    }
     const preset = getPreset(sceneName)
     loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
     selectedId.value = preset.objects[0]?.id ?? null
-    // 切换场景时退出回放模式
-    mode.value = 'live'
     // 自定义场景：确保暂停，进入编辑模式；尝试从 localStorage 恢复
     if (sceneName === '自定义') {
       state.isPlaying = false
@@ -279,6 +473,24 @@ export function useSceneManager() {
     () => saveCustomScene()
   )
 
+  // 编辑已保存场景时，自动保存更改到 SavedSceneData
+  watch(
+    () => state.objects,
+    () => {
+      if (savedSceneEditing.value && savedSceneNames.value.includes(activeScene.value)) {
+        const found = savedScenes.value.find((s) => s.name === activeScene.value)
+        if (found) {
+          found.objects = deepCopyObjects(state.objects)
+          found.gravity = state.gravity
+          found.groundY = state.groundY >= GROUND_DISABLED ? null : state.groundY
+          found.field = JSON.parse(JSON.stringify(state.field))
+          persistSavedScenes()
+        }
+      }
+    },
+    { deep: true }
+  )
+
   return {
     // 状态
     activeScene,
@@ -296,6 +508,26 @@ export function useSceneManager() {
     onToggleReplay,
     handleLoadPreset,
     handleSceneBuilt,
-    handleLoadQuestion
+    handleLoadQuestion,
+    // 已保存场景
+    savedScenes,
+    savedSceneNames,
+    saveCurrentScene,
+    handleSaveNameConfirm,
+    deleteSavedScene,
+    confirmDeleteScene,
+    cancelDeleteScene,
+    renameSavedScene,
+    savedSceneEditing,
+    toggleSavedSceneEdit,
+    // 名称输入对话框状态
+    showNameDialog,
+    nameDialogTitle,
+    nameDialogInitialValue,
+    nameDialogPlaceholder,
+    nameDialogError,
+    // 删除确认对话框状态
+    showDeleteConfirm,
+    pendingDeleteName
   }
 }
