@@ -165,6 +165,7 @@ export function drawGrid(rc: RenderContext): void {
 }
 
 export function drawGround(rc: RenderContext, groundY: number): void {
+  if (groundY >= 100000) return
   const { ctx, cssW } = rc
   ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)'
   ctx.lineWidth = 2

@@ -984,10 +984,12 @@ export function checkCollision(
   // 更新螺旋圆轨动态缺口状态（基于小球当前位置自动触发）
   updateArcGates(objects)
 
-  // 地面碰撞（仅质点/刚体）
-  for (const obj of objects) {
-    if (obj.type === '质点' || obj.type === '刚体') {
-      if (checkGroundCollision(obj, groundY, groundRestitution)) collided = true
+  // 地面碰撞（仅质点/刚体，groundY>=100000 时禁用地面）
+  if (groundY < 100000) {
+    for (const obj of objects) {
+      if (obj.type === '质点' || obj.type === '刚体') {
+        if (checkGroundCollision(obj, groundY, groundRestitution)) collided = true
+      }
     }
   }
 

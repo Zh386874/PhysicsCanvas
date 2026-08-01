@@ -107,6 +107,14 @@ let selectionEnd: { x: number; y: number } | null = null
 
 // ===== 批量拖拽状态 =====
 let batchDragging = false
+
+// ===== groundY 初始化防抖：仅首次/重置后对齐一次，避免侧栏收起时模型位置漂移 =====
+let groundInitialized = false
+
+export function resetGroundInitialized(): void {
+  groundInitialized = false
+}
+
 let batchDragStartPos: { x: number; y: number } | null = null
 let batchDragInitial: BatchDragItem[] | null = null
 
@@ -656,6 +664,9 @@ function resetView(): void {
 }
 
 // ===== 调整画布尺寸（高 DPI 适配）=====
+// 注意：不使用 RAF 节流，因为 ResizeObserver 已在每帧渲染前触发，
+// 同步更新 canvas backing store 确保下一帧的 draw() 使用正确的尺寸，
+// 避免 CSS 尺寸已变但 backing store 未更新导致浏览器拉伸画布内容
 
 function resizeCanvas(): void {
   const canvas = canvasRef?.value
@@ -671,9 +682,11 @@ function resizeCanvas(): void {
   canvas.width = Math.floor(cssW * dpr)
   canvas.height = Math.floor(cssH * dpr)
   // CSS 显示尺寸由 flex/width 控制，不设置 style.width/height 避免覆盖 flex 布局
-  // 仅当场景启用水平地面时才跟随容器更新；null/100000 表示禁用（斜面/自定义场景）
-  if (stateAccess.groundY !== null && stateAccess.groundY !== 100000) {
+  // 仅在首次/重置后对齐一次 groundY 到底部；避免侧栏收起导致 cssH 变化、
+  // 物体相对地面移动，用户感知为"模型大小变化"
+  if (!groundInitialized && stateAccess.groundY !== null && stateAccess.groundY < GROUND_DISABLED) {
     stateAccess.groundY = cssH - 60
+    groundInitialized = true
   }
 }
 

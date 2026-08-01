@@ -122,7 +122,6 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       normalX,
       normalY,
       friction: obj.friction ?? 0,
-      restitution: 0.2,
       // 颜色按语义区分：传送带（青）/ 板块（红）/ 普通平台（灰），与 useEditTools 工厂保持一致
       color: obj.beltVelocity ? '#0891b2' : obj.movable ? '#dc2626' : '#94a3b8',
       // 传送带速度（SI m/s → 像素/s，y 需翻转）；板块需初始 velocity 才能受重力下落

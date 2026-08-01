@@ -83,10 +83,10 @@ export function useSceneIO(ctx: SceneIOContext) {
   const { state, aiToast, selectedId, activeScene, saveCustomScene } = ctx
 
   /**
-   * 导出场景为 JSON 文本（复制到剪贴板，降级 prompt）
+   * 导出场景为 JSON 文件下载
    * 包含 objects + gravity + groundY + field 全局参数，保证导入后状态完整
    */
-  async function handleExportScene(): Promise<void> {
+  function handleExportScene(): void {
     const sceneData = {
       version: SCENE_VERSION,
       objects: deepCopyObjects(state.objects),
@@ -96,36 +96,30 @@ export function useSceneIO(ctx: SceneIOContext) {
       field: JSON.parse(JSON.stringify(state.field))
     }
     const data = JSON.stringify(sceneData, null, 2)
-    try {
-      await navigator.clipboard.writeText(data)
-      aiToast.value = '场景已导出到剪贴板'
-    } catch {
-      // 降级：用 prompt 显示文本供用户复制
-      prompt('复制下方 JSON 文本（剪贴板不可用）：', data)
-      aiToast.value = ''
-      return
-    }
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `scene_export_${Date.now()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    aiToast.value = '场景已导出为文件'
     setTimeout(() => {
       aiToast.value = ''
     }, 3000)
   }
 
   /**
-   * 导入场景（从剪贴板读取 JSON，降级 prompt 粘贴）
+   * 解析 JSON 文本并加载场景（导入核心逻辑）
    * 兼容两种格式：
    *   - 旧格式：纯对象数组（仅 objects）
    *   - 新格式：{ objects, gravity, groundY, field }（完整状态）
    * 导入时校验每个物体属性，跳过非法物体
+   * @returns 成功返回 true，失败返回 false
    */
-  async function handleImportScene(): Promise<void> {
-    let text = ''
-    try {
-      text = await navigator.clipboard.readText()
-    } catch {
-      // 降级：用 prompt 让用户粘贴
-      text = prompt('粘贴场景 JSON：', '') || ''
-    }
-    if (!text) return
+  function parseAndLoadScene(text: string): boolean {
     try {
       const parsed = JSON.parse(text)
       let rawObjs: unknown[]
@@ -168,14 +162,65 @@ export function useSceneIO(ctx: SceneIOContext) {
         (skipped > 0 ? '，已忽略 ' + skipped + ' 个非法' : '') +
         '）'
       saveCustomScene()
+      setTimeout(() => {
+        aiToast.value = ''
+      }, 3000)
+      return true
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       aiToast.value = '导入失败：' + message
+      setTimeout(() => {
+        aiToast.value = ''
+      }, 3000)
+      return false
     }
-    setTimeout(() => {
-      aiToast.value = ''
-    }, 3000)
   }
 
-  return { handleExportScene, handleImportScene }
+  /**
+   * 导入场景（从剪贴板读取 JSON，降级 prompt 粘贴）
+   * 通过 parseAndLoadScene 处理解析，保持与文件导入一致的逻辑
+   */
+  async function handleImportScene(): Promise<boolean> {
+    let text = ''
+    try {
+      text = await navigator.clipboard.readText()
+    } catch {
+      // 降级：用 prompt 让用户粘贴
+      text = prompt('粘贴场景 JSON：', '') || ''
+    }
+    if (!text) return false
+    return parseAndLoadScene(text)
+  }
+
+  /**
+   * 从文件导入场景
+   * 读取文件内容后通过 parseAndLoadScene 处理解析
+   */
+  function handleImportSceneFromFile(file: File): Promise<boolean> {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const text = reader.result as string
+        if (!text) {
+          aiToast.value = '导入失败：文件为空'
+          setTimeout(() => {
+            aiToast.value = ''
+          }, 3000)
+          resolve(false)
+          return
+        }
+        resolve(parseAndLoadScene(text))
+      }
+      reader.onerror = () => {
+        aiToast.value = '导入失败：文件读取错误'
+        setTimeout(() => {
+          aiToast.value = ''
+        }, 3000)
+        resolve(false)
+      }
+      reader.readAsText(file)
+    })
+  }
+
+  return { handleExportScene, handleImportScene, handleImportSceneFromFile }
 }

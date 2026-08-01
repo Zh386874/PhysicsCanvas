@@ -32,33 +32,32 @@ defineEmits(['toggle-play', 'reset', 'toggle-force', 'toggle-gate-colors', 'togg
   display: flex;
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
-  background: rgba(15, 23, 42, 0.9);
-  border-top: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(var(--vsd-panel-rgb), 0.9);
+  border-top: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
   backdrop-filter: blur(10px);
 }
 
 .btn {
   padding: 0.5rem 1.4rem;
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
   border-radius: 8px;
-  background: rgba(59, 130, 246, 0.05);
-  color: #cbd5e1;
+  background: rgba(var(--vsd-blue-rgb), 0.05);
+  color: var(--vsd-text);
   cursor: pointer;
   font-size: 0.85rem;
   transition: all 0.2s;
 }
 
 .btn:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #fff;
+  background: rgba(var(--vsd-blue-rgb), 0.15);
+  border-color: rgba(var(--vsd-blue-rgb), 0.5);
+  color: var(--vsd-text);
 }
 
 .btn.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(96, 165, 250, 0.1));
-  border-color: rgba(59, 130, 246, 0.6);
-  color: #93c5fd;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+  background: var(--vsd-selection);
+  border-color: rgba(var(--vsd-blue-rgb), 0.6);
+  color: var(--vsd-info);
 }
 
 .btn:disabled {
