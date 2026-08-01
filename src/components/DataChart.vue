@@ -8,22 +8,10 @@
         </option>
       </select>
       <div class="chart-type-toggle">
-        <button
-          :class="{ active: chartType === 'velocity' }"
-          @click="
-            chartType = 'velocity'
-            renderChart()
-          "
-        >
+        <button :class="{ active: chartType === 'velocity' }" @click="handleTypeChange('velocity')">
           v-t 图
         </button>
-        <button
-          :class="{ active: chartType === 'energy' }"
-          @click="
-            chartType = 'energy'
-            renderChart()
-          "
-        >
+        <button :class="{ active: chartType === 'energy' }" @click="handleTypeChange('energy')">
           能量曲线
         </button>
       </div>
@@ -52,6 +40,11 @@ let chartInstance = null
 
 const selectedObjectId = ref('')
 const chartType = ref('velocity')
+
+function handleTypeChange(type) {
+  chartType.value = type
+  renderChart()
+}
 
 // 仅质点/刚体可追踪（有 x/y/vx/vy/mass）
 const trackableObjects = computed(() =>

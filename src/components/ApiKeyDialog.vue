@@ -236,11 +236,8 @@ const customModelName = ref('')
 
 // 自定义配置表单
 const apiFormat = ref('openai-chat')
-const customApiBase = ref('')
 const isFullUrl = ref(false)
-const customModelName = ref('')
 const isMultimodal = ref(false)
-const customName = ref('')
 const modelFamily = ref('general')
 const contextWindow = ref(null)
 
