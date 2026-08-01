@@ -838,4 +838,26 @@ const showGateColors = computed(() => state.showGateColors)
 .center-editor > :deep(.control-bar-wrap) {
   flex-shrink: 0;
 }
+
+.chart-toggle-bar {
+  padding: 0.4rem 0.75rem;
+  background: rgba(15, 23, 42, 0.9);
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.chart-toggle-btn {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.05);
+  color: #93c5fd;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.2s;
+}
+
+.chart-toggle-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.5);
+}
 </style>

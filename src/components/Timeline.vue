@@ -245,6 +245,35 @@ onBeforeUnmount(() => {
   color: var(--vsd-info);
 }
 
+.speed-select {
+  display: flex;
+  gap: 0.2rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  padding: 0.15rem;
+}
+
+.speed-btn {
+  padding: 0.2rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.72rem;
+  transition: all 0.2s;
+}
+
+.speed-btn:hover {
+  color: #cbd5e1;
+}
+
+.speed-btn.active {
+  background: rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
 .frame-info {
   font-size: 0.8rem;
   color: var(--vsd-text-muted);
