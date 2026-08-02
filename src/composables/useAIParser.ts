@@ -125,6 +125,8 @@ export interface ParsedProblem {
     type: 'none' | 'electric' | 'magnetic' | 'composite'
     E?: { x: number; y: number }
     B?: number
+    /** 场区域（SI 单位，米）；undefined = 全场 */
+    region?: { x: number; y: number; width: number; height: number }
   }
   gravity?: number
   groundY?: number | null

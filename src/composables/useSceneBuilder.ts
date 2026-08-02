@@ -406,13 +406,22 @@ export function buildScene(parsed: ParsedProblem): {
   // 电场 E 需乘 scale（因为 F=qE，加速度 a=qE/m，像素加速度需 a×scale）
   // 磁场 B 不需缩放（因为 F=qvB，v 已是 px/s，a=qvB/m 直接是 px/s²）
   // Ey 需翻转：AI 的 y 向上为正，画布 y 向下为正
+  const parsedRegion = parsed.field?.region
   const field: FieldState = {
     type: parsed.field?.type || 'none',
     E: {
       x: (parsed.field?.E?.x || 0) * scale,
       y: -(parsed.field?.E?.y || 0) * scale
     },
-    B: parsed.field?.B || 0
+    B: parsed.field?.B || 0,
+    region: parsedRegion
+      ? {
+          x: parsedRegion.x * scale,
+          y: parsedRegion.y * scale,
+          width: parsedRegion.width * scale,
+          height: parsedRegion.height * scale
+        }
+      : undefined
   }
 
   // 4. 重力（SI 单位转像素：g × scale）

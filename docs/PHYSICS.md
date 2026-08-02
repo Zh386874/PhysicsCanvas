@@ -335,19 +335,26 @@ if (seg.velocity) {
 
 ## 六、板块模型
 
-板块是可移动的线段（`movable: true`），具有质量和速度。板块模型支持上下表面独立摩擦与视觉厚度：
+板块是使用 `type: 'plate'` 的线段物体，具有物理厚度、质量、速度，支持上下表面独立摩擦。板块使用 `subtype: 'plate'` 标记，与普通线段（`subtype: 'platform'`）和传送带（`subtype: 'conveyor'`）区分，渲染时使用独立颜色（红色 `#dc2626`）。
 
 ```typescript
-// 板块字段
+// 板块字段（SegmentObject 扩展）
 interface SegmentObject {
-  movable?: boolean        // 板块标记
-  mass?: number            // 板块质量
-  velocity?: Vec2          // 板块速度（受重力、支撑、摩擦更新）
-  thickness?: number       // 视觉厚度（像素，仅渲染用）
-  frictionTop?: number     // 上表面摩擦系数（未设置回退 friction）
-  frictionBottom?: number  // 下表面摩擦系数（未设置回退 friction）
+  subtype: 'plate'                     // 板块标记
+  movable: true                        // 始终可移动
+  mass?: number                        // 板块质量（kg）
+  velocity?: Vec2                      // 板块速度（受重力、支撑、摩擦更新）
+  physicsThickness?: number            // 物理厚度（像素，碰撞/支撑检测用，与渲染厚度一致）
+  frictionTop?: number                 // 上表面摩擦系数（与滑块，未设置回退 friction）
+  frictionBottom?: number              // 下表面摩擦系数（与地面，未设置回退 friction）
+  // ... 继承自 SegmentObject 的其他字段
 }
 ```
+
+**物理厚度机制**：`physicsThickness` 定义了板块的实体边界。下表面端点沿法线反方向偏移 `physicsThickness` 像素，形成板块的四个角点：
+- 上表面两个端点（`x1,y1` / `x2,y2`）：与滑块发生碰撞
+- 下表面两个端点（沿法线反方向偏移 `physicsThickness`）：与地面/支撑面发生碰撞
+- 板块端面和竖直墙壁碰撞时，立即设置 `vx=0`（正常反射，无摩擦）
 
 板块运动模型（`subStepPhysics` 中）：
 1. 受重力更新 `velocity.y`

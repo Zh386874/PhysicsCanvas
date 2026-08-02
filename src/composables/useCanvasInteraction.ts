@@ -12,6 +12,7 @@ import {
   tool,
   chargeMode,
   previewLine,
+  fieldRegionPreview,
   genId,
   isPlatformTool,
   createPlatformLikeObject,
@@ -25,7 +26,7 @@ import {
   triggerShiftFlash
 } from './useEditTools'
 import { pointToSegmentDistance } from './useCanvasRenderer'
-import type { PhysicsObject, ParticleObject, SegmentObject } from './usePhysics'
+import type { PhysicsObject, ParticleObject, SegmentObject, FieldRegion } from './usePhysics'
 import { GROUND_DISABLED, PAN_LIMIT } from '../constants'
 
 /**
@@ -37,6 +38,8 @@ export interface PhysicsStateAccess {
   readonly objects: PhysicsObject[]
   /** 地面 y 坐标（像素），>= 100000 表示禁用地面 */
   groundY: number
+  /** 场状态（含 region），交互层需设置 region */
+  field: { region?: FieldRegion }
 }
 
 /** 拖拽模式：圆/线段端点/线段整体 */
@@ -122,7 +125,7 @@ let batchDragInitial: BatchDragItem[] | null = null
 let canvasRef: Ref<HTMLCanvasElement | null> | null = null
 let getProps: () => CanvasProps = () => ({ editMode: false, selectedIds: [] })
 let emitFn: (event: string, ...args: unknown[]) => void = () => {}
-let stateAccess: PhysicsStateAccess = { objects: [], groundY: 400 }
+let stateAccess: PhysicsStateAccess = { objects: [], groundY: 400, field: {} }
 
 // ===== Getter（供渲染层和组件使用） =====
 export function getDpr(): number {
@@ -360,6 +363,15 @@ function onMouseDown(e: MouseEvent): void {
     return
   }
 
+  // 场区域工具：开始绘制矩形
+  if (tool.value === 'field') {
+    drawing = true
+    drawStart = pos
+    drawEnd = pos
+    fieldRegionPreview.value = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y }
+    return
+  }
+
   // select 工具：点击空白处清除选择（不添加新物体）
   if (tool.value === 'select') {
     emitFn('update-selected', [])
@@ -452,6 +464,23 @@ function onMouseMove(e: MouseEvent): void {
     }
     drawEnd = { x: endX, y: endY }
     previewLine.value = { x1: drawStart!.x, y1: drawStart!.y, x2: endX, y2: endY }
+    return
+  }
+
+  // 场区域绘制预览
+  if (drawing && tool.value === 'field') {
+    let endX = pos.x
+    let endY = pos.y
+    // Shift 吸附为正方形
+    if (shiftPressed) {
+      const dx = pos.x - drawStart!.x
+      const dy = pos.y - drawStart!.y
+      const side = Math.max(Math.abs(dx), Math.abs(dy))
+      endX = drawStart!.x + Math.sign(dx) * side
+      endY = drawStart!.y + Math.sign(dy) * side
+    }
+    drawEnd = { x: endX, y: endY }
+    fieldRegionPreview.value = { x1: drawStart!.x, y1: drawStart!.y, x2: endX, y2: endY }
     return
   }
 
@@ -566,6 +595,37 @@ function onMouseUp(e: MouseEvent): void {
       emitFn('add-object', newObj)
     }
     previewLine.value = null
+    drawStart = null
+    drawEnd = null
+  }
+
+  // 场区域绘制完成
+  if (drawing && tool.value === 'field') {
+    drawing = false
+    const pos = getMousePos(e)
+    let endX = pos.x
+    let endY = pos.y
+    if (shiftPressed) {
+      const dx = pos.x - drawStart!.x
+      const dy = pos.y - drawStart!.y
+      const side = Math.max(Math.abs(dx), Math.abs(dy))
+      endX = drawStart!.x + Math.sign(dx) * side
+      endY = drawStart!.y + Math.sign(dy) * side
+    }
+    const minX = Math.min(drawStart!.x, endX)
+    const maxX = Math.max(drawStart!.x, endX)
+    const minY = Math.min(drawStart!.y, endY)
+    const maxY = Math.max(drawStart!.y, endY)
+    const area = (maxX - minX) * (maxY - minY)
+    if (area > 100) {
+      stateAccess.field.region = {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      }
+    }
+    fieldRegionPreview.value = null
     drawStart = null
     drawEnd = null
   }

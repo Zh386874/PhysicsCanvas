@@ -49,15 +49,51 @@
           <!-- API Key 输入（服务商下） -->
           <div class="form-group api-key-group">
             <label class="form-label required">API Key</label>
-            <input
-              v-model="apiKey"
-              :type="showKey ? 'text' : 'password'"
-              class="key-input"
-              :placeholder="currentProviderModel.placeholder"
-            />
-            <button class="toggle-key" @click="showKey = !showKey">
-              {{ showKey ? '🙈 隐藏' : '👁 显示' }}
-            </button>
+            <div class="key-input-wrapper">
+              <input
+                v-model="apiKey"
+                :type="showApiKey ? 'text' : 'password'"
+                class="key-input"
+                :placeholder="currentProviderModel.placeholder"
+              />
+              <button
+                type="button"
+                class="toggle-visibility-btn"
+                @click="showApiKey = !showApiKey"
+                :title="showApiKey ? '隐藏密钥' : '显示密钥'"
+              >
+                <svg
+                  v-if="showApiKey"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-8-10-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -114,25 +150,63 @@
           <!-- API 密钥 -->
           <div class="form-group api-key-group">
             <label class="form-label required">API 密钥</label>
-            <input
-              v-model="apiKey"
-              :type="showKey ? 'text' : 'password'"
-              class="key-input"
-              placeholder="输入 API 密钥"
-            />
-            <button class="toggle-key" @click="showKey = !showKey">
-              {{ showKey ? '🙈 隐藏' : '👁 显示' }}
-            </button>
+            <div class="key-input-wrapper">
+              <input
+                v-model="apiKey"
+                :type="showApiKey ? 'text' : 'password'"
+                class="key-input"
+                placeholder="输入 API 密钥"
+              />
+              <button
+                type="button"
+                class="toggle-visibility-btn"
+                @click="showApiKey = !showApiKey"
+                :title="showApiKey ? '隐藏密钥' : '显示密钥'"
+              >
+                <svg
+                  v-if="showApiKey"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-8-10-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- 高级配置（折叠） -->
           <div class="advanced-section">
             <button class="advanced-toggle" @click="isAdvancedOpen = !isAdvancedOpen">
               <span class="advanced-arrow" :class="{ open: isAdvancedOpen }">〉</span>
-              <span class="advanced-title">高级配置</span>
-              <span class="advanced-hint">
-                包含模型系列（优化的 Prompt 和超参）、展示名称、上下文窗口等配置。
-              </span>
+              <div class="advanced-text">
+                <span class="advanced-title">高级配置</span>
+                <span class="advanced-hint">
+                  包含模型系列（优化的 Prompt 和超参）、展示名称、上下文窗口等配置。
+                </span>
+              </div>
             </button>
             <div v-show="isAdvancedOpen" class="advanced-body">
               <div class="form-group">
@@ -229,7 +303,7 @@ const selectedModel = ref('deepseek')
 
 // 服务商下 API Key
 const apiKey = ref('')
-const showKey = ref(false)
+const showApiKey = ref(false)
 const customName = ref('')
 const customApiBase = ref('')
 const customModelName = ref('')
@@ -286,10 +360,10 @@ const savedConfig = computed(() => {
 
 function resetFormFields() {
   apiKey.value = ''
+  showApiKey.value = false
   customName.value = ''
   customApiBase.value = ''
   customModelName.value = ''
-  showKey.value = false
   customApiBase.value = ''
   isFullUrl.value = false
   customModelName.value = ''
@@ -399,13 +473,12 @@ function onClose() {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
 }
 
 .dialog-title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--vsd-info);
+  color: var(--vsd-text);
 }
 
 .close-btn {
@@ -434,17 +507,15 @@ function onClose() {
 /* Tab 条 */
 .tab-bar {
   display: flex;
-  background: rgba(var(--vsd-panel-rgb), 0.6);
-  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
-  border-radius: 8px;
-  overflow: hidden;
+  gap: 0.5rem;
 }
 
 .tab-btn {
   flex: 1;
   padding: 0.65rem 1rem;
   background: transparent;
-  border: none;
+  border: 1px solid rgba(var(--vsd-border-light-rgb), 0.55);
+  border-radius: 8px;
   color: var(--vsd-text-dim);
   font-size: 0.88rem;
   font-weight: 500;
@@ -454,11 +525,12 @@ function onClose() {
 
 .tab-btn:hover:not(.active) {
   color: var(--vsd-text-muted);
-  background: rgba(var(--vsd-panel-light-rgb), 0.6);
+  border-color: rgba(var(--vsd-border-light-rgb), 0.85);
 }
 
 .tab-btn.active {
-  background: rgba(var(--vsd-panel-light-rgb), 0.9);
+  border-color: var(--vsd-blue);
+  border-width: 1.5px;
   color: var(--vsd-info);
 }
 
@@ -508,8 +580,8 @@ function onClose() {
 
 .switch-slider {
   position: relative;
-  width: 32px;
-  height: 18px;
+  width: 26px;
+  height: 14px;
   background: rgba(var(--vsd-border-light-rgb), 0.6);
   border-radius: 999px;
   transition: background 0.2s;
@@ -520,19 +592,19 @@ function onClose() {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   background: var(--vsd-text);
   border-radius: 50%;
   transition: transform 0.2s;
 }
 
 .switch-input:checked + .switch-slider {
-  background: var(--vsd-blue);
+  background: var(--vsd-green);
 }
 
 .switch-input:checked + .switch-slider::after {
-  transform: translateX(14px);
+  transform: translateX(12px);
 }
 
 .switch-label {
@@ -582,17 +654,22 @@ function onClose() {
   font-weight: 500;
 }
 
-/* API Key 输入框（带显示/隐藏按钮） */
+/* API Key 输入框 */
 .api-key-group {
+}
+
+.key-input-wrapper {
   position: relative;
+  width: 100%;
 }
 
 .key-input {
   width: 100%;
-  padding: 0.6rem 2.5rem 0.6rem 0.7rem;
-  background: rgba(var(--vsd-panel-rgb), 0.8);
+  /* 右侧 44px 留给切换按钮 */
+  padding: 0.7rem 44px 0.7rem 0.75rem;
+  background: var(--vsd-panel-light);
   border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--vsd-text);
   font-size: 0.85rem;
   font-family: monospace;
@@ -605,26 +682,45 @@ function onClose() {
   border-color: rgba(var(--vsd-blue-rgb), 0.6);
 }
 
-.toggle-key {
+.toggle-visibility-btn {
   position: absolute;
-  right: 0.5rem;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
+  border-radius: 6px;
   color: var(--vsd-text-dim);
-  font-size: 0.7rem;
   cursor: pointer;
-  padding: 0.2rem 0.4rem;
+  transition: all 0.18s ease;
+  padding: 0;
+}
+
+.toggle-visibility-btn:hover {
+  color: var(--vsd-info);
+  background: rgba(var(--vsd-blue-rgb), 0.1);
+}
+
+.toggle-visibility-btn:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.toggle-visibility-btn svg {
+  display: block;
 }
 
 /* 自定义输入框 & 下拉 */
 .custom-input {
   width: 100%;
-  padding: 0.6rem 0.7rem;
-  background: rgba(var(--vsd-panel-rgb), 0.8);
+  padding: 0.7rem 0.75rem;
+  background: var(--vsd-panel-light);
   border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--vsd-text);
   font-size: 0.85rem;
   outline: none;
@@ -642,10 +738,10 @@ function onClose() {
 
 .custom-select {
   width: 100%;
-  padding: 0.6rem 0.7rem;
-  background: rgba(var(--vsd-panel-rgb), 0.8);
+  padding: 0.7rem 0.75rem;
+  background: var(--vsd-panel-light);
   border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--vsd-text);
   font-size: 0.85rem;
   outline: none;
@@ -654,7 +750,7 @@ function onClose() {
   appearance: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6b6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
-  background-position: right 0.6rem center;
+  background-position: right 0.75rem center;
   background-size: 1em;
 }
 
@@ -666,10 +762,10 @@ function onClose() {
 .info-tip {
   display: flex;
   gap: 0.5rem;
-  padding: 0.65rem 0.8rem;
+  padding: 0.75rem 0.9rem;
   background: rgba(var(--vsd-blue-rgb), 0.1);
   border: 1px solid rgba(var(--vsd-blue-rgb), 0.35);
-  border-radius: 6px;
+  border-radius: 8px;
   margin-top: -0.1rem;
 }
 
@@ -697,26 +793,23 @@ function onClose() {
 
 /* 高级配置折叠 */
 .advanced-section {
-  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
-  border-radius: 8px;
-  overflow: hidden;
 }
 
 .advanced-toggle {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
-  padding: 0.65rem 0.8rem;
-  background: rgba(var(--vsd-panel-rgb), 0.6);
+  padding: 0.4rem 0.2rem;
+  background: transparent;
   border: none;
   cursor: pointer;
   text-align: left;
-  transition: background 0.2s;
+  transition: color 0.2s;
 }
 
 .advanced-toggle:hover {
-  background: var(--vsd-hover);
+  color: var(--vsd-info);
 }
 
 .advanced-arrow {
@@ -724,32 +817,38 @@ function onClose() {
   font-size: 0.85rem;
   transition: transform 0.2s;
   display: inline-block;
+  margin-top: 0.1rem;
 }
 
 .advanced-arrow.open {
   transform: rotate(90deg);
 }
 
+.advanced-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
 .advanced-title {
   color: var(--vsd-text);
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
 }
 
 .advanced-hint {
-  color: var(--vsd-text-dim);
-  font-size: 0.74rem;
-  margin-left: auto;
-  max-width: 72%;
+  color: var(--vsd-text-muted);
+  font-size: 0.78rem;
+  display: block;
 }
 
 .advanced-body {
-  padding: 0.75rem 0.8rem;
+  padding: 0.3rem 0 0.3rem 1.8rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  background: rgba(var(--vsd-panel-rgb), 0.4);
-  border-top: 1px solid rgba(var(--vsd-blue-rgb), 0.15);
 }
 
 /* 状态提示 */
@@ -774,17 +873,17 @@ function onClose() {
 /* 底部按钮 */
 .dialog-actions {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.75rem;
   justify-content: space-between;
   padding-top: 0.3rem;
 }
 
 .btn-reset {
   flex: 1;
-  padding: 0.6rem 1rem;
-  background: rgba(var(--vsd-panel-light-rgb), 0.6);
-  border: 1px solid rgba(var(--vsd-border-light-rgb), 0.4);
-  border-radius: 6px;
+  padding: 0.65rem 1.1rem;
+  background: rgba(var(--vsd-selection-rgb), 0.6);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
+  border-radius: 8px;
   color: var(--vsd-text);
   font-size: 0.85rem;
   cursor: pointer;
@@ -792,16 +891,16 @@ function onClose() {
 }
 
 .btn-reset:hover {
-  background: rgba(var(--vsd-border-rgb), 0.7);
-  border-color: rgba(157, 157, 157, 0.5);
+  background: rgba(var(--vsd-selection-rgb), 0.85);
+  border-color: rgba(var(--vsd-blue-rgb), 0.45);
 }
 
 .btn-save {
   flex: 1;
-  padding: 0.6rem 1.2rem;
-  background: linear-gradient(135deg, var(--vsd-blue), var(--vsd-blue-hover));
+  padding: 0.65rem 1.3rem;
+  background: var(--vsd-blue);
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #fff;
   font-size: 0.85rem;
   font-weight: 600;
@@ -810,7 +909,7 @@ function onClose() {
 }
 
 .btn-save:hover:not(:disabled) {
-  opacity: 0.92;
+  filter: brightness(1.1);
 }
 
 .btn-save:disabled {

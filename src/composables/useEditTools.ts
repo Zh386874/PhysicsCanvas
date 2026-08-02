@@ -7,7 +7,8 @@ import { autoComputeNormal } from './useCollision'
 import { PIXELS_PER_METER } from './usePhysics'
 import type { PhysicsObject, SegmentObject, ParticleObject, SpringObject } from './usePhysics'
 
-export type ToolType = 'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | 'arc' | 'spring'
+export type ToolType =
+  'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | 'arc' | 'spring' | 'field'
 
 /** 平台类工具：共用拖拽绘制流程，仅生成物体属性不同 */
 const PLATFORM_TOOLS: ToolType[] = ['platform', 'conveyor', 'plate']
@@ -101,6 +102,9 @@ const previewArc = ref<{
 
 /** 线段绘制预览 */
 const previewLine = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
+
+/** 场区域拖拽预览 */
+const fieldRegionPreview = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 
 /** 弹簧绘制状态：第一次点击设置固定端，第二次点击选择连接的球 */
 let springAnchor: { x: number; y: number } | null = null
@@ -496,6 +500,7 @@ export {
   chargeMode,
   previewArc,
   previewLine,
+  fieldRegionPreview,
   genId,
   createPlatformLikeObject,
   resetArcState,

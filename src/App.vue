@@ -105,6 +105,7 @@
             @remove="handleRemoveObject"
           />
           <PropertyPanel :object="selectedObject" @update:object="onObjectUpdate" />
+          <SceneSettings />
         </template>
       </aside>
 
@@ -224,6 +225,7 @@ import { ref, computed } from 'vue'
 import SceneTabs from './components/SceneTabs.vue'
 import ObjectList from './components/ObjectList.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
+import SceneSettings from './components/SceneSettings.vue'
 import ControlBar from './components/ControlBar.vue'
 import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
