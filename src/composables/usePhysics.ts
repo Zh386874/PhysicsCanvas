@@ -30,11 +30,20 @@ type ObjectType = '质点' | '刚体' | 'line_segment'
 /** 场类型字面量 */
 type FieldType = 'none' | 'electric' | 'magnetic' | 'composite'
 
+/** 场区域（矩形，像素坐标；undefined = 全场） */
+export interface FieldRegion {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 /** 场设置（支持多场同时存在：gravity 始终独立，E 和 B 可同时非零） */
 export interface FieldState {
   type: FieldType
   E: Vec2
   B: number
+  region?: FieldRegion
 }
 
 /** 自定义力 */

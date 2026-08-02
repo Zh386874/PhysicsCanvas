@@ -26,6 +26,14 @@
       <button class="tool-btn" :class="{ active: chargeMode }" @click="chargeMode = !chargeMode">
         ⚡ 带电
       </button>
+      <button
+        class="tool-btn"
+        :class="{ active: tool === 'field' }"
+        :disabled="state.field.type === 'none'"
+        @click="tool = 'field'"
+      >
+        ▭ 场区域
+      </button>
       <span class="tool-divider"></span>
       <button class="tool-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">↶ 撤销</button>
       <button class="tool-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">↷ 重做</button>
@@ -71,7 +79,8 @@ import {
   drawShiftFlash,
   drawWatermark,
   drawAIToast,
-  drawEditUI
+  drawEditUI,
+  drawFieldRegionPreview
 } from '../composables/useCanvasRenderer'
 // 工具层：工具状态 + 弧线 + Shift 防重叠
 import {
@@ -79,6 +88,7 @@ import {
   chargeMode,
   previewArc,
   previewLine,
+  fieldRegionPreview,
   getShiftFlashState
 } from '../composables/useEditTools'
 // 交互层：事件处理 + 拖拽 + 平移缩放
@@ -210,6 +220,7 @@ function draw() {
 
   drawGrid(rc)
   drawField(rc, field)
+  drawFieldRegionPreview(rc, fieldRegionPreview.value, field)
   drawGround(rc, groundY)
   drawSegments(rc, objects)
   drawArcsVisually(rc, objects, props.selectedIds, state.showGateColors)
@@ -384,5 +395,10 @@ canvas {
   );
   border-color: rgba(var(--vsd-purple-rgb), 0.6);
   color: var(--vsd-purple);
+}
+
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>
