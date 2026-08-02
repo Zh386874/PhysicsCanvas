@@ -145,6 +145,12 @@ interface FieldState {
   type: 'none' | 'electric' | 'magnetic' | 'composite'
   E: Vec2     // 电场强度（N/C，像素单位存储）
   B: number   // 磁感应强度（T）
+  region?: {  // 场区域（像素坐标）；undefined = 全场
+    x: number     // 左边界
+    y: number     // 上边界
+    width: number // 宽度
+    height: number // 高度
+  }
 }
 ```
 
@@ -262,6 +268,7 @@ interface ParsedProblem {
     type: 'none' | 'electric' | 'magnetic' | 'composite'
     E?: Vec2
     B?: number
+    region?: { x: number; y: number; width: number; height: number }  // SI 单位，米；undefined = 全场
   }
   gravity?: number
   groundY?: number | null
@@ -443,7 +450,60 @@ interface PresetScene {
 
 ---
 
-### 2.11 PropertyPanel.vue（属性编辑面板）
+### 2.11 DataChart.vue（数据图表）
+
+基于 ECharts 的数据图表组件，支持 v-t 图和能量曲线展示。
+
+**Props**：
+
+| Prop | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `snapshots` | Array | `[]` | 快照帧列表（用于提取时序数据） |
+| `objects` | Array | `[]` | 物体列表（用于选择可追踪物体） |
+| `currentFrame` | Number | `0` | 当前回放帧索引（标记线） |
+
+**Emits**：
+
+| 事件 | 参数 | 说明 |
+|------|------|------|
+| `collapse` | — | 收起图表 |
+
+**内部状态**：
+- 图表类型切换：`v-t 图`（vx/vy/速率） / `能量曲线`（动能/势能/机械能）
+- 自动选择第一个可追踪物体（`type: '质点'` 或 `'刚体'`）
+- 当前帧标记线（青色虚线，与回放帧同步）
+
+---
+
+### 2.12 InputDialog.vue（通用输入对话框）
+
+**Props**：
+
+| Prop | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `visible` | Boolean | `false` | 是否显示 |
+| `title` | String | `'输入'` | 对话框标题 |
+| `initialValue` | String | `''` | 输入框初始值 |
+| `placeholder` | String | `''` | 输入框占位符 |
+| `message` | String | `''` | 消息模式（非空时显示消息文本，不显示输入框） |
+| `errorMessage` | String | `''` | 输入验证错误提示 |
+
+**Emits**：
+
+| 事件 | 参数 | 说明 |
+|------|------|------|
+| `confirm` | `(value: string)` | 确认（返回输入值） |
+| `cancel` | — | 取消 |
+
+**交互说明**：
+- 输入框自动聚焦并全选初始值
+- Enter 键确认，Esc 键取消
+- 点击遮罩层取消
+- 消息模式（message 非空）：仅显示消息文本，无输入框
+
+---
+
+### 2.13 PropertyPanel.vue（属性编辑面板）
 
 **Props**：
 

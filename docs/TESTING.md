@@ -8,7 +8,7 @@
 
 ### 1.1 当前状态
 
-项目已建立 **Vitest 自动化测试体系**，覆盖弧线碰撞检测、圆环场景物理循环、球穿环 bug 回归、板块定义、重置合并、**物理定律契约**，共 **32 个测试** 跨 7 个文件（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，摩擦与电磁场仍依赖手动验证。
+项目已建立 **Vitest 自动化测试体系**，覆盖物理引擎积分、碰撞检测、力计算、场景管理、物体操作、撤销重做、快照回放、物理定律契约等，共 **335 个测试** 跨 **22 个文件**（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，核心物理逻辑（积分、力、碰撞）均有单元测试覆盖。
 
 ### 1.2 测试目标
 
@@ -25,16 +25,31 @@
 tests/
 ├── helpers/
 │   └── sceneBuilder.ts              ← 测试夹具：构建圆环场景 + 单步模拟（不依赖 Vue reactive）
-├── unit/                            ← 单元测试
+├── unit/                            ← 单元测试（10 文件，220 测试）
 │   ├── collision.test.ts            ← 弧线碰撞与约束激活（6 测试）
+│   ├── collision-branches.test.ts   ← 碰撞分支全覆盖（37 测试）
+│   ├── physics-engine.test.ts       ← 物理引擎积分逻辑（27 测试）
+│   ├── forces.test.ts               ← 力计算策略（18 测试）
+│   ├── history.test.ts              ← 撤销/重做历史（17 测试）
+│   ├── object-operations.test.ts    ← 物体增删改操作（36 测试）
+│   ├── presets.test.ts              ← 预设场景（37 测试）
+│   ├── snapshot-manager.test.ts     ← 快照录制/回放（29 测试）
 │   ├── plate-definition.test.ts     ← 板块 type:plate 定义与默认值（7 测试）
 │   └── reset-merge.test.ts          ← 重置合并策略（6 测试）
-├── integration/
-│   └── ring-scene.test.ts           ← 集成测试：2023 浙江题圆环完整物理循环（3 测试）
-├── regression/
-│   ├── ball-through-ring.test.ts    ← 回归测试：球穿环 bug 修复验证（3 测试）
-│   └── entry-stuck-outside.test.ts  ← 回归测试：球卡环外 bug 修复验证（3 测试）
-└── contracts/                       ← 物理定律契约（不可篡改，详见 1.4）
+├── integration/                     ← 集成测试（4 文件，52 测试）
+│   ├── ring-scene.test.ts           ← 2023 浙江题圆环完整物理循环（3 测试）
+│   ├── forces-physics.test.ts       ← 力与物理引擎集成（18 测试）
+│   ├── scene-replay.test.ts         ← 场景回放集成（15 测试）
+│   └── undo-redo-physics.test.ts    ← 撤销重做物理状态（16 测试）
+├── regression/                      ← 回归测试（7 文件，59 测试）
+│   ├── ball-through-ring.test.ts    ← 球穿环 bug 修复验证（3 测试）
+│   ├── entry-stuck-outside.test.ts  ← 球卡环外 bug 修复验证（3 测试）
+│   ├── elastic-collision-restitution.test.ts  ← 弹性碰撞恢复系数（21 测试）
+│   ├── non-elastic-common-velocity.test.ts    ← 非弹性碰撞共速（7 测试）
+│   ├── friction-direction.test.ts   ← 摩擦力方向（11 测试）
+│   ├── plate-wall-collision.test.ts ← 板块与墙壁碰撞（7 测试）
+│   └── arc-full-circle-normal.test.ts   ← 完整圆法线计算（7 测试）
+└── contracts/                       ← 物理定律契约（不可篡改，1 文件，4 测试）
     └── physics-laws.test.ts         ← 自由落体/匀速/弹性碰撞/非弹性碰撞（4 测试）
 ```
 
@@ -75,7 +90,8 @@ tests/
 
 | 工具 | 用途 | 状态 |
 |------|------|------|
-| Vitest ^4.1.10 | 单元/集成/回归测试 | ✅ 已安装 |
+| Vitest ^4.1.10 | 单元/集成/回归/契约测试 | ✅ 已安装 |
+| @vitest/coverage-v8 ^4.1.10 | 覆盖率报告 | ✅ 已安装 |
 | @vue/test-utils | 组件测试 | 🚧 待安装 |
 | @playwright/test | E2E 测试 | 🚧 待安装 |
 | jsdom | DOM 环境 | 🚧 待安装（当前 environment=node） |
@@ -88,11 +104,25 @@ tests/
 
 ```typescript
 import { defineConfig } from 'vitest/config'
+import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
+  plugins: [vue()],
   test: {
     environment: 'node',              // 物理引擎为纯计算，无需 DOM
     include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov', 'json-summary'],
+      include: ['src/composables/**/*.ts', 'src/data/**/*.ts', 'src/constants.ts'],
+      exclude: ['src/**/*.d.ts', 'tests/**', 'src/types/**'],
+      thresholds: {
+        statements: 18,
+        branches: 18,
+        functions: 10,
+        lines: 18
+      }
+    }
   },
 })
 ```
@@ -103,6 +133,11 @@ export default defineConfig({
 |------|------|
 | `npm run test` | 单次运行全部测试（`vitest run`） |
 | `npm run test:watch` | 监听模式（`vitest`，文件变动自动重跑） |
+| `npm run test:contracts` | 仅运行契约测试（`vitest run tests/contracts`） |
+| `npm run test:coverage` | 运行测试并生成覆盖率报告（`vitest run --coverage`） |
+| `npm run test:integrity` | 检查两次提交间的测试完整性（`node scripts/check-test-integrity.mjs`） |
+| `npm run coverage:check` | 检查覆盖率是否回归（`node scripts/check-coverage-regression.mjs`） |
+| `npm run coverage:save-baseline` | 保存当前覆盖率基线（`node scripts/save-coverage-baseline.mjs`，**人工操作，AI 禁止自动运行**） |
 
 ### 3.3 测试夹具（tests/helpers/sceneBuilder.ts）
 
@@ -112,9 +147,11 @@ export default defineConfig({
 
 ---
 
-## 四、单元测试（tests/unit/collision.test.ts）
+## 四、单元测试
 
-通过 `checkCollision` 公共 API 测试弧线碰撞检测与约束激活的各子场景，共 6 个用例：
+### 4.1 collision.test.ts — 弧线碰撞与约束激活（6 测试）
+
+通过 `checkCollision` 公共 API 测试弧线碰撞检测与约束激活的各子场景：
 
 | # | 用例 | 验证点 |
 |---|------|--------|
@@ -127,11 +164,90 @@ export default defineConfig({
 
 > 用例 3/6 专门覆盖 `tryActivateArcConstraint` 的 **catch-up 逻辑** 与 **缺口放行优先级**，即球穿环 bug 的根因场景。
 
+### 4.2 collision-branches.test.ts — 碰撞分支全覆盖（37 测试）
+
+全面覆盖 `checkCollision` 的分支逻辑：
+
+- 地面碰撞：开启/禁用、不同恢复系数、速度反射
+- 线段碰撞：CCD 路径求交、法线反射、摩擦减速
+- 弧线碰撞：缺口放行、约束激活/解除、完整圆特判
+- 质点间碰撞：弹性、非弹性、分离重叠
+- 边界条件：空物体列表、无碰撞、所有物体静止
+
+### 4.3 physics-engine.test.ts — 物理引擎积分逻辑（27 测试）
+
+通过 `subStepPhysics` 和 `updatePhysics` 测试积分核心：
+
+- 半隐式欧拉积分：先更新速度再更新位置
+- 子步循环：动态子步数计算，MAX_SUBSTEPS 上限
+- 重力加速度：默认值、自定义值
+- 弹簧力：胡克定律、形变与回复力方向
+- 自定义力：方向、大小、作用目标
+- 多物体场景：独立积分、互不干扰
+
+### 4.4 forces.test.ts — 力计算策略（18 测试）
+
+通过 `calculateTotalForce` 和 `registerForce` 测试力注册表：
+
+- 默认注册的 4 种力：重力、自定义力、场力（qE+qvB）、弹簧力
+- 力注册表扩展：`registerForce` 注册新策略
+- 多力叠加：合力为各分力向量和
+- 边界条件：零质量物体、无场力
+
+### 4.5 history.test.ts — 撤销/重做历史（17 测试）
+
+测试 `useHistory` 的撤销/重做栈：
+
+- pushHistory → undo → redo 完整流程
+- 历史栈上限 MAX_HISTORY（50），超出时移除最旧
+- 清空历史、边界条件（空栈 undo/redo 返回 null）
+
+### 4.6 object-operations.test.ts — 物体增删改操作（36 测试）
+
+测试 `useObjectOperations` 的物体管理：
+
+- addObject、removeObject 的增删流程
+- 弧线整组删除、弹簧级联删除
+- 多物体选中、批量更新
+- 撤销/重做对物体状态的恢复
+
+### 4.7 presets.test.ts — 预设场景（37 测试）
+
+测试 `usePresets` 的所有预设场景：
+
+- 6 种预设场景：抛体、斜面、弹性碰撞、磁场圆周、电场偏转、自定义
+- 各场景的物体类型、数量、位置正确性
+- 自定义场景为空初始状态
+
+### 4.8 snapshot-manager.test.ts — 快照录制/回放（29 测试）
+
+测试 `useSnapshotManager` 的快照功能：
+
+- recordSnapshot 录制时序数据
+- 快照结构完整性（objects/field/groundY/gravity/timestamp）
+- MAX_SNAPSHOTS 上限裁剪
+- 关键帧检测（速度方向突变）
+- 清空快照（场景切换时）
+
+### 4.9 plate-definition.test.ts — 板块定义与默认值（7 测试）
+
+测试 `type: 'plate'` 的板块模型：
+
+- 板块默认字段（subtype/movable/physicsThickness/frictionTop/frictionBottom）
+- 板块与普通线段的区别
+- 板块的物理边界（下表面沿法线反方向偏移 physicsThickness）
+
+### 4.10 reset-merge.test.ts — 重置合并策略（6 测试）
+
+测试场景重置时的合并策略：保留自定义物体、清除选中状态、重置物理时间等。
+
 ---
 
-## 五、集成测试（tests/integration/ring-scene.test.ts）
+## 五、集成测试
 
-模拟 2023 浙江题小球从缺口进入圆环的全过程，验证约束系统端到端行为，共 3 个用例：
+### 5.1 ring-scene.test.ts — 圆环完整物理循环（3 测试）
+
+模拟 2023 浙江题小球从缺口进入圆环的全过程，验证约束系统端到端行为：
 
 | # | 用例 | 验证点 |
 |---|------|--------|
@@ -139,11 +255,40 @@ export default defineConfig({
 | 2 | enterRing 触发后入口门关闭 | 球进环后 `arcGateState.entryOpen` 从 true → false |
 | 3 | 球被约束后在弧面附近运动 | 约束期间平均距离 ≈ r ± radius×2 |
 
+### 5.2 forces-physics.test.ts — 力与物理引擎集成（18 测试）
+
+验证力计算与物理引擎的协同工作：
+
+- 重力 + 弹簧力的复合场景
+- 电场力 + 磁场力的洛伦兹力场景
+- 自定义力叠加
+- 多物体各自受力独立
+
+### 5.3 scene-replay.test.ts — 场景回放集成（15 测试）
+
+验证回放系统的端到端行为：
+
+- 快照录制 → 回放 → 帧定位
+- 回放模式下的物体位置/速度恢复
+- 关键帧跳转
+- 回放与实时模式切换
+
+### 5.4 undo-redo-physics.test.ts — 撤销重做物理状态（16 测试）
+
+验证撤销/重做对物理状态的完整恢复：
+
+- 添加物体后撤销 → 恢复前状态
+- 删除物体后撤销 → 恢复被删物体
+- 修改属性后撤销/重做
+- 多次操作的撤销/重做链
+
 ---
 
-## 六、回归测试（tests/regression/ball-through-ring.test.ts）
+## 六、回归测试
 
-精确复现"小球穿过圆环" bug 场景，验证修复后不再出现，共 3 个用例：
+### 6.1 ball-through-ring.test.ts — 球穿环 bug（3 测试）
+
+精确复现"小球穿过圆环" bug 场景，验证修复后不再出现：
 
 | # | 用例 | 验证点 |
 |---|------|--------|
@@ -152,6 +297,60 @@ export default defineConfig({
 | 3 | 约束期间球不脱离到圆心对面 | 约束期间最小距离 > r×0.3 |
 
 > **Bug 根因**：`tryActivateArcConstraint` 与 `detectArcCollision` 均用 `closest.dist > radius`（4px）判定，球深入环内 >4px 时两者同时失效，球穿过底部。修复：catch-up 逻辑在"球在环内 + 门全关"时跳过距离判定强制激活约束。
+
+### 6.2 entry-stuck-outside.test.ts — 球卡环外 bug（3 测试）
+
+验证小球进入圆环不会卡在环外的回归用例：
+
+| # | 用例 | 验证点 |
+|---|------|--------|
+| 1 | 球从入口进入不应卡在环外 | 运行 300 步，球最终进入环内 |
+| 2 | 入口门打开时球可穿过缺口 | 球穿过缺口时不被约束捕获 |
+| 3 | 入口门关闭后球不可穿过缺口 | 球被门拦住或约束捕获 |
+
+### 6.3 elastic-collision-restitution.test.ts — 弹性碰撞恢复系数（21 测试）
+
+全面覆盖弹性碰撞的恢复系数行为：
+
+- restitution=1（完全弹性）：动量守恒 + 动能守恒
+- restitution=0（完全非弹性）：共速、动量守恒
+- 0<restitution<1：动量守恒、能量损失符合预期
+- 不同质量比的碰撞（大撞小、小撞大、等质量）
+- 静止物体被碰撞后的速度
+
+### 6.4 non-elastic-common-velocity.test.ts — 非弹性碰撞共速（7 测试）
+
+专门验证完全非弹性碰撞的共速公式：
+
+- 等质量对撞 → 共速为 0
+- 不同质量 → 共速符合动量守恒
+- 同向运动 → 共速后一起运动
+- 碰撞后不分离
+
+### 6.5 friction-direction.test.ts — 摩擦力方向（11 测试）
+
+验证摩擦力方向始终与相对运动方向相反：
+
+- 斜面滑块：摩擦力沿斜面向上（下滑时）
+- 传送带：摩擦力方向基于相对速度
+- 水平面摩擦：摩擦力与速度方向相反
+- 板块模型：上表面/下表面独立摩擦方向
+
+### 6.6 plate-wall-collision.test.ts — 板块与墙壁碰撞（7 测试）
+
+验证板块与竖直墙壁碰撞的行为：
+
+- 板块撞墙后 vx=0（正常反射，无摩擦）
+- 板块撞墙后动量传递
+- 板块上物体在撞墙瞬间的运动状态
+
+### 6.7 arc-full-circle-normal.test.ts — 完整圆法线计算（7 测试）
+
+验证完整圆弧（span≈2π）的法线计算：
+
+- 完整圆各段法线方向正确
+- 法线不自相矛盾
+- 与缺口法线兼容
 
 ---
 
@@ -252,18 +451,31 @@ measure()
 
 ## 十、未来测试计划
 
-### 10.1 第一阶段：单元测试 ✅ 已完成
+### 10.1 第一阶段：基础测试体系 ✅ 已完成
 
 - [x] 安装 Vitest（^4.1.10）
 - [x] 为 `useCollision.ts` 编写弧线碰撞与约束激活单元测试（6 用例）
-- [x] 在 `package.json` 添加 `"test": "vitest run"` / `"test:watch": "vitest"` 脚本
 - [x] 建立 `tests/helpers/sceneBuilder.ts` 测试夹具
+- [x] 添加 `"test"` / `"test:watch"` / `"test:coverage"` / `"test:contracts"` 等脚本
 
-### 10.2 第二阶段：扩展单元测试覆盖 🚧
+### 10.2 第二阶段：扩展测试覆盖 ✅ 已完成
 
-- [x] 为 `usePhysics.ts` 积分逻辑编写单元测试（自由落体匀加速已由 `tests/contracts/physics-laws.test.ts` 覆盖；平抛、弹簧周期待补）
-- [ ] 为 `useForces.ts` 合力计算策略编写单元测试
-- [ ] 覆盖地面碰撞、线段 CCD 碰撞（质点间弹性/非弹性碰撞已由契约测试覆盖）
+- [x] 为 `usePhysics.ts` 积分逻辑编写单元测试（physics-engine.test.ts，27 测试）
+- [x] 为 `useForces.ts` 合力计算策略编写单元测试（forces.test.ts，18 测试）
+- [x] 覆盖地面碰撞、线段 CCD 碰撞（collision-branches.test.ts，37 测试）
+- [x] 覆盖撤销/重做历史（history.test.ts，17 测试）
+- [x] 覆盖物体增删改操作（object-operations.test.ts，36 测试）
+- [x] 覆盖预设场景（presets.test.ts，37 测试）
+- [x] 覆盖快照录制/回放（snapshot-manager.test.ts，29 测试）
+- [x] 覆盖板块模型（plate-definition.test.ts，7 测试）
+- [x] 覆盖重置合并策略（reset-merge.test.ts，6 测试）
+- [x] 覆盖弹性碰撞恢复系数（elastic-collision-restitution.test.ts，21 测试）
+- [x] 覆盖非弹性碰撞共速（non-elastic-common-velocity.test.ts，7 测试）
+- [x] 覆盖摩擦力方向（friction-direction.test.ts，11 测试）
+- [x] 覆盖板块与墙壁碰撞（plate-wall-collision.test.ts，7 测试）
+- [x] 覆盖完整圆法线计算（arc-full-circle-normal.test.ts，7 测试）
+- [x] 建立物理定律契约测试（physics-laws.test.ts，4 测试）
+- [x] 建立四层测试完整性防御（CLAUDE.md 规则 + husky pre-commit + CI 门禁 + contracts 不可篡改）
 
 ### 10.3 第三阶段：组件测试 🚧
 

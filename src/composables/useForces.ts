@@ -80,6 +80,18 @@ registerForce(({ state, particle }) => {
 registerForce(({ state, particle }) => {
   const charge = particle.charge || 0
   if (charge === 0) return { fx: 0, fy: 0 }
+  // 场区域限制：如果定义了 region，且粒子不在区域内，则不受场力
+  const region = state.field.region
+  if (region) {
+    if (
+      particle.x < region.x ||
+      particle.x > region.x + region.width ||
+      particle.y < region.y ||
+      particle.y > region.y + region.height
+    ) {
+      return { fx: 0, fy: 0 }
+    }
+  }
   let fx = 0
   let fy = 0
   // 电场力 qE（多场同时支持，根据 E 值是否非零判断）

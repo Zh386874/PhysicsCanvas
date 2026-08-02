@@ -181,27 +181,42 @@ export function drawGround(rc: RenderContext, groundY: number): void {
 
 export function drawField(rc: RenderContext, field: FieldState): void {
   const { ctx, cssW, cssH } = rc
-  const step = 60
+  const step = 40
+
+  // 如果定义了区域，裁剪绘制范围
+  let restoreClip = false
+  if (field.region) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(field.region.x, field.region.y, field.region.width, field.region.height)
+    ctx.clip()
+    restoreClip = true
+  }
+
   // 多场同时绘制：磁场和电场可共存
   if (field.B !== 0) {
-    ctx.fillStyle = 'rgba(78, 201, 176, 0.2)'
-    ctx.strokeStyle = 'rgba(78, 201, 176, 0.2)'
-    ctx.lineWidth = 1
+    // 磁场背景填充
+    ctx.fillStyle = 'rgba(78, 201, 176, 0.06)'
+    ctx.fillRect(0, 0, cssW, cssH)
+    // 磁场符号（⊙ 或 ⊗）
+    ctx.fillStyle = 'rgba(78, 201, 176, 0.35)'
+    ctx.strokeStyle = 'rgba(78, 201, 176, 0.35)'
+    ctx.lineWidth = 1.5
     for (let x = step / 2; x < cssW; x += step) {
       for (let y = step / 2; y < cssH; y += step) {
         ctx.beginPath()
-        ctx.arc(x, y, 6, 0, Math.PI * 2)
+        ctx.arc(x, y, 8, 0, Math.PI * 2)
         ctx.stroke()
         if (field.B >= 0) {
           ctx.beginPath()
-          ctx.arc(x, y, 2, 0, Math.PI * 2)
+          ctx.arc(x, y, 3, 0, Math.PI * 2)
           ctx.fill()
         } else {
           ctx.beginPath()
-          ctx.moveTo(x - 4, y - 4)
-          ctx.lineTo(x + 4, y + 4)
-          ctx.moveTo(x + 4, y - 4)
-          ctx.lineTo(x - 4, y + 4)
+          ctx.moveTo(x - 5, y - 5)
+          ctx.lineTo(x + 5, y + 5)
+          ctx.moveTo(x + 5, y - 5)
+          ctx.lineTo(x - 5, y + 5)
           ctx.stroke()
         }
       }
@@ -212,11 +227,14 @@ export function drawField(rc: RenderContext, field: FieldState): void {
       ey = field.E.y
     const mag = Math.sqrt(ex * ex + ey * ey)
     if (mag < 0.01) return
-    const dx = (ex / mag) * 20,
-      dy = (ey / mag) * 20
-    ctx.strokeStyle = 'rgba(86, 156, 214, 0.25)'
-    ctx.fillStyle = 'rgba(86, 156, 214, 0.25)'
-    ctx.lineWidth = 1
+    // 电场背景填充
+    ctx.fillStyle = 'rgba(86, 156, 214, 0.06)'
+    ctx.fillRect(0, 0, cssW, cssH)
+    const dx = (ex / mag) * 24,
+      dy = (ey / mag) * 24
+    ctx.strokeStyle = 'rgba(86, 156, 214, 0.35)'
+    ctx.fillStyle = 'rgba(86, 156, 214, 0.35)'
+    ctx.lineWidth = 1.5
     for (let x = step / 2; x < cssW; x += step) {
       for (let y = step / 2; y < cssH; y += step) {
         ctx.beginPath()
@@ -226,13 +244,70 @@ export function drawField(rc: RenderContext, field: FieldState): void {
         const angle = Math.atan2(dy, dx)
         ctx.beginPath()
         ctx.moveTo(x + dx / 2, y + dy / 2)
-        ctx.lineTo(x + dx / 2 - 5 * Math.cos(angle - 0.4), y + dy / 2 - 5 * Math.sin(angle - 0.4))
-        ctx.lineTo(x + dx / 2 - 5 * Math.cos(angle + 0.4), y + dy / 2 - 5 * Math.sin(angle + 0.4))
+        ctx.lineTo(x + dx / 2 - 6 * Math.cos(angle - 0.4), y + dy / 2 - 6 * Math.sin(angle - 0.4))
+        ctx.lineTo(x + dx / 2 - 6 * Math.cos(angle + 0.4), y + dy / 2 - 6 * Math.sin(angle + 0.4))
         ctx.closePath()
         ctx.fill()
       }
     }
   }
+
+  // 恢复裁剪
+  if (restoreClip) {
+    ctx.restore()
+  }
+
+  // 绘制区域边界（在裁剪恢复之后）
+  if (field.region) {
+    const { x, y, width, height } = field.region
+    // 虚线边框
+    ctx.strokeStyle = 'rgba(0, 122, 204, 0.5)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([6, 4])
+    ctx.strokeRect(x, y, width, height)
+    ctx.setLineDash([])
+    // 区域标签
+    let label = ''
+    if (field.B !== 0 && (field.E.x !== 0 || field.E.y !== 0)) {
+      label = '复合场区域'
+    } else if (field.B !== 0) {
+      label = '磁场区域'
+    } else {
+      label = '电场区域'
+    }
+    ctx.fillStyle = 'rgba(0, 122, 204, 0.7)'
+    ctx.font = '12px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText(label, x + 6, y + 16)
+  }
+}
+
+/**
+ * 绘制场区域拖拽预览矩形
+ */
+export function drawFieldRegionPreview(
+  rc: RenderContext,
+  preview: { x1: number; y1: number; x2: number; y2: number } | null,
+  field: FieldState
+): void {
+  const { ctx } = rc
+  if (!preview) return
+  const minX = Math.min(preview.x1, preview.x2)
+  const maxX = Math.max(preview.x1, preview.x2)
+  const minY = Math.min(preview.y1, preview.y2)
+  const maxY = Math.max(preview.y1, preview.y2)
+  const w = maxX - minX
+  const h = maxY - minY
+  // 半透明填充
+  const color = field.type === 'magnetic' ? 'rgba(78, 201, 176, 0.15)' : 'rgba(86, 156, 214, 0.15)'
+  ctx.fillStyle = color
+  ctx.fillRect(minX, minY, w, h)
+  // 虚线边框
+  ctx.strokeStyle = 'rgba(0, 122, 204, 0.85)'
+  ctx.lineWidth = 2
+  ctx.setLineDash([6, 4])
+  ctx.strokeRect(minX, minY, w, h)
+  ctx.setLineDash([])
 }
 
 export function drawTrails(rc: RenderContext, objects: PhysicsObject[], isReplay: boolean): void {
@@ -831,6 +906,7 @@ export function drawEditUI(rc: RenderContext, ui: UIState): void {
                 ? '🌀 弹簧（两次点击：固定端→连接的球）'
                 : '⤵ 圆弧（三次点击：圆心→半径起点→终点，Shift反向）')
   if (ui.chargeMode) text += '  ⚡带电粒子'
+  if (ui.tool === 'field') text = '▭ 场区域（拖拽绘制矩形范围）'
   ctx.font = '12px sans-serif'
   const metrics = ctx.measureText(text)
   const padX = 10

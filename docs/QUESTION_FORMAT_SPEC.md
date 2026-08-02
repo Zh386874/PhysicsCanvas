@@ -261,6 +261,13 @@
   type: 'none' | 'electric' | 'magnetic' | 'composite'
   E?: { x: number, y: number }   // 电场强度（N/C）
   B?: number                      // 磁感应强度（T）
+  /** 场区域（SI 单位，米）；undefined = 全场 */
+  region?: {
+    x: number     // 区域中心 X（米）
+    y: number     // 区域中心 Y（米）
+    width: number // 区域宽度（米）
+    height: number // 区域高度（米）
+  }
 }
 ```
 
@@ -269,8 +276,9 @@
 | `E.x` | N/C | x 方向（向右为正） |
 | `E.y` | N/C | y 方向（**向上为正**） |
 | `B` | T | **正=垂直纸面向里**，负=垂直纸面向外 |
+| `region` | `{ x, y, width, height }` | m | 场区域（中心+大小）；缺省=全场 |
 
-### 8.1 复合场
+### 8.1 场区域限制
 
 `E` 和 `B` 可同时非零，**不依赖 `type` 字段**。引擎根据 E/B 是否非零判断是否施加电场力/磁场力。
 
