@@ -166,14 +166,9 @@ CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI �
 
 ### 3.2 【测试覆盖】物理引擎核心逻辑测试缺口（🟡 P1，部分缓解）
 
-当前 Vitest 32 个测试覆盖弧线碰撞、圆环场景、球穿环回归、板块定义、重置合并，以及**物理定律契约**（`tests/contracts/`，覆盖自由落体匀加速、匀速运动、弹性碰撞动量/能量守恒、非弹性碰撞动量守恒）。以下核心逻辑仍无自动化测试覆盖：
-- `usePhysics.ts` 欧拉积分（平抛、弹簧周期）— 自由落体已由契约测试覆盖
-- `useForces.ts` 合力计算策略（重力、场力、弹簧力）
-- `useCollision.ts` 地面碰撞、线段 CCD 碰撞 — 质点间碰撞已由契约测试覆盖
+当前 Vitest 335 个测试覆盖弧线碰撞、碰撞分支全覆盖、物理引擎积分、力计算、撤销重做、物体操作、预设场景、快照回放、板块定义、重置合并、弹性碰撞恢复系数、非弹性碰撞共速、摩擦力方向、板块与墙壁碰撞、完整圆法线计算，以及**物理定律契约**（`tests/contracts/`，覆盖自由落体匀加速、匀速运动、弹性碰撞动量/能量守恒、非弹性碰撞动量守恒）。核心物理逻辑（积分、力、碰撞）均有单元测试和集成测试覆盖。
 
-详见 [TESTING.md - 未来测试计划](TESTING.md#十未来测试计划) 第二阶段。
-
-> 💡 同时已建立四层测试完整性防御（`CLAUDE.md` 规则 + `tests/contracts/` 契约 + `.husky/pre-commit` 拦截 + `.github/workflows/ci.yml` 门禁），防止 AI IDE 为通过测试而删除/篡改测试。详见 [TESTING.md - 1.4 测试完整性政策](TESTING.md#14-测试完整性政策)。
+> 已建立四层测试完整性防御（`CLAUDE.md` 规则 + `tests/contracts/` 契约 + `.husky/pre-commit` 拦截 + `.github/workflows/ci.yml` 门禁），防止 AI IDE 为通过测试而删除/篡改测试。详见 [TESTING.md - 1.4 测试完整性政策](TESTING.md#14-测试完整性政策)。
 
 ### 3.3 【SRP 残留】useCanvasInteraction 模块级状态（🟢 P2）
 
@@ -189,12 +184,11 @@ CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI �
 
 | 级别 | 问题 | 影响 |
 |------|------|------|
-| 🟡 P1 | 测试覆盖缺口（积分/力计算/基础碰撞未覆盖） | 核心逻辑改动缺乏回归保护 |
 | 🟢 P2 | useHistory.ts 残留 `as any` | 一致性，非功能性 |
 | 🟢 P2 | useCanvasInteraction 模块级状态 | 可读性，非功能性问题 |
 | 🟢 P2 | emit 桥接签名宽松 | 类型安全折中，影响有限 |
 
-> 既往 P0 问题（App.vue SRP、ParsedObject ISP）均已解决。当前无 P0 问题。
+> 既往 P0 问题（App.vue SRP、ParsedObject ISP）及 P1 问题（测试覆盖缺口）均已解决。当前无 P0/P1 问题。
 
 ---
 
@@ -202,13 +196,13 @@ CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI �
 
 ### 近期（P1）
 
-1. **扩展单元测试覆盖** — 为 usePhysics 积分、useForces 力计算、基础碰撞编写单元测试（对应 TESTING.md 第二阶段）
+无 P1 问题。核心物理逻辑测试覆盖已补齐。
 
 ### 长期优化（P2）
 
-2. **对齐 useHistory 类型写法** — `as any` → `as unknown as Record<string, unknown>`
-3. **归并 useCanvasInteraction 模块级状态** — 按职责封装为 reactive 对象（可选）
-4. **vue-tsc 类型检查纳入 CI** — 对应 FR-8.2，需先补全 emit 类型签名
+1. **对齐 useHistory 类型写法** — `as any` → `as unknown as Record<string, unknown>`
+2. **归并 useCanvasInteraction 模块级状态** — 按职责封装为 reactive 对象（可选）
+3. **vue-tsc 类型检查纳入 CI** — 对应 FR-8.2，需先补全 emit 类型签名
 
 ---
 
@@ -226,3 +220,4 @@ CCD 是防隧穿的核心机制，非"预留未来字段"。原审查的 YAGNI �
 | 2.9 魔法数字 | 集中至 src/constants.ts |
 | 2.10 prevX/prevY | 重新评估为 CCD 核心字段，非 YAGNI，合理保留 |
 | 新增：测试完整性防御 | 四层防御：`CLAUDE.md` 规则 + `tests/contracts/` 物理定律契约 + `.husky/pre-commit` 拦截 + `.github/workflows/ci.yml` CI 门禁 |
+| 新增：测试覆盖缺口（P1） | 已补齐：积分（physics-engine.test.ts，27 测试）、力计算（forces.test.ts，18 测试）、碰撞分支全覆盖（collision-branches.test.ts，37 测试）、弹性碰撞恢复系数（21 测试）、非弹性碰撞共速（7 测试）、摩擦力方向（11 测试）、板块碰撞（7 测试）、完整圆法线（7 测试）等。现共 335 测试，22 文件，四层覆盖。 |

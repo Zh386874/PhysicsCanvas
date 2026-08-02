@@ -29,10 +29,11 @@
 │ ObjectList│   │  PhysicsCanvas   │   │                       │
 │ Property │   │  (渲染+事件分发)  │   │  (1道真题库)          │
 │ Panel    │   └────────┬─────────┘   │                       │
-│ ForceEdi │            │              │                       │
-│ tor      │     ControlBar            │                       │
+│ ForceEdi │            │              │  DataChart            │
+│ tor      │     ControlBar            │  (v-t图/能量曲线)     │
 │          │     Timeline              │                       │
 │          │     SceneTabs             │                       │
+│          │     InputDialog           │                       │
 ├──────────┴────────────┴──────────────┴───────────────────────┤
 │                     Composable 层                            │
 ├──────────┬──────────┬──────────┬──────────┬─────────────────┤
@@ -129,7 +130,25 @@ QuestionBankPanel ──emit('load-question')──► App.vue
 | `useQuestionBank` | 题库筛选/选中 | 场景构建 |
 | `useHistory` | 撤销/重做历史栈 | 状态管理 |
 
-### 3.2 组件拆分原则
+### 3.2 组件职责
+
+当前共 **12 个** Vue 组件（含 App.vue）：
+
+| 组件 | 职责 |
+|------|------|
+| `App.vue` | 全局状态管理、组件编排、布局 |
+| `PhysicsCanvas.vue` | 画布渲染循环 + 事件分发 |
+| `AIInput.vue` | AI 题目解析输入 |
+| `ApiKeyDialog.vue` | API Key 配置对话框 |
+| `QuestionBankPanel.vue` | 真题库面板 |
+| `ObjectList.vue` | 物体列表 |
+| `PropertyPanel.vue` | 属性编辑面板（含弧线高级选项） |
+| `ForceEditor.vue` | 附加力编辑器 |
+| `ControlBar.vue` | 播放控制栏（含触发器颜色按钮） |
+| `Timeline.vue` | 回放时间轴 |
+| `DataChart.vue` | 数据图表（v-t 图、能量曲线），基于 ECharts |
+| `InputDialog.vue` | 通用输入对话框（确认/取消，支持输入验证） |
+| `SceneTabs.vue` | 场景切换标签 |
 
 **PhysicsCanvas.vue** 曾有 1541 行，拆分为 3 个 composable：
 

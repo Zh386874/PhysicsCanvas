@@ -43,19 +43,23 @@ interface QuestionItem {
 
 > **重要**：`initialPosition.y` 表示**球底接触点高度**（球与下方表面的接触点），而非球心高度。详见 [物理模型文档 - 球底高度语义](PHYSICS.md#72-球底高度语义)。
 
-#### platform（平台/线段）
+#### platform（平台/线段/板块）
 
 ```typescript
 {
   id: string
-  type: 'platform'
-  startPoint: { x: number, y: number }   // 起点（米）
-  endPoint: { x: number, y: number }     // 终点（米）
-  friction?: number                       // 摩擦系数（默认 0）
-  restitution?: number                    // 恢复系数（默认 0.3）
-  beltVelocity?: { x: number, y: number } // 传送带速度（m/s）
-  movable?: boolean                       // 是否可移动（板块模型）
-  mass?: number                           // 可移动线段质量（kg）
+  type: 'platform' | 'plate'               // 'plate' 为板块模型
+  startPoint: { x: number, y: number }     // 起点（米）
+  endPoint: { x: number, y: number }       // 终点（米）
+  friction?: number                         // 摩擦系数（默认 0）
+  restitution?: number                      // 恢复系数（默认 0.3）
+  beltVelocity?: { x: number, y: number }   // 传送带速度（m/s）
+  movable?: boolean                         // 是否可移动（板块模型）
+  mass?: number                             // 可移动线段质量（kg）
+  // 板块模型专属字段（type='plate' 时使用）
+  physicsThickness?: number                 // 物理厚度（米，默认 0.1）
+  frictionTop?: number                      // 上表面摩擦系数（与滑块，未设置回退 friction）
+  frictionBottom?: number                   // 下表面摩擦系数（与地面，未设置回退 friction）
 }
 ```
 
@@ -114,11 +118,18 @@ interface QuestionItem {
 
 ### 2.1 当前题目
 
-当前题库含 1 道高考真题：
+当前题库含 8 道高考真题，按题型分类如下：
 
 | ID | 标题 | 难度 | 标签 | 核心知识点 |
 |----|------|------|------|------------|
 | plate-2023-zj | 游戏装置（2023·浙江·高考真题） | hard | 板块模型、圆周运动、动量守恒、能量守恒、斜面 | 斜面 + 螺旋圆轨 + 板块模型 |
+| ski-jump-2022-eth-a | 跳台滑雪·平抛段（2022·全国乙卷·高考真题） | easy | 平抛运动、斜面约束、速度分解 | 平抛运动 + 斜面约束 |
+| ski-jump-2022-eth-b | 跳台滑雪·反弹段（2022·全国乙卷·高考真题） | medium | 斜抛运动、斜面约束、速度变换、多次落点 | 斜抛运动 + 多次落点 |
+| elastic-collision-2021-ng1 | 一维弹性碰撞（2021·新高考I卷·高考真题） | medium | 弹性碰撞、动量守恒、板块模型、摩擦力、能量守恒 | 弹性碰撞 + 板块模型 |
+| conveyor-2020-ng1 | 水平传送带模型（2020·全国I卷·高考真题） | medium | 传送带模型、摩擦力、相对运动、能量守恒、功能关系 | 传送带模型 + 功能关系 |
+| plate-2022-ngjia | 板块模型（2022·全国甲卷·高考真题） | hard | 板块模型、摩擦力、相对运动、动量守恒、能量守恒 | 板块模型 + 相对运动 |
+| electric-deflection-2020-ng3 | 电场偏转（2020·全国III卷·高考真题） | medium | 电场偏转、类平抛运动、匀强电场、带电粒子 | 电场偏转 + 类平抛 |
+| magnetic-circle-2021-eth | 有界磁场圆周运动（2021·全国乙卷·高考真题） | hard | 有界磁场、圆周运动、洛伦兹力、带电粒子 | 有界磁场 + 圆周运动 |
 
 ### 2.2 plate-2023-zj 详解
 
@@ -130,7 +141,7 @@ interface QuestionItem {
 |------|----------|----------|
 | 螺旋圆轨 BCDE | 三维螺旋圆环 | 简化为单圆弧（完整圆 2π），在 `sceneJson.title` 中标注 |
 | B/E 进出点 | 螺旋上下分层 | 分离为动态双缺口（entryGap/exitGap），由触发器状态机控制开关 |
-| 凹槽侧壁 IJ 碰撞 | 滑块碰 IJ 静止 | 未实现（标注于 title） |
+| 凹槽侧壁 IJ 碰撞 | 滑块碰 IJ 静止 | 已实现（端面碰撞，vx=0） |
 | 轨道尺度 | R=0.5m | 等比例放大 ×1.6（R=0.8m），小球半径缩至 0.08m，缓解碰撞卡顿（球径/轨径比从 40% 降至 20%） |
 | 重力 | 9.8 m/s² | 题目设为 10 m/s²（按题意） |
 
@@ -290,6 +301,7 @@ interface QuestionItem {
 | 物体 ID | 同一题目内物体 `id`（字符串名）不可重复 |
 | 弹簧 ballId | 必须对应同题目内某个 ball 的 `id` |
 | 弧线约束 | 题库/自定义弧线默认 `constraintEnabled: true`（由 useSceneBuilder 自动设置首段），小球进环后约束在弧面无能量损耗运动 |
+| 板块类型 | 可移动线段使用 `type: 'plate'` 而非 `type: 'platform'` + `movable: true`。`physicsThickness` 定义物理厚度（米），碰撞检测时下表面沿法线反方向偏移此值。`frictionTop`/`frictionBottom` 分别控制上下表面摩擦系数 |
 | 触发器缺口角度 | `entryGap`/`exitGap` 的 `centerAngle`/`triggerAngle` 使用画布坐标系弧度（y 向下为正，0=右，π/2=下）；由 useSceneBuilder 从 SI 坐标转换 |
 | 球径/轨径比 | 建议 ≤ 20%（小球半径 / 弧线半径），过大易碰撞卡顿；可放大轨道坐标或缩小球径缓解 |
 

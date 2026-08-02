@@ -15,13 +15,20 @@
 
 ### 1. 高考真题库
 
-当前内置 1 道高考真题场景：
+当前内置 8 道高考真题场景，覆盖力学与电磁学核心题型：
 
-| ID            | 题目                           | 难度 | 核心知识点                                       |
-| ------------- | ------------------------------ | ---- | ------------------------------------------------ |
+| ID | 题目 | 难度 | 核心知识点 |
+| --- | --- | --- | --- |
 | plate-2023-zj | 2023·浙江·高考真题（游戏装置） | hard | 斜面 + 螺旋圆轨 + 板块模型 + 动量守恒 + 能量守恒 |
+| ski-jump-2022-eth-a | 2022·全国乙卷·高考真题（跳台滑雪·平抛段） | easy | 平抛运动、斜面约束、速度分解 |
+| ski-jump-2022-eth-b | 2022·全国乙卷·高考真题（跳台滑雪·反弹段） | medium | 斜抛运动、斜面约束、速度变换、多次落点 |
+| elastic-collision-2021-ng1 | 2021·新高考I卷·高考真题（一维弹性碰撞） | medium | 弹性碰撞、动量守恒、板块模型、摩擦力、能量守恒 |
+| conveyor-2020-ng1 | 2020·全国I卷·高考真题（水平传送带模型） | medium | 传送带模型、摩擦力、相对运动、能量守恒、功能关系 |
+| plate-2022-ngjia | 2022·全国甲卷·高考真题（板块模型） | hard | 板块模型、摩擦力、相对运动、动量守恒、能量守恒 |
+| electric-deflection-2020-ng3 | 2020·全国III卷·高考真题（电场偏转） | medium | 电场偏转、类平抛运动、匀强电场、带电粒子 |
+| magnetic-circle-2021-eth | 2021·全国乙卷·高考真题（有界磁场圆周运动） | hard | 有界磁场、圆周运动、洛伦兹力、带电粒子 |
 
-> 该题螺旋圆轨受 2D 拓扑限制简化为单圆弧，并采用动态缺口（entryGap/exitGap 触发器）+ 弧线约束动力学还原小球穿环过程；轨道等比例放大 ×1.6、小球半径缩至 0.08m 以缓解碰撞卡顿。详见 [题库文档](docs/QUESTION_BANK.md)。
+> 其中 plate-2023-zj 螺旋圆轨受 2D 拓扑限制简化为单圆弧，并采用动态缺口（entryGap/exitGap 触发器）+ 弧线约束动力学还原小球穿环过程；轨道等比例放大 ×1.6、小球半径缩至 0.08m 以缓解碰撞卡顿。详见 [题库文档](docs/QUESTION_BANK.md)。
 
 支持一键加载、参数调节、过程回放。
 
@@ -62,7 +69,7 @@
 | 渲染     | Canvas 2D + requestAnimationFrame                       |
 | 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 + 弧线约束动力学 |
 | AI       | DeepSeek API（可选）                                    |
-| 测试     | Vitest 4（单元 / 集成 / 回归三层）                      |
+| 测试     | Vitest 4（单元 / 集成 / 回归 / 契约四层）                |
 | 部署     | GitHub Actions → GitHub Pages                           |
 
 ## 📦 快速开始
@@ -129,6 +136,8 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── ForceEditor.vue          # 附加力编辑器
 │   │   ├── ControlBar.vue           # 播放控制栏（含触发器颜色按钮）
 │   │   ├── Timeline.vue             # 回放时间轴
+│   │   ├── DataChart.vue            # 数据图表（v-t 图、能量曲线）
+│   │   ├── InputDialog.vue          # 通用输入对话框
 │   │   └── SceneTabs.vue            # 场景切换标签
 │   ├── composables/                 # 组合式函数（核心逻辑，共 16 个）
 │   │   ├── usePhysics.ts            # 物理引擎（状态 + 积分 + 场景加载）
@@ -148,18 +157,53 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── useQuestionBank.ts       # 题库状态管理
 │   │   └── useHistory.ts            # 撤销/重做历史
 │   └── data/
-│       └── questionBank.ts          # 高考真题数据（当前 1 道）
-├── tests/                           # Vitest 测试
-│   ├── unit/collision.test.ts       # 单元测试（弧线碰撞与约束激活）
-│   ├── integration/ring-scene.test.ts    # 集成测试（圆环完整物理循环）
-│   ├── regression/ball-through-ring.test.ts  # 回归测试（球穿环 bug）
-│   └── helpers/sceneBuilder.ts      # 测试场景构建工具
-├── .github/workflows/deploy.yml     # GitHub Actions 部署配置
+│       └── questionBank.ts          # 高考真题数据（当前 8 道）
+├── tests/                           # Vitest 测试（22 文件，335 测试）
+│   ├── unit/                        # 单元测试
+│   │   ├── collision.test.ts        # 弧线碰撞与约束激活（6 测试）
+│   │   ├── collision-branches.test.ts   # 碰撞分支全覆盖（37 测试）
+│   │   ├── physics-engine.test.ts   # 物理引擎积分逻辑（27 测试）
+│   │   ├── forces.test.ts           # 力计算策略（18 测试）
+│   │   ├── history.test.ts          # 撤销/重做历史（17 测试）
+│   │   ├── object-operations.test.ts    # 物体增删改操作（36 测试）
+│   │   ├── presets.test.ts          # 预设场景（37 测试）
+│   │   ├── snapshot-manager.test.ts # 快照录制/回放（29 测试）
+│   │   ├── plate-definition.test.ts # 板块定义与默认值（7 测试）
+│   │   └── reset-merge.test.ts      # 重置合并策略（6 测试）
+│   ├── integration/                 # 集成测试
+│   │   ├── ring-scene.test.ts       # 圆环完整物理循环（3 测试）
+│   │   ├── forces-physics.test.ts   # 力与物理引擎集成（18 测试）
+│   │   ├── scene-replay.test.ts     # 场景回放集成（15 测试）
+│   │   └── undo-redo-physics.test.ts    # 撤销重做物理状态（16 测试）
+│   ├── regression/                  # 回归测试
+│   │   ├── ball-through-ring.test.ts    # 球穿环 bug（3 测试）
+│   │   ├── entry-stuck-outside.test.ts  # 球卡环外 bug（3 测试）
+│   │   ├── elastic-collision-restitution.test.ts  # 弹性碰撞恢复系数（21 测试）
+│   │   ├── non-elastic-common-velocity.test.ts    # 非弹性碰撞共速（7 测试）
+│   │   ├── friction-direction.test.ts   # 摩擦力方向（11 测试）
+│   │   ├── plate-wall-collision.test.ts # 板块与墙壁碰撞（7 测试）
+│   │   └── arc-full-circle-normal.test.ts   # 完整圆法线计算（7 测试）
+│   ├── contracts/                   # 物理定律契约（不可篡改）
+│   │   └── physics-laws.test.ts     # 自由落体/匀速/弹性碰撞/非弹性碰撞（4 测试）
+│   └── helpers/
+│       └── sceneBuilder.ts          # 测试场景构建工具
+├── scripts/                         # 自动化脚本
+│   ├── check-test-integrity.mjs     # 测试完整性检查
+│   ├── check-coverage-regression.mjs    # 覆盖率回归检查
+│   ├── save-coverage-baseline.mjs   # 覆盖率基线保存
+│   └── fix-lockfile-platform.mjs    # lockfile 平台修复
+├── .github/workflows/               # GitHub Actions 工作流
+│   └── deploy.yml                   # 部署（含测试 + 构建）
+├── .husky/                          # Git hooks
+│   └── pre-commit                   # 提交前测试与lint检查
 ├── docs/                            # 项目文档
 ├── index.html                       # HTML 入口
 ├── vite.config.js                   # Vite 配置
-├── vitest.config.ts                 # Vitest 测试配置
+├── vitest.config.ts                 # Vitest 测试配置（含覆盖率）
 ├── tsconfig.json                    # TypeScript 配置
+├── .env.example                     # 环境变量示例
+├── .eslintrc.cjs                    # ESLint 配置
+├── .prettierrc                      # Prettier 配置
 └── package.json
 ```
 
@@ -179,37 +223,26 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 
 ## 🔑 核心常量
 
-| 常量               | 值        | 说明                        |
-| ------------------ | --------- | --------------------------- |
-| `PIXELS_PER_METER` | 50        | 1 米 = 50 像素              |
-| `GRAVITY`          | 490 px/s² | 重力加速度（9.8 m/s² × 50） |
-| `MAX_SUBSTEPS`     | 200       | 子步循环上限（防卡顿）      |
-| `MAX_SNAPSHOTS`    | 1200      | 快照缓冲区（20 秒 × 60fps） |
-| `MAX_HISTORY`      | 50        | 撤销/重做历史上限           |
+| 常量               | 值        | 位置             | 说明                        |
+| ------------------ | --------- | ---------------- | --------------------------- |
+| `PIXELS_PER_METER` | 50        | usePhysics.ts    | 1 米 = 50 像素              |
+| `GRAVITY`          | 490 px/s² | usePhysics.ts    | 重力加速度（9.8 m/s² × 50） |
+| `GROUND_DISABLED`  | 100000    | constants.ts     | 禁用地面标记值              |
+| `MAX_SUBSTEPS`     | 200       | constants.ts     | 子步循环上限（防卡顿）      |
+| `MAX_STEP_DIST`    | 10        | constants.ts     | 单步最大移动距离（像素）    |
+| `TRAIL_LENGTH`     | 80        | constants.ts     | 轨迹最大长度（帧数）        |
+| `MAX_SNAPSHOTS`    | 1200      | constants.ts     | 快照缓冲区（20 秒 × 60fps） |
+| `MAX_HISTORY`      | 50        | useHistory.ts    | 撤销/重做历史上限           |
+| `SCENE_VERSION`    | 2         | constants.ts     | 场景导出 JSON 版本号        |
 
-## 🔒 已知安全风险
+## 🔒 安全状态
 
-`npm audit` 当前报告 3 项漏洞，均源自同一条依赖链 `vitepress@1.6.4` → 内置 `vite@5.4.21` → `esbuild@0.21.5`：
+`npm audit` 当前报告 **0 项漏洞**，所有依赖链安全。
 
-| 漏洞                                                          | 严重度   | 状态         |
-| ------------------------------------------------------------- | -------- | ------------ |
-| [esbuild GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) | moderate | 上游无修复版本 |
-| `vite@5.4.21`（依赖上述 esbuild）                              | high     | 上游无修复版本 |
-| `vitepress@1.6.4`（依赖上述 vite）                             | moderate | 上游无修复版本 |
-
-**影响范围**：仅 `npm run docs:dev`（文档开发服务器）受影响——理论上任意网站可向该开发服务器发送请求并读取响应。
-
-**不受影响**：
-- 主应用 `vite@6.4.3`（内置 `esbuild@0.25.12`，已修复，安全）
-- `npm run docs:build` 产物（静态 HTML，部署后无开发服务器）
-- `npm run build` / `npm run dev`（主应用构建与开发服务器）
-
-**缓解措施**：
-- 不在不受信网络环境下运行 `npm run docs:dev`
-- 生产文档部署使用 `npm run docs:build` 产出的静态文件
-- 上游 vitepress 发布修复版本后升级
-
-> 历史漏洞（brace-expansion / minimatch 链，eslint@9.x、vue-tsc@2.x）已于 2026-07-30 通过升级 eslint→10.8.0、eslint-plugin-vue→10.10.0、@eslint/js→10.0.1、vue-tsc→3.3.8 全部消除。
+**历史漏洞均已消除**：
+- `esbuild` / `vite` / `vitepress` 依赖链漏洞 —— 通过升级 `vitepress@1.6.4` → `2.0.0-alpha.18` 消除（内置 `vite@6.3.5`，已修复）
+- `brace-expansion` / `minimatch` 链 —— 通过升级 `eslint@9.x` → `10.8.0` 消除
+- `vue-tsc@2.x` 漏洞 —— 通过升级 `vue-tsc@2.x` → `3.3.8` 消除
 
 ## 📄 License
 

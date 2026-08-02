@@ -48,7 +48,7 @@ npm run build
 
 # 5. 运行测试（可选，验证物理引擎核心逻辑）
 npm run test
-# → Vitest 单次运行，12 个测试跨 unit/integration/regression 三层
+# → Vitest 单次运行，335 个测试跨 unit/integration/regression/contracts 四层
 
 # 6. 本地预览构建结果
 npm run preview
@@ -76,21 +76,39 @@ export default defineConfig({
 
 ```typescript
 import { defineConfig } from 'vitest/config'
+import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
+  plugins: [vue()],
   test: {
     environment: 'node',              // 物理引擎为纯计算，无需 DOM
     include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov', 'json-summary'],
+      include: ['src/composables/**/*.ts', 'src/data/**/*.ts', 'src/constants.ts'],
+      thresholds: {
+        statements: 18,
+        branches: 18,
+        functions: 10,
+        lines: 18
+      }
+    }
   },
 })
 ```
 
 | 命令 | 说明 |
 |------|------|
-| `npm run test` | 单次运行全部测试（`vitest run`） |
+| `npm run test` | 单次运行全部测试（`vitest run`，335 测试，22 文件） |
 | `npm run test:watch` | 监听模式，文件变动自动重跑（`vitest`） |
+| `npm run test:contracts` | 仅运行契约测试（`vitest run tests/contracts`） |
+| `npm run test:coverage` | 运行测试并生成覆盖率报告（`vitest run --coverage`） |
+| `npm run test:integrity` | 检查两次提交间的测试完整性 |
+| `npm run coverage:check` | 检查覆盖率是否回归 |
+| `npm run coverage:save-baseline` | 保存当前覆盖率基线（人工操作） |
 
-> 测试体系详见 [TESTING.md](TESTING.md)。当前测试未纳入 GitHub Actions CI，需本地手动运行。
+> 测试体系详见 [TESTING.md](TESTING.md)。测试已纳入 GitHub Actions CI，每次构建自动运行。
 
 ---
 
@@ -121,12 +139,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run test        # 测试通过后才构建
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -154,11 +173,12 @@ jobs:
 
 ```
 1. checkout 代码
-2. 安装 Node.js 20
+2. 安装 Node.js 24
 3. npm ci（严格按 lockfile 安装）
-4. npm run build（Vite 生产构建）
-5. 上传 dist/ 为 Pages artifact
-6. 部署到 GitHub Pages
+4. npm run test（运行全部测试，335 测试通过才继续）
+5. npm run build（Vite 生产构建）
+6. 上传 dist/ 为 Pages artifact
+7. 部署到 GitHub Pages
 ```
 
 ### 3.4 查看部署状态
