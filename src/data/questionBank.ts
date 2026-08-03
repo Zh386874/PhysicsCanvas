@@ -249,7 +249,7 @@ export const questionBank: QuestionItem[] = [
           endPoint: { x: 9, y: 0 },
           physicsThickness: 0.2,
           angle: 0,
-          frictionTop: 0.16,
+          frictionTop: 0.16, // 第(2)问答案预设值（B与小车间的动摩擦因数μ），题目要求学生求解此值
           frictionBottom: 0,
           mass: 2
         }
@@ -310,7 +310,7 @@ export const questionBank: QuestionItem[] = [
     difficulty: 'hard',
     tags: ['板块模型', '摩擦力', '相对运动', '动量守恒', '能量守恒'],
     sceneJson: {
-      title: '板块模型（2022全国甲卷）（弹簧未建模；木板无厚度体现为物理厚度0.1m；物块视为质点）',
+      title: '板块模型（2022全国甲卷）（木板无厚度体现为物理厚度0.1m；物块视为质点；弹簧已建模）',
       topic: 'custom',
       objects: [
         {
@@ -331,14 +331,22 @@ export const questionBank: QuestionItem[] = [
           frictionTop: 0.2,
           frictionBottom: 0,
           mass: 4
+        },
+        // 弹簧：固定于木板左端上表面，物块与弹簧发生弹性碰撞（k=100N/m，题目给定）
+        {
+          id: '弹簧',
+          type: 'spring',
+          anchor: { x: 0, y: 0.1 },
+          ballId: '物块',
+          naturalLength: 1,
+          k: 100
         }
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,
       groundY: 0,
       groundRestitution: 0,
-      worldWidth: 10,
-      simulationTime: 0.5
+      worldWidth: 10
     }
   },
   // ========== 电场偏转类 ==========
@@ -351,7 +359,7 @@ export const questionBank: QuestionItem[] = [
     tags: ['电场偏转', '类平抛运动', '匀强电场', '带电粒子'],
     sceneJson: {
       title:
-        '电场偏转类平抛（2020全国III卷第24题第3问建模；微观参数宏观等效放大100倍；微粒半径缩小为2mm；前两问未建模）',
+        '电场偏转类平抛（2020全国III卷第24题第3问建模；微观参数宏观等效放大100倍；微粒半径缩小为2mm；前两问未建模；E=-250预设第③问答案（精确值））',
       topic: 'electric_deflection',
       objects: [
         {
@@ -378,7 +386,7 @@ export const questionBank: QuestionItem[] = [
           friction: 0
         }
       ],
-      field: { type: 'electric', E: { x: 0, y: -240 }, B: 0 },
+      field: { type: 'electric', E: { x: 0, y: -250 }, B: 0 },
       gravity: 10,
       groundY: null,
       worldWidth: 0.4,
@@ -396,7 +404,7 @@ export const questionBank: QuestionItem[] = [
     tags: ['有界磁场', '圆周运动', '洛伦兹力', '带电粒子'],
     sceneJson: {
       title:
-        '有界磁场圆周运动（2021全国乙卷第25题第1问建模；矩形磁场边界未显示仅轨迹；微观参数宏观等效；B=0.4T对应R=2.5m）',
+        '有界磁场圆周运动（2021全国乙卷第25题第1问建模；矩形磁场边界未建模，无法验证"恰好从AD中点飞出"条件；微观参数宏观等效；B=0.4T对应R=2.5m）',
       topic: 'magnetic_circle',
       objects: [
         {

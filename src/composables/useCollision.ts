@@ -971,6 +971,58 @@ function updateArcGates(objects: PhysicsObject[]): void {
  * @param dt 子步时间（秒），用于摩擦力线性减速计算
  * @param gravity 重力加速度（像素/s²），用于法向力计算
  */
+/**
+ * 斜面约束：将物体投影到线段表面，切向速度保留，法向速度置零
+ * 防止 jittering，模拟沿斜面平滑滑动
+ * @returns true 表示约束已施加
+ */
+export function applySlopeConstraint(obj: ParticleObject, segment: SegmentObject): boolean {
+  if (segment.arc) return false // 弧线由 applyArcConstraint 处理
+  if (segment.movable) return false // 可移动线段不是固定斜面
+
+  const radius = obj.radius || 10
+  const { x1, y1, x2, y2 } = segment
+  const nx = segment.normalX ?? 0
+  const ny = segment.normalY ?? 0
+
+  // 1. 计算物体到线段最近点的距离
+  const cp = closestPointOnSegment(obj.x, obj.y, x1, y1, x2, y2)
+  const dx = obj.x - cp.x
+  const dy = obj.y - cp.y
+  const dist = Math.hypot(dx, dy)
+
+  // 2. 距离阈值：物体表面必须在线段表面附近
+  if (dist > radius + 2) return false
+
+  // 3. 检查物体是否在线段的"正确侧"（法线指向侧）
+  const dot = dx * nx + dy * ny
+  if (dot < 0) return false // 法线反向侧，不施加约束
+
+  // 4. 位置修正：将物体投影到线段表面（最近点 + 法线方向偏移半径）
+  obj.x = cp.x + nx * radius
+  obj.y = cp.y + ny * radius
+
+  // 5. 速度投影：法向速度置零，切向保留
+  const vn = obj.vx * nx + obj.vy * ny
+  if (vn < 0) {
+    // 仅仅当物体朝线段方向运动时（vn < 0）才约束
+    obj.vx -= vn * nx
+    obj.vy -= vn * ny
+  }
+
+  // 6. 自然脱离检测：法向力为 0 时释放约束
+  // 法向力 N = m·g·cos(θ)，θ 为斜面与水平面夹角
+  // 当物体切向加速度方向背离表面时，法向力为负
+  // 简化的检测：如果法向速度正向（脱离方向）且足够大，释放
+  const vnNew = obj.vx * nx + obj.vy * ny
+  if (vnNew > 1) {
+    // 物体正在脱离表面，释放约束
+    return false
+  }
+
+  return true
+}
+
 export function checkCollision(
   objects: PhysicsObject[],
   groundY: number,
