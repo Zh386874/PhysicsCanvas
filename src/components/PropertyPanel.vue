@@ -648,7 +648,11 @@ function setArcGap(gapKey, gap) {
   flex-shrink: 1;
   padding: 1rem;
   min-width: 0;
-  overflow: hidden;
+}
+
+.panel-body {
+  overflow-y: auto;
+  max-height: 60vh;
 }
 
 .panel-title {
