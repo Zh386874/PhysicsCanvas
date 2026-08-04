@@ -177,7 +177,12 @@ function convertObject(obj: ParsedObject, scale: number, index: number): Physics
       angle: obj.angle ?? 0,
       // 强制上下表面摩擦分离；默认 上0.3 / 下0.1
       frictionTop: obj.frictionTop ?? 0.3,
-      frictionBottom: obj.frictionBottom ?? 0.1
+      frictionBottom: obj.frictionBottom ?? 0.1,
+      // 矩形板块模型字段
+      centerX: (x1 + x2) / 2 - normalX * (((obj.physicsThickness ?? 0.1) * scale) / 2),
+      centerY: (y1 + y2) / 2 - normalY * (((obj.physicsThickness ?? 0.1) * scale) / 2),
+      width: len,
+      height: (obj.physicsThickness ?? 0.1) * scale
     }
     return segment
   }

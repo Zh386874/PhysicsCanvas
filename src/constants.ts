@@ -6,6 +6,15 @@
 
 // ===== 物理引擎常量 =====
 
+/** 全局像素-米换算比例（1 米 = 50 像素） */
+export const PIXELS_PER_METER = 50
+
+/** 重力加速度（SI 单位，m/s²） */
+export const GRAVITY_SI = 9.8
+
+/** 重力加速度（像素单位，像素/s² = 9.8 × 50 = 490） */
+export const GRAVITY = GRAVITY_SI * PIXELS_PER_METER
+
 /** 禁用地面的内部标记值（groundY >= 此值表示禁用水平地面，由线段物体接管碰撞） */
 export const GROUND_DISABLED = 100000
 

@@ -4,10 +4,13 @@
  * 纯函数部分（deepCopyObjects / validateObject）直接导出；
  * 有状态部分（handleExportScene / handleImportScene）通过 useSceneIO 工厂接收 context
  */
-import type { Ref } from 'vue'
-import type { PhysicsState, PhysicsObject } from './usePhysics'
+import { ref, toRaw, type Ref } from 'vue'
+import type { PhysicsState, PhysicsObject, FieldState } from './usePhysics'
 import { pushHistory } from './useHistory'
 import { GROUND_DISABLED, SCENE_VERSION } from '../constants'
+import { SceneDataSchema, LegacySceneSchema } from '../schemas/sceneSchema'
+import { z } from 'zod'
+import { ElMessageBox } from 'element-plus'
 
 /** 合法物体类型字面量 */
 const VALID_OBJECT_TYPES = ['质点', '刚体', 'line_segment', 'spring'] as const
@@ -16,15 +19,13 @@ const VALID_OBJECT_TYPES = ['质点', '刚体', 'line_segment', 'spring'] as con
  * 深拷贝物体数组，剥离运行时字段（trail/prevX/prevY/arcGateState/constrainedArcGroupId）
  */
 export function deepCopyObjects(objs: PhysicsObject[]): PhysicsObject[] {
-  return JSON.parse(
-    JSON.stringify(
-      objs.map((o) => {
-        const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } =
-          o as unknown as Record<string, unknown>
-        return rest
-      })
-    )
-  )
+  return structuredClone(
+    objs.map((o) => {
+      const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } =
+        o as unknown as Record<string, unknown>
+      return rest
+    })
+  ) as unknown as PhysicsObject[]
 }
 
 /**
@@ -93,7 +94,7 @@ export function useSceneIO(ctx: SceneIOContext) {
       gravity: state.gravity,
       // groundY >= GROUND_DISABLED 是 usePhysics 内部"禁用地面"的标记，导出为 null 还原语义
       groundY: state.groundY >= GROUND_DISABLED ? null : state.groundY,
-      field: JSON.parse(JSON.stringify(state.field))
+      field: structuredClone(toRaw(state).field)
     }
     const data = JSON.stringify(sceneData, null, 2)
     const blob = new Blob([data], { type: 'application/json' })
@@ -104,7 +105,8 @@ export function useSceneIO(ctx: SceneIOContext) {
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    // 延迟释放 URL 对象，确保浏览器有足够时间启动下载
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
     aiToast.value = '场景已导出为文件'
     setTimeout(() => {
       aiToast.value = ''
@@ -122,6 +124,30 @@ export function useSceneIO(ctx: SceneIOContext) {
   function parseAndLoadScene(text: string): boolean {
     try {
       const parsed = JSON.parse(text)
+
+      // Zod schema 校验（增强安全性，防止恶意 JSON）
+      let sceneData: z.infer<typeof SceneDataSchema>
+      if (Array.isArray(parsed)) {
+        const result = LegacySceneSchema.safeParse(parsed)
+        if (!result.success) {
+          const issues = result.error.issues.map((i) => i.message).join('; ')
+          throw new Error('场景格式校验失败: ' + issues)
+        }
+        sceneData = {
+          objects: result.data,
+          gravity: 490,
+          groundY: 400,
+          field: { type: 'none', E: { x: 0, y: 0 }, B: 0 }
+        }
+      } else {
+        const result = SceneDataSchema.safeParse(parsed)
+        if (!result.success) {
+          const issues = result.error.issues.map((i) => i.message).join('; ')
+          throw new Error('场景格式校验失败: ' + issues)
+        }
+        sceneData = result.data
+      }
+
       let rawObjs: unknown[]
       let gravity: unknown
       let groundY: unknown
@@ -153,7 +179,7 @@ export function useSceneIO(ctx: SceneIOContext) {
       if (typeof gravity === 'number' && isFinite(gravity)) state.gravity = gravity
       if (groundY === null) state.groundY = GROUND_DISABLED
       else if (typeof groundY === 'number' && isFinite(groundY)) state.groundY = groundY
-      if (field && typeof field === 'object') state.field = JSON.parse(JSON.stringify(field))
+      if (field && typeof field === 'object') state.field = structuredClone(field) as FieldState
       selectedId.value = validObjs[0]?.id ?? null
       aiToast.value =
         '场景已导入（' +
@@ -185,8 +211,18 @@ export function useSceneIO(ctx: SceneIOContext) {
     try {
       text = await navigator.clipboard.readText()
     } catch {
-      // 降级：用 prompt 让用户粘贴
-      text = prompt('粘贴场景 JSON：', '') || ''
+      // 降级：使用 Element Plus 对话框让用户粘贴
+      try {
+        const { value } = await ElMessageBox.prompt('粘贴场景 JSON：', '导入场景', {
+          inputType: 'textarea',
+          inputPlaceholder: '请粘贴场景 JSON 内容...',
+          confirmButtonText: '导入',
+          cancelButtonText: '取消'
+        })
+        text = value || ''
+      } catch {
+        return false
+      }
     }
     if (!text) return false
     return parseAndLoadScene(text)
@@ -212,7 +248,8 @@ export function useSceneIO(ctx: SceneIOContext) {
         resolve(parseAndLoadScene(text))
       }
       reader.onerror = () => {
-        aiToast.value = '导入失败：文件读取错误'
+        const errMsg = reader.error?.message || '文件读取错误'
+        aiToast.value = '导入失败：' + errMsg
         setTimeout(() => {
           aiToast.value = ''
         }, 3000)
@@ -222,5 +259,35 @@ export function useSceneIO(ctx: SceneIOContext) {
     })
   }
 
-  return { handleExportScene, handleImportScene, handleImportSceneFromFile }
+  /**
+   * 文件导入控件状态
+   * 提供 fileInputRef 和 triggerImport 供模板使用
+   */
+  const fileInputRef = ref<HTMLInputElement | null>(null)
+
+  function triggerImport(): void {
+    fileInputRef.value?.click()
+  }
+
+  function onImportFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    if (!file) return
+    handleImportSceneFromFile(file).then((success) => {
+      if (success) {
+        saveCustomScene()
+      }
+    })
+    // 重置 input 以便再次选择同一文件
+    input.value = ''
+  }
+
+  return {
+    handleExportScene,
+    handleImportScene,
+    handleImportSceneFromFile,
+    fileInputRef,
+    triggerImport,
+    onImportFileSelected
+  }
 }

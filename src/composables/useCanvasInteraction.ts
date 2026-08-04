@@ -12,10 +12,12 @@ import {
   tool,
   chargeMode,
   previewLine,
+  previewPlateRect,
   fieldRegionPreview,
   genId,
   isPlatformTool,
   createPlatformLikeObject,
+  createRectPlate,
   handleArcClick,
   updateArcPreview,
   getSpringAnchor,
@@ -354,12 +356,21 @@ function onMouseDown(e: MouseEvent): void {
     return
   }
 
-  // 未命中物体：平台类工具（platform/conveyor/plate）开始绘制线段
+  // 未命中物体：平台类工具（platform/conveyor）开始绘制线段
   if (isPlatformTool(tool.value)) {
     drawing = true
     drawStart = pos
     drawEnd = pos
     previewLine.value = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y }
+    return
+  }
+
+  // 板块工具：开始绘制矩形（与场区域工具类似）
+  if (tool.value === 'plate') {
+    drawing = true
+    drawStart = pos
+    drawEnd = pos
+    previewPlateRect.value = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y }
     return
   }
 
@@ -467,6 +478,23 @@ function onMouseMove(e: MouseEvent): void {
     return
   }
 
+  // 板块矩形绘制预览
+  if (drawing && tool.value === 'plate') {
+    let endX = pos.x
+    let endY = pos.y
+    // Shift 吸附为正方形
+    if (shiftPressed) {
+      const dx = pos.x - drawStart!.x
+      const dy = pos.y - drawStart!.y
+      const side = Math.max(Math.abs(dx), Math.abs(dy))
+      endX = drawStart!.x + Math.sign(dx) * side
+      endY = drawStart!.y + Math.sign(dy) * side
+    }
+    drawEnd = { x: endX, y: endY }
+    previewPlateRect.value = { x1: drawStart!.x, y1: drawStart!.y, x2: endX, y2: endY }
+    return
+  }
+
   // 场区域绘制预览
   if (drawing && tool.value === 'field') {
     let endX = pos.x
@@ -568,7 +596,7 @@ function onMouseUp(e: MouseEvent): void {
     return
   }
 
-  // 线段绘制完成（platform/conveyor/plate 共用，属性由工厂函数差异化）
+  // 线段绘制完成（platform/conveyor 共用，属性由工厂函数差异化）
   if (drawing && isPlatformTool(tool.value)) {
     drawing = false
     const pos = getMousePos(e)
@@ -583,9 +611,9 @@ function onMouseUp(e: MouseEvent): void {
     // 线段长度过短则忽略
     const len = Math.hypot(endX - drawStart!.x, endY - drawStart!.y)
     if (len > 10) {
-      // isPlatformTool 已保证 tool.value 为 'platform' | 'conveyor' | 'plate'，类型断言安全
+      // isPlatformTool 已保证 tool.value 为 'platform' | 'conveyor'，类型断言安全
       const newObj = createPlatformLikeObject(
-        tool.value as 'platform' | 'conveyor' | 'plate',
+        tool.value as 'platform' | 'conveyor',
         drawStart!.x,
         drawStart!.y,
         endX,
@@ -595,6 +623,33 @@ function onMouseUp(e: MouseEvent): void {
       emitFn('add-object', newObj)
     }
     previewLine.value = null
+    drawStart = null
+    drawEnd = null
+  }
+
+  // 板块矩形绘制完成
+  if (drawing && tool.value === 'plate') {
+    drawing = false
+    const pos = getMousePos(e)
+    let endX = pos.x
+    let endY = pos.y
+    if (shiftPressed) {
+      const dx = pos.x - drawStart!.x
+      const dy = pos.y - drawStart!.y
+      const side = Math.max(Math.abs(dx), Math.abs(dy))
+      endX = drawStart!.x + Math.sign(dx) * side
+      endY = drawStart!.y + Math.sign(dy) * side
+    }
+    const minX = Math.min(drawStart!.x, endX)
+    const maxX = Math.max(drawStart!.x, endX)
+    const minY = Math.min(drawStart!.y, endY)
+    const maxY = Math.max(drawStart!.y, endY)
+    const area = (maxX - minX) * (maxY - minY)
+    if (area > 100) {
+      const newObj = createRectPlate(minX, minY, maxX, maxY, stateAccess.objects)
+      emitFn('add-object', newObj)
+    }
+    previewPlateRect.value = null
     drawStart = null
     drawEnd = null
   }
