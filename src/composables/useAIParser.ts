@@ -4,6 +4,7 @@
  */
 
 import { ref, computed } from 'vue'
+import { encrypt, decrypt } from '../utils/crypto'
 
 /** AI 解析结果类型（增强版：多物体、多场、几何体）
  *  拆分为联合类型（ParsedBall | ParsedPlatform | ParsedArc | ParsedSpring），
@@ -265,16 +266,37 @@ function stripTrailingSlash(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url
 }
 
-/** 从 localStorage 读取已保存的 AI 配置 */
-function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
+/** 解密后的配置缓存（由 initConfig 异步填充） */
+const savedConfigCache = ref<{ model: ModelConfig; apiKey: string } | null>(null)
+
+/** 从 localStorage 读取并解密 AI 配置，填充缓存 */
+async function initConfig(): Promise<void> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
+    if (!raw) {
+      savedConfigCache.value = null
+      return
+    }
     const config = JSON.parse(raw)
-    if (!config.apiKey) return null
+    // 解密 API Key
+    if (config.apiKey) {
+      const decrypted = await decrypt(config.apiKey)
+      if (decrypted === null) {
+        savedConfigCache.value = null
+        return
+      }
+      config.apiKey = decrypted
+    }
+    if (!config.apiKey) {
+      savedConfigCache.value = null
+      return
+    }
     // 自定义模型：从保存字段构造 ModelConfig
     if (config.modelId === 'custom') {
-      if (!config.customApiBase || !config.customModelName) return null
+      if (!config.customApiBase || !config.customModelName) {
+        savedConfigCache.value = null
+        return
+      }
 
       // 地址拼接逻辑：
       // 1. 若显式 isFullUrl=true → 用户填写的是完整地址
@@ -282,7 +304,7 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
       // 3. 若 isFullUrl 缺失（旧配置兼容）：
       //    - 若 customApiBase 已以 /chat/completions 结尾 → 视为完整 URL
       //    - 否则 → 视为完整 URL（旧版自定义填写的就是完整路径）
-      const isFullUrl = typeof config.isFullUrl === 'boolean' ? config.isFullUrl : true // 旧配置兜底视为完整 URL
+      const isFullUrl = typeof config.isFullUrl === 'boolean' ? config.isFullUrl : true
       const resolvedBase = isFullUrl
         ? config.customApiBase
         : stripTrailingSlash(config.customApiBase) + '/chat/completions'
@@ -290,7 +312,7 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
       const displayName =
         (config.customName && config.customName.trim()) || config.customModelName.trim() || '自定义'
 
-      return {
+      savedConfigCache.value = {
         model: {
           id: 'custom',
           name: displayName,
@@ -302,25 +324,36 @@ function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
         },
         apiKey: config.apiKey
       }
+      return
     }
     const model = MODELS.find((m) => m.id === config.modelId)
-    if (!model) return null
-    return { model, apiKey: config.apiKey }
+    if (!model) {
+      savedConfigCache.value = null
+      return
+    }
+    savedConfigCache.value = { model, apiKey: config.apiKey }
   } catch {
-    return null
+    savedConfigCache.value = null
   }
 }
 
-/** 是否已配置 AI API Key（从 localStorage 读取，用于 UI 诚实显示） */
+/** 从缓存读取已保存的 AI 配置（同步读取，供内部使用） */
+function getSavedConfig(): { model: ModelConfig; apiKey: string } | null {
+  return savedConfigCache.value
+}
+
+/** 是否已配置 AI API Key（从缓存读取，用于 UI 诚实显示） */
 const isAIConfigured = computed(() => {
-  return getSavedConfig() !== null
+  return savedConfigCache.value !== null
 })
 
 /** 已配置的模型名称（用于 UI 显示） */
 const configuredModelName = computed(() => {
-  const config = getSavedConfig()
-  return config ? config.model.name : ''
+  return savedConfigCache.value?.model.name ?? ''
 })
+
+// 模块加载时初始化配置缓存
+initConfig()
 
 /**
  * 调用 AI API 解析题目（支持 DeepSeek / GLM / OpenAI）
@@ -434,4 +467,20 @@ export function convertToSceneParams(parsed: ParsedProblem): {
   return { sceneName, params }
 }
 
-export { loading, errorMsg, result, isAIConfigured, configuredModelName }
+export { loading, errorMsg, result, isAIConfigured, configuredModelName, initConfig }
+
+// ===== API Key 对话框状态（从 App.vue 移入） =====
+
+/** API Key 对话框可见性 */
+const showApiKeyDialog = ref(false)
+
+function onApiKeySaved(): void {
+  // 重新初始化配置缓存
+  initConfig()
+}
+
+function onApiKeyCleared(): void {
+  savedConfigCache.value = null
+}
+
+export { showApiKeyDialog, onApiKeySaved, onApiKeyCleared }

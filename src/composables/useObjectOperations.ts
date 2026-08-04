@@ -3,7 +3,7 @@
  * 从 App.vue 拆分，遵循 SRP
  * 通过 useObjectOperations 工厂接收场景管理器的状态
  */
-import { computed, type Ref } from 'vue'
+import { computed, toRaw, type Ref } from 'vue'
 import {
   state,
   updateObjectProperty,
@@ -11,7 +11,7 @@ import {
   removeObject,
   PIXELS_PER_METER
 } from './usePhysics'
-import type { PhysicsObject, ParticleObject } from './usePhysics'
+import type { PhysicsObject, SegmentObject, ParticleObject } from './usePhysics'
 import { pushHistory, undo as historyUndo, redo as historyRedo } from './useHistory'
 import { deepCopyObjects } from './useSceneIO'
 import { GROUND_DISABLED } from '../constants'
@@ -97,7 +97,27 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    */
   function handleUpdateObject(payload: { id: number; props: Record<string, unknown> }): void {
     const obj = state.objects.find((o) => o.id === payload.id)
-    if (obj) Object.assign(obj, payload.props)
+    if (obj) {
+      Object.assign(obj, payload.props)
+      // 矩形板块：拖动更新端点后同步更新 centerX/centerY
+      // 否则 playStartSnapshot 捕获的是旧 centerX/centerY，播放时 derivePlateEndpoints 将板块拉回原位
+      if (obj.type === 'line_segment') {
+        const seg = obj as SegmentObject
+        if (
+          seg.subtype === 'plate' &&
+          seg.centerX !== undefined &&
+          seg.width !== undefined &&
+          seg.height !== undefined
+        ) {
+          const angle = seg.angle ?? 0
+          const nx = Math.sin(angle)
+          const ny = -Math.cos(angle)
+          const halfH = seg.height / 2
+          seg.centerX = (seg.x1 + seg.x2) / 2 - nx * halfH
+          seg.centerY = (seg.y1 + seg.y2) / 2 - ny * halfH
+        }
+      }
+    }
     saveCustomScene()
   }
 
@@ -194,7 +214,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
     for (const o of snap.objects) state.objects.push({ ...o, trail: [] } as PhysicsObject)
     state.gravity = snap.gravity
     state.groundY = snap.groundY === null ? GROUND_DISABLED : snap.groundY
-    state.field = JSON.parse(JSON.stringify(snap.field))
+    state.field = structuredClone(toRaw(snap.field))
     selectedId.value = snap.objects[0]?.id ?? null
     selectedIds.value = []
     saveCustomScene()

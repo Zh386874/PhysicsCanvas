@@ -1,11 +1,7 @@
 import type { ParticleObject, SegmentObject, PhysicsObject } from './usePhysics'
+import type { Vec2 } from '../types'
 
 // ===== 类型定义 =====
-
-interface Vec2 {
-  x: number
-  y: number
-}
 
 interface TrailPoint {
   x: number
@@ -1092,15 +1088,57 @@ export function checkCollision(
     }
   }
 
-  // 质点间碰撞（跳过线段和弹簧）
+  // 质点间碰撞（跳过线段和弹簧）- 使用空间哈希优化 O(n²)
+  // 构建空间索引：将粒子按网格划分，仅检测同格或相邻格内的粒子对
+  const particles: ParticleObject[] = []
   for (let i = 0; i < objects.length; i++) {
-    for (let j = i + 1; j < objects.length; j++) {
-      const a = objects[i],
-        b = objects[j]
-      if (a.type !== '质点' && a.type !== '刚体') continue
-      if (b.type !== '质点' && b.type !== '刚体') continue
-      if (checkParticleCollision(a as ParticleObject, b as ParticleObject, particleRestitution))
-        collided = true
+    const obj = objects[i]
+    if (obj.type === '质点' || obj.type === '刚体') {
+      particles.push(obj as ParticleObject)
+    }
+  }
+
+  if (particles.length > 1) {
+    // 网格大小取最大半径的 2 倍，最低 40px
+    let maxR = 20
+    for (const p of particles) {
+      if ((p.radius || 10) > maxR) maxR = p.radius || 10
+    }
+    const cellSize = Math.max(40, maxR * 2)
+
+    // 构建网格：cellKey → particle index[]
+    const grid = new Map<number, number[]>()
+    for (let idx = 0; idx < particles.length; idx++) {
+      const p = particles[idx]
+      const cx = Math.floor(p.x / cellSize)
+      const cy = Math.floor(p.y / cellSize)
+      const key = cx * 100000 + cy // 转为一维 key
+      if (!grid.has(key)) grid.set(key, [])
+      grid.get(key)!.push(idx)
+    }
+
+    // 检查相邻格（包括自身）内的粒子对
+    const checked = new Set<string>()
+    for (let idx = 0; idx < particles.length; idx++) {
+      const p = particles[idx]
+      const cx = Math.floor(p.x / cellSize)
+      const cy = Math.floor(p.y / cellSize)
+
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const key = (cx + dx) * 100000 + (cy + dy)
+          const cell = grid.get(key)
+          if (!cell) continue
+          for (const j of cell) {
+            if (j <= idx) continue // 避免重复检查
+            const pairKey = `${idx}-${j}`
+            if (checked.has(pairKey)) continue
+            checked.add(pairKey)
+            if (checkParticleCollision(particles[idx], particles[j], particleRestitution))
+              collided = true
+          }
+        }
+      }
     }
   }
 

@@ -11,7 +11,7 @@ export type ToolType =
   'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | 'arc' | 'spring' | 'field'
 
 /** 平台类工具：共用拖拽绘制流程，仅生成物体属性不同 */
-const PLATFORM_TOOLS: ToolType[] = ['platform', 'conveyor', 'plate']
+const PLATFORM_TOOLS: ToolType[] = ['platform', 'conveyor']
 
 /** Shift 拖拽小球吸附到线段表面的阈值（世界像素，圆心到线段最近点距离上限为 SNAP_THRESHOLD + r） */
 const SNAP_THRESHOLD = 20
@@ -64,6 +64,11 @@ function createPlatformLikeObject(
     return { ...base, name: `传送带${index}`, color: '#0891b2', velocity: { x: 100, y: 0 } }
   }
   if (toolType === 'plate') {
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.hypot(dx, dy) || 1
+    const halfH = (0.1 * PIXELS_PER_METER) / 2 // 默认物理厚度的一半
+    // 中心点 = 上表面中点沿法线反方向偏移 halfH
     return {
       ...base,
       name: `板块${index}`,
@@ -76,10 +81,63 @@ function createPlatformLikeObject(
       angle: 0, // 静态倾角，默认水平
       frictionTop: 0.3, // 默认上表面 0.3
       frictionBottom: 0.1, // 默认下表面 0.1
-      velocity: { x: 0, y: 0 } // 初始静止，使物理更新分支能进入
+      velocity: { x: 0, y: 0 }, // 初始静止，使物理更新分支能进入
+      // 矩形板块模型字段
+      centerX: (x1 + x2) / 2 - normal.normalX * halfH,
+      centerY: (y1 + y2) / 2 - normal.normalY * halfH,
+      width: len,
+      height: 0.1 * PIXELS_PER_METER
     }
   }
   return { ...base, name: `平台${index}`, color: '#475569' }
+}
+
+/**
+ * 从矩形边界创建板块（矩形拖拽建造）
+ * 矩形左上角 (minX, minY)，右下角 (maxX, maxY)
+ * 板块始终水平（angle=0），矩形高度 = 物理厚度
+ */
+function createRectPlate(
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+  objects: PhysicsObject[]
+): SegmentObject {
+  const width = maxX - minX
+  const height = maxY - minY
+  const centerX = (minX + maxX) / 2
+  const centerY = (minY + maxY) / 2
+  const sameTypeCount = objects.filter((o) => {
+    if (o.type !== 'line_segment') return false
+    return !!(o as SegmentObject).movable
+  }).length
+  const index = sameTypeCount + 1
+  return {
+    id: genId(),
+    name: `板块${index}`,
+    type: 'line_segment',
+    x1: minX,
+    y1: minY,
+    x2: maxX,
+    y2: minY,
+    normalX: 0,
+    normalY: -1,
+    color: '#dc2626',
+    subtype: 'plate',
+    movable: true,
+    mass: 1,
+    thickness: height,
+    physicsThickness: height,
+    angle: 0,
+    frictionTop: 0.3,
+    frictionBottom: 0.1,
+    velocity: { x: 0, y: 0 },
+    centerX,
+    centerY,
+    width,
+    height
+  }
 }
 
 /** 工具状态 */
@@ -105,6 +163,9 @@ const previewLine = ref<{ x1: number; y1: number; x2: number; y2: number } | nul
 
 /** 场区域拖拽预览 */
 const fieldRegionPreview = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
+
+/** 板块矩形拖拽预览 */
+const previewPlateRect = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 
 /** 弹簧绘制状态：第一次点击设置固定端，第二次点击选择连接的球 */
 let springAnchor: { x: number; y: number } | null = null
@@ -500,9 +561,11 @@ export {
   chargeMode,
   previewArc,
   previewLine,
+  previewPlateRect,
   fieldRegionPreview,
   genId,
   createPlatformLikeObject,
+  createRectPlate,
   resetArcState,
   getArcPhase,
   getArcCenter,

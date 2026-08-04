@@ -80,7 +80,8 @@ import {
   drawWatermark,
   drawAIToast,
   drawEditUI,
-  drawFieldRegionPreview
+  drawFieldRegionPreview,
+  drawPlateRectPreview
 } from '../composables/useCanvasRenderer'
 // 工具层：工具状态 + 弧线 + Shift 防重叠
 import {
@@ -88,6 +89,7 @@ import {
   chargeMode,
   previewArc,
   previewLine,
+  previewPlateRect,
   fieldRegionPreview,
   getShiftFlashState
 } from '../composables/useEditTools'
@@ -230,6 +232,7 @@ function draw() {
   drawVelocity(rc, objects)
   drawForces(rc, objects, state.gravity, state.field, state.showForce)
   drawPreviewLine(rc, previewLine.value)
+  drawPlateRectPreview(rc, previewPlateRect.value)
   drawPreviewArc(rc, previewArc.value)
   drawSelectionHighlight(rc, objects, props.selectedIds)
   drawSelectionRect(rc, getSelectionState())

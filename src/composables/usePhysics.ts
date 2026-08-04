@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, toRaw } from 'vue'
 import { checkCollision } from './useCollision'
 import {
   snapshots,
@@ -8,15 +8,18 @@ import {
   clearSnapshots
 } from './useSnapshotManager'
 import { calculateTotalForce } from './useForces'
-import { MAX_SUBSTEPS, MAX_STEP_DIST, TRAIL_LENGTH, GROUND_DISABLED } from '../constants'
+import {
+  MAX_SUBSTEPS,
+  MAX_STEP_DIST,
+  TRAIL_LENGTH,
+  GROUND_DISABLED,
+  PIXELS_PER_METER,
+  GRAVITY_SI,
+  GRAVITY
+} from '../constants'
+import type { Vec2 } from '../types'
 
 // ===== 类型定义 =====
-
-/** 二维向量 */
-interface Vec2 {
-  x: number
-  y: number
-}
 
 /** 运动轨迹点 */
 interface TrailPoint {
@@ -140,6 +143,14 @@ export interface SegmentObject {
   frictionTop?: number
   /** 下表面摩擦系数（板块模型，板块定义法线反向侧）；未设置回退 friction */
   frictionBottom?: number
+  /** 【板块专用】矩形宽度（像素） */
+  width?: number
+  /** 【板块专用】矩形高度（像素） */
+  height?: number
+  /** 【板块专用】中心点 X（像素） */
+  centerX?: number
+  /** 【板块专用】中心点 Y（像素） */
+  centerY?: number
   /** 弧线触发器运行时状态（不序列化，运行时由 useSceneBuilder 初始化） */
   arcGateState?: {
     entryOpen: boolean
@@ -210,10 +221,7 @@ export interface PhysicsState {
 }
 
 // ===== 常量 =====
-
-const PIXELS_PER_METER: number = 50 // 1 米 = 50 像素（全局尺度常量）
-const GRAVITY_SI: number = 9.8 // m/s^2
-const GRAVITY: number = GRAVITY_SI * PIXELS_PER_METER // 像素/s^2 = 490
+// 常量已集中到 src/constants.ts，通过 import 使用
 
 // 初始物体数据
 const initialObjects: ParticleObject[] = [
@@ -261,7 +269,7 @@ const initialObjects: ParticleObject[] = [
 // ===== 全局状态 =====
 
 const state = reactive<PhysicsState>({
-  objects: JSON.parse(JSON.stringify(initialObjects)).map((o: ParticleObject) => ({
+  objects: structuredClone(initialObjects).map((o: ParticleObject) => ({
     ...o,
     trail: []
   })),
@@ -278,11 +286,50 @@ const state = reactive<PhysicsState>({
 })
 
 // 初始快照（loadScene 时捕获，reset 的回退基线）
-let snapshot: PhysicsObject[] = JSON.parse(JSON.stringify(initialObjects))
+let snapshot: PhysicsObject[] = structuredClone(initialObjects)
 // 播放起始基线（按下播放时捕获，reset 优先使用）。null 时回退到 snapshot
 let playStartSnapshot: PhysicsObject[] | null = null
 
 // ===== 核心函数 =====
+
+/** 判断是否为矩形板块（使用 centerX/centerY/width/height 矩形模型） */
+function isRectPlate(seg: SegmentObject): boolean {
+  return (
+    seg.subtype === 'plate' &&
+    seg.centerX !== undefined &&
+    seg.centerY !== undefined &&
+    seg.width !== undefined &&
+    seg.height !== undefined
+  )
+}
+
+/**
+ * 从矩形板块的 centerX/centerY/width/height/angle 推导上表面端点 x1/y1/x2/y2。
+ * 法线方向：nx = sin(angle), ny = -cos(angle)（指向上方）
+ * 宽度方向：wdx = cos(angle), wdy = sin(angle)（切线方向）
+ *
+ * BUG FIX 1: x1 = topCenterX - wdx·halfW（左端点），x2 = topCenterX + wdx·halfW（右端点）
+ */
+function derivePlateEndpoints(seg: SegmentObject): void {
+  if (!isRectPlate(seg)) return
+  const halfW = seg.width! / 2
+  const halfH = seg.height! / 2
+  const plateAngle = seg.angle ?? 0
+  // 法线：指向上方（ny = -cos(angle) 确保 ny < 0 当 angle=0）
+  const nx = Math.sin(plateAngle)
+  const ny = -Math.cos(plateAngle)
+  // 宽度方向（切线，沿板块长度方向）
+  const wdx = Math.cos(plateAngle)
+  const wdy = Math.sin(plateAngle)
+  // 上表面中心
+  const topCenterX = seg.centerX! + nx * halfH
+  const topCenterY = seg.centerY! + ny * halfH
+  // 上表面端点（x1 左端点，x2 右端点）
+  seg.x1 = topCenterX - wdx * halfW
+  seg.y1 = topCenterY - wdy * halfW
+  seg.x2 = topCenterX + wdx * halfW
+  seg.y2 = topCenterY + wdy * halfW
+}
 
 /**
  * 单次子步物理更新（供子步循环调用）
@@ -329,20 +376,37 @@ function subStepPhysics(subDt: number): boolean {
     if (!seg.movable) continue
     // 1. 受重力
     if (seg.velocity) seg.velocity.y += state.gravity * subDt
-    // 2. 位置更新（x、y 同步平移，保持形状不旋转）
     const vx = seg.velocity?.x ?? 0
     const vy = seg.velocity?.y ?? 0
-    seg.x1 += vx * subDt
-    seg.x2 += vx * subDt
-    seg.y1 += vy * subDt
-    seg.y2 += vy * subDt
-    // 3. 地面/平台支撑检测（用下表面 y：板块中心 + 物理厚度/2，沿画布 y 正方向）
-    //    法线指向上方（normalY<0），下表面 = 中心 + physicsThickness/2（画布 y 向下为正）
+    // 2. 位置更新：矩形板块用 centerX/centerY，简单线段用端点平移
+    if (isRectPlate(seg)) {
+      // 矩形板块：更新中心坐标，保持形状（不旋转）
+      seg.centerX! += vx * subDt
+      seg.centerY! += vy * subDt
+      derivePlateEndpoints(seg)
+    } else {
+      // 简单线段模型：端点同步平移（向后兼容）
+      seg.x1 += vx * subDt
+      seg.x2 += vx * subDt
+      seg.y1 += vy * subDt
+      seg.y2 += vy * subDt
+    }
+    // 3. 地面/平台支撑检测
     const segMidY = (seg.y1 + seg.y2) / 2
     const segMidX = (seg.x1 + seg.x2) / 2
     const segHalfLen = Math.abs(seg.x2 - seg.x1) / 2
     const halfThickness = seg.physicsThickness ? seg.physicsThickness / 2 : 0
-    const bottomY = segMidY + halfThickness // 下表面 y（画布坐标）
+    // 矩形板块下表面 y = centerY - ny·halfH（ny = -cos(angle) 指向上方）
+    let bottomY: number
+    if (isRectPlate(seg)) {
+      const halfH = seg.height! / 2
+      const plateAngle = seg.angle ?? 0
+      const ny = -Math.cos(plateAngle)
+      // ny = -1 时 bottomY = centerY + halfH（画布 y 向下为正）
+      bottomY = seg.centerY! - ny * halfH
+    } else {
+      bottomY = segMidY + halfThickness
+    }
     let supportY: number | null = null
     let supportFriction = 0
     let supportVx = 0
@@ -373,9 +437,18 @@ function subStepPhysics(subDt: number): boolean {
     }
     // 4. 应用支撑：下表面归位到 supportY + vy 清零 + 摩擦减速 vx（相对支撑面速度）
     if (supportY !== null && seg.velocity) {
-      const dy = supportY - bottomY
-      seg.y1 += dy
-      seg.y2 += dy
+      if (isRectPlate(seg)) {
+        // BUG FIX 2: centerY = supportY - halfH（当 ny = -1 时 bottomY = centerY + halfH = supportY）
+        const halfH = seg.height! / 2
+        const plateAngle = seg.angle ?? 0
+        const ny = -Math.cos(plateAngle)
+        seg.centerY! = supportY + ny * halfH // ny = -1 → centerY = supportY - halfH
+        derivePlateEndpoints(seg)
+      } else {
+        const dy = supportY - bottomY
+        seg.y1 += dy
+        seg.y2 += dy
+      }
       seg.velocity.y = 0
       if (supportFriction > 0) {
         const vRel = seg.velocity.x - supportVx
@@ -472,7 +545,7 @@ function updatePhysics(dt: number): void {
     objects: state.objects
       .filter((o): o is ParticleObject => o.type === '质点' || o.type === '刚体')
       .map((o) => ({ id: o.id, x: o.x, y: o.y, vx: o.vx, vy: o.vy })),
-    field: JSON.parse(JSON.stringify(state.field)),
+    field: structuredClone(toRaw(state).field),
     groundY: state.groundY,
     gravity: state.gravity,
     timestamp: Date.now()
@@ -488,6 +561,8 @@ function updatePhysics(dt: number): void {
  */
 function capturePlayStart(): void {
   // JSON 深拷贝（避免引入 useSceneIO 运行时循环依赖；运行时字段保留无害，merge 不读取）
+  // 使用 JSON 序列化而非 structuredClone，因为 state.objects 包含 Vue reactive proxy，
+  // structuredClone 无法处理 reactive 代理对象
   playStartSnapshot = JSON.parse(JSON.stringify(state.objects)) as PhysicsObject[]
 }
 
@@ -543,6 +618,11 @@ export function mergeResetState(
       if (s.movable) {
         // 板块速度=物理状态，从 baseline 恢复
         merged.velocity = bs.velocity ? { ...bs.velocity } : undefined
+        // 矩形板块：centerX/centerY 是位置状态，从 baseline 恢复
+        if (bs.centerX !== undefined) merged.centerX = bs.centerX
+        if (bs.centerY !== undefined) merged.centerY = bs.centerY
+        if (bs.width !== undefined) merged.width = bs.width
+        if (bs.height !== undefined) merged.height = bs.height
       }
       // 传送带 velocity=belt speed=config，保留 current（已在 ...s 中）
       // 触发器运行时状态重置为初始（修复 deepCopyObjects 剥离导致的丢失）
@@ -619,9 +699,7 @@ function loadScene(
 ): void {
   state.objects = objects.map((o) => ({ ...o, trail: [] }))
   state.forces = forces ? [...forces] : []
-  state.field = field
-    ? JSON.parse(JSON.stringify(field))
-    : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
+  state.field = field ? structuredClone(field) : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
   state.gravity = gravity !== undefined ? gravity : GRAVITY
   if (groundY === null) {
     state.groundY = GROUND_DISABLED
@@ -630,7 +708,7 @@ function loadScene(
   }
   state.time = 0
   state.isPlaying = false
-  snapshot = JSON.parse(JSON.stringify(objects))
+  snapshot = structuredClone(objects)
   playStartSnapshot = null // 新场景：重置回退到 loadScene 快照
   clearSnapshots()
 }

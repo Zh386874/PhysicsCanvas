@@ -125,7 +125,7 @@ const editableObjects = ref([])
 function toggleEdit() {
   if (!editMode.value && lastParsed.value) {
     // 进入编辑：深拷贝一份用于编辑
-    editableParsed.value = JSON.parse(JSON.stringify(lastParsed.value))
+    editableParsed.value = structuredClone(lastParsed.value)
     editableObjects.value = editableParsed.value.objects.filter((o) => o.type === 'ball')
   }
   editMode.value = !editMode.value
