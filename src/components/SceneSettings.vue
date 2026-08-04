@@ -170,6 +170,18 @@ const regionHeight = computed(() => {
 
 function onFieldTypeChange(type) {
   state.field.type = type
+  // 切换类型时，清零非当前类型的场数值，避免残留误判
+  if (type === 'electric') {
+    state.field.B = 0
+  } else if (type === 'magnetic') {
+    state.field.E.x = 0
+    state.field.E.y = 0
+  } else if (type === 'none') {
+    state.field.E.x = 0
+    state.field.E.y = 0
+    state.field.B = 0
+  }
+  // composite 不清零任何一个，保留之前设置的 E/B 供用户直接使用
 }
 
 function onRegionToggle(enabled) {

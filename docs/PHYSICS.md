@@ -335,34 +335,91 @@ if (seg.velocity) {
 
 ## 六、板块模型
 
-板块是使用 `type: 'plate'` 的线段物体，具有物理厚度、质量、速度，支持上下表面独立摩擦。板块使用 `subtype: 'plate'` 标记，与普通线段（`subtype: 'platform'`）和传送带（`subtype: 'conveyor'`）区分，渲染时使用独立颜色（红色 `#dc2626`）。
+板块是线段物体的子类型：`type: 'line_segment'` + `subtype: 'plate'`，与普通平台（`subtype: 'platform'`，灰色）和传送带（`subtype: 'conveyor'`，青色 `#0891b2`）区分。板块渲染为红色 `#dc2626`，具有矩形实体、质量、速度、上下表面独立摩擦，可受重力平移（不旋转）。
 
 ```typescript
-// 板块字段（SegmentObject 扩展）
+// 板块字段（SegmentObject 扩展，矩形模型）
 interface SegmentObject {
-  subtype: 'plate'                     // 板块标记
-  movable: true                        // 始终可移动
-  mass?: number                        // 板块质量（kg）
-  velocity?: Vec2                      // 板块速度（受重力、支撑、摩擦更新）
-  physicsThickness?: number            // 物理厚度（像素，碰撞/支撑检测用，与渲染厚度一致）
-  frictionTop?: number                 // 上表面摩擦系数（与滑块，未设置回退 friction）
-  frictionBottom?: number              // 下表面摩擦系数（与地面，未设置回退 friction）
-  // ... 继承自 SegmentObject 的其他字段
+  type: 'line_segment'
+  subtype: 'plate'                       // 板块子类型标记
+  movable: true                          // 始终可移动（触发重力/支撑分支）
+  mass?: number                          // 质量（kg），默认 1
+  velocity?: Vec2                        // 速度 {x,y}，像素/秒
+  physicsThickness?: number              // 物理厚度（像素，= height），碰撞/支撑检测用
+  frictionTop?: number                   // 上表面摩擦系数（滑块侧），默认 0.3
+  frictionBottom?: number                // 下表面摩擦系数（地面侧），默认 0.1
+  angle?: number                         // 静态倾角（弧度），0=水平；nx=sin θ, ny=-cos θ
+  // —— 矩形模型核心字段（isRectPlate 要求均存在）——
+  centerX?: number                       // 矩形几何中心 x（像素）
+  centerY?: number                       // 矩形几何中心 y（像素）
+  width?: number                         // 沿板块长度方向的尺寸（像素，上表面长度）
+  height?: number                        // 沿法线方向厚度（像素，= physicsThickness）
+  // —— 上表面端点（派生字段）——
+  x1: number; y1: number                 // 上表面左端点
+  x2: number; y2: number                 // 上表面右端点
+  normalX: number; normalY: number       // 法线（normalY < 0 指向上方）
 }
 ```
 
-**物理厚度机制**：`physicsThickness` 定义了板块的实体边界。下表面端点沿法线反方向偏移 `physicsThickness` 像素，形成板块的四个角点：
-- 上表面两个端点（`x1,y1` / `x2,y2`）：与滑块发生碰撞
-- 下表面两个端点（沿法线反方向偏移 `physicsThickness`）：与地面/支撑面发生碰撞
-- 板块端面和竖直墙壁碰撞时，立即设置 `vx=0`（正常反射，无摩擦）
+### 6.1 矩形模型与端点推导（derivePlateEndpoints）
 
-板块运动模型（`subStepPhysics` 中）：
-1. 受重力更新 `velocity.y`
-2. 位置更新（x、y 同步平移，保持形状不旋转）
-3. 地面/平台支撑检测：y 归位、`vy` 清零；支撑面摩擦按相对速度减速 `vx`（与支撑面共速时停止）
-4. 传送带支撑：`supportVx` 取支撑线段 `velocity.x`，摩擦力驱动板块至传送带速度
+当板块满足 `isRectPlate`（`subtype==='plate'` 且 centerX/centerY/width/height 全部存在）时，**端点 `x1/y1/x2/y2` 不再是源头数据**，而是每次物理子步从矩形中心与角度反向推导：
 
-板块与滑块之间的摩擦力遵循牛顿第三定律——摩擦力同时对滑块和板块施加反作用冲量。`frictionTop`/`frictionBottom` 允许板块上下表面采用不同摩擦系数（如上表面粗糙、下表面光滑）。
+```typescript
+function derivePlateEndpoints(seg): void {
+  const halfW = seg.width / 2, halfH = seg.height / 2
+  const nx = sin(seg.angle), ny = -cos(seg.angle)   // 法线（指向上）
+  const wdx = cos(seg.angle), wdy = sin(seg.angle)  // 沿宽度切线
+  const topCx = seg.centerX + nx * halfH            // 上表面中心
+  const topCy = seg.centerY + ny * halfH
+  seg.x1 = topCx - wdx * halfW                      // 上表面左
+  seg.y1 = topCy - wdy * halfW
+  seg.x2 = topCx + wdx * halfW                      // 上表面右
+  seg.y2 = topCy + wdy * halfW
+}
+```
+
+- 矩形**实体边界**：沿法线向下偏移 `height`（= physicsThickness）得到下表面两个端点，共四角。
+- 上表面端点参与滑块/质点碰撞与摩擦计算；下表面端点参与地面/平台支撑检测。
+- 板块端面撞竖直墙壁：立即 `vx=0`（法向动量守恒反射，无切向摩擦）。
+
+### 6.2 双向同步不变量（关键！避免播放时端点被拉回）
+
+端点（x1/y1/x2/y2）与矩形中心（centerX/centerY）必须**双向同步**，任何修改只走其中一条路径都会在播放时触发"端点回弹旧位置"：
+
+| 用户编辑场景 | 修改源头 | 同步路径 |
+|---|---|---|
+| 画布拖拽移动板块（handleUpdateObject） | x1/y1/x2/y2 被平移 | 用当前 angle + height 反推重算 centerX/centerY：<br>`centerX = mid(x1,x2) − nx·height/2`<br>`centerY = mid(y1,y2) − ny·height/2` |
+| 属性面板输入 x1/y1/x2/y2（onObjectUpdate） | x1/y1/x2/y2 被赋值 | 同上公式重算 centerX/centerY + saveCustomScene 持久化 |
+| buildScene 创建板块、AI/题库加载 | 矩形中心与端点一起构造 | 两者同步写入（useSceneBuilder.ts L182-L185） |
+| 物理更新（subStepPhysics） | centerX/centerY 按速度平移 | 每子步调用 derivePlateEndpoints 从中心反向推回端点 |
+
+> **防坑提示**：如果新增了修改板块 x1/y1/x2/y2 的代码路径，必须同时套用 `handleUpdateObject` 中的 centerX/centerY 重算公式（或直接调用共用 helper），否则下一次 `capturePlayStart` 捕获的仍是旧 center，播放第一帧 derivePlateEndpoints 会把端点拉回旧位置。
+
+### 6.3 角度 angle 语义
+
+- 单位：**弧度**，0 = 水平（右端，法线沿 −y）。
+- 法线方向：`nx = sin θ`, `ny = −cos θ`（保证 θ=0 时 `ny = −1` 指向上方）。
+- 宽度切线：`wdx = cos θ`, `wdy = sin θ`（沿板块上表面从左指向右）。
+- angle 为**静态常量**：板块物理更新只做平移（vx, vy），不产生旋转；若要实现倾斜板块，在创建/编辑时设置 angle，之后每次 derivePlateEndpoints 以该角度构造端点。
+
+### 6.4 物理厚度与摩擦链
+
+- `height === physicsThickness`（像素值）。前者用于矩形几何推导，后者用于碰撞支撑检测的语义字段，两者保持一致。
+- 摩擦系数优先级链（板块上表面 ↔ 滑块）：
+  `μ = segment.frictionTop ?? segment.friction ?? object.friction ?? 0`
+- 摩擦系数优先级链（板块下表面 ↔ 支撑平台/地面）：
+  `μ = segment.frictionBottom ?? segment.friction ?? supportSegment.friction ?? 0`
+- 摩擦力遵循牛顿第三定律：对滑块施加 ±μ·N 的同时，对板块施加反方向等大冲量（动量守恒）。
+
+### 6.5 板块运动流水线（subStepPhysics）
+
+1. **重力积分**：受重力 `mg` 更新 `velocity.y`（无支撑时自由落体）。
+2. **位置平移**：`centerX += vx·dt`, `centerY += vy·dt`，整体平移不改变 angle 与形状。
+3. **支撑检测**：下表面端点距离地面/平台 ≤ 阈值 → y 归位、`vy=0`；支撑摩擦按相对速度减 `vx`，与支撑共速时停止。
+4. **传送带支撑**：若支撑线段为 conveyor（有 velocity 且 movable=false），取 `supportVx = velocity.x`，摩擦力驱动板块 `vx → supportVx`。
+5. **调用 derivePlateEndpoints**：基于最新 center 重算 x1/y1/x2/y2，供本帧后续碰撞检测与渲染读取。
+
 
 ---
 

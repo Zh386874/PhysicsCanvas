@@ -46,6 +46,24 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
     const idx = state.objects.findIndex((o) => o.id === updated.id)
     if (idx !== -1) {
       Object.assign(state.objects[idx], updated)
+      const obj = state.objects[idx]
+      if (obj.type === 'line_segment') {
+        const seg = obj as SegmentObject
+        if (
+          seg.subtype === 'plate' &&
+          seg.centerX !== undefined &&
+          seg.width !== undefined &&
+          seg.height !== undefined
+        ) {
+          const angle = seg.angle ?? 0
+          const nx = Math.sin(angle)
+          const ny = -Math.cos(angle)
+          const halfH = seg.height / 2
+          seg.centerX = (seg.x1 + seg.x2) / 2 - nx * halfH
+          seg.centerY = (seg.y1 + seg.y2) / 2 - ny * halfH
+        }
+      }
+      saveCustomScene()
     }
   }
 
