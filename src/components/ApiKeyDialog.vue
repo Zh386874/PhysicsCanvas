@@ -250,6 +250,8 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { encrypt } from '../utils/crypto'
+import { initConfig } from '../composables/useAIParser'
 
 const props = defineProps({
   visible: { type: Boolean, default: false }
@@ -340,8 +342,8 @@ const savedConfig = computed(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const config = JSON.parse(raw)
-    const key = config.apiKey || ''
-    const maskedKey = key.length > 8 ? key.slice(0, 4) + '****' + key.slice(-4) : '****'
+    // API Key 已加密存储，仅显示"已配置"而非原文
+    const maskedKey = config.apiKey ? '已配置' : ''
     if (config.modelId === 'custom') {
       const displayName = config.customName?.trim() || config.customModelName?.trim() || '自定义'
       return { ...config, modelName: displayName, maskedKey }
@@ -381,25 +383,28 @@ function onReset() {
   activeTab.value = 'custom'
 }
 
-function onSave() {
+async function onSave() {
   if (!canSave.value) return
+
+  const encryptedKey = await encrypt(apiKey.value.trim())
 
   if (activeTab.value === 'provider') {
     const config = {
       modelId: selectedModel.value,
-      apiKey: apiKey.value.trim()
+      apiKey: encryptedKey
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
     resetFormFields()
     emit('saved', config)
     emit('close')
+    initConfig()
     return
   }
 
   // 自定义配置 tab
   const config = {
     modelId: 'custom',
-    apiKey: apiKey.value.trim(),
+    apiKey: encryptedKey,
     apiFormat: apiFormat.value,
     customApiBase: customApiBase.value.trim(),
     isFullUrl: isFullUrl.value,
@@ -413,6 +418,7 @@ function onSave() {
   resetFormFields()
   emit('saved', config)
   emit('close')
+  initConfig()
 }
 
 function onClose() {

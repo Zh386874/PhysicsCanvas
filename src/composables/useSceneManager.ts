@@ -110,6 +110,10 @@ export function useSceneManager() {
   const nameDialogInitialValue = ref('')
   const nameDialogPlaceholder = ref('')
   const nameDialogError = ref('')
+  /** 对话框模式：'save' 保存新场景 / 'rename' 重命名已有场景 */
+  const nameDialogMode = ref<'save' | 'rename'>('save')
+  /** 重命名时记录旧名称 */
+  const renameOldName = ref('')
 
   // ── 删除确认对话框状态 ──
   const showDeleteConfirm = ref(false)
@@ -153,7 +157,7 @@ export function useSceneManager() {
       objects: deepCopyObjects(state.objects),
       gravity: state.gravity,
       groundY: state.groundY >= GROUND_DISABLED ? null : state.groundY,
-      field: JSON.parse(JSON.stringify(state.field))
+      field: structuredClone(state.field)
     }
     savedScenes.value.push(sceneData)
     persistSavedScenes()
@@ -277,7 +281,7 @@ export function useSceneManager() {
         objects: deepCopyObjects(state.objects),
         gravity: state.gravity,
         groundY: state.groundY >= GROUND_DISABLED ? null : state.groundY,
-        field: JSON.parse(JSON.stringify(state.field))
+        field: structuredClone(state.field)
       }
       localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(sceneData))
     } catch (e: unknown) {
@@ -328,8 +332,7 @@ export function useSceneManager() {
       if (gravity !== undefined && typeof gravity === 'number') state.gravity = gravity
       if (groundY !== undefined)
         state.groundY = groundY === null ? GROUND_DISABLED : (groundY as number)
-      if (field && typeof field === 'object')
-        state.field = JSON.parse(JSON.stringify(field)) as FieldState
+      if (field && typeof field === 'object') state.field = structuredClone(field) as FieldState
       selectedId.value = validObjs[0]?.id ?? null
       aiToast.value = '已恢复上次自定义场景'
       setTimeout(() => {
@@ -473,6 +476,53 @@ export function useSceneManager() {
     () => saveCustomScene()
   )
 
+  /** 当前场景是否为已保存的场景 */
+  const isSavedSceneActive = computed(() => savedSceneNames.value.includes(activeScene.value))
+
+  /**
+   * 打开命名对话框（保存/重命名共用）
+   */
+  function openNameDialog(mode: 'save' | 'rename', options?: { oldName?: string }): void {
+    nameDialogMode.value = mode
+    nameDialogError.value = ''
+    if (mode === 'save') {
+      nameDialogTitle.value = '保存场景'
+      nameDialogInitialValue.value = ''
+      nameDialogPlaceholder.value = '请输入场景名称'
+    } else {
+      nameDialogTitle.value = '重命名场景'
+      nameDialogInitialValue.value = options?.oldName ?? ''
+      nameDialogPlaceholder.value = '请输入新名称'
+      renameOldName.value = options?.oldName ?? ''
+    }
+    showNameDialog.value = true
+  }
+
+  /**
+   * 处理名称对话框确认（保存/重命名共用）
+   * @param value 用户输入的名称；null 表示取消
+   * @returns true 表示操作成功（可关闭对话框），false 表示需要保持对话框打开
+   */
+  function handleNameDialogConfirm(value: string | null): boolean {
+    nameDialogError.value = ''
+    if (value === null) return true // 取消，由调用方关闭对话框
+
+    if (nameDialogMode.value === 'save') {
+      return handleSaveNameConfirm(value)
+    }
+
+    // rename 模式
+    const newName = value.trim()
+    if (newName && newName !== renameOldName.value) {
+      const success = renameSavedScene(renameOldName.value, newName)
+      if (!success) {
+        nameDialogError.value = '名称已存在或无效'
+        return false
+      }
+    }
+    return true
+  }
+
   // 编辑已保存场景时，自动保存更改到 SavedSceneData
   watch(
     () => state.objects,
@@ -483,7 +533,7 @@ export function useSceneManager() {
           found.objects = deepCopyObjects(state.objects)
           found.gravity = state.gravity
           found.groundY = state.groundY >= GROUND_DISABLED ? null : state.groundY
-          found.field = JSON.parse(JSON.stringify(state.field))
+          found.field = structuredClone(state.field)
           persistSavedScenes()
         }
       }
@@ -526,6 +576,11 @@ export function useSceneManager() {
     nameDialogInitialValue,
     nameDialogPlaceholder,
     nameDialogError,
+    nameDialogMode,
+    renameOldName,
+    isSavedSceneActive,
+    openNameDialog,
+    handleNameDialogConfirm,
     // 删除确认对话框状态
     showDeleteConfirm,
     pendingDeleteName

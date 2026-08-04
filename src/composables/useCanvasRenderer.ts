@@ -310,6 +310,32 @@ export function drawFieldRegionPreview(
   ctx.setLineDash([])
 }
 
+/**
+ * 绘制板块矩形拖拽预览
+ */
+export function drawPlateRectPreview(
+  rc: RenderContext,
+  preview: { x1: number; y1: number; x2: number; y2: number } | null
+): void {
+  const { ctx } = rc
+  if (!preview) return
+  const minX = Math.min(preview.x1, preview.x2)
+  const maxX = Math.max(preview.x1, preview.x2)
+  const minY = Math.min(preview.y1, preview.y2)
+  const maxY = Math.max(preview.y1, preview.y2)
+  const w = maxX - minX
+  const h = maxY - minY
+  // 半透明红色填充
+  ctx.fillStyle = 'rgba(220, 38, 38, 0.15)'
+  ctx.fillRect(minX, minY, w, h)
+  // 红色虚线边框
+  ctx.strokeStyle = 'rgba(220, 38, 38, 0.85)'
+  ctx.lineWidth = 2
+  ctx.setLineDash([6, 4])
+  ctx.strokeRect(minX, minY, w, h)
+  ctx.setLineDash([])
+}
+
 export function drawTrails(rc: RenderContext, objects: PhysicsObject[], isReplay: boolean): void {
   if (isReplay) return
   const { ctx } = rc

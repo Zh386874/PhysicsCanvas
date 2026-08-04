@@ -124,7 +124,7 @@ export const questionBank: QuestionItem[] = [
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,
-      groundY: 0,
+      groundY: null,
       worldWidth: 27.2
     }
   },
@@ -159,7 +159,7 @@ export const questionBank: QuestionItem[] = [
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,
-      groundY: -20,
+      groundY: null,
       worldWidth: 35,
       simulationTime: 4,
       particleRestitution: 1,
@@ -197,7 +197,7 @@ export const questionBank: QuestionItem[] = [
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,
-      groundY: -90,
+      groundY: null,
       worldWidth: 105,
       simulationTime: 6,
       particleRestitution: 1,
@@ -256,7 +256,7 @@ export const questionBank: QuestionItem[] = [
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,
-      groundY: -0.2,
+      groundY: null,
       worldWidth: 20,
       simulationTime: 3,
       particleRestitution: 1,
@@ -344,7 +344,7 @@ export const questionBank: QuestionItem[] = [
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 10,
-      groundY: 0,
+      groundY: null,
       groundRestitution: 0,
       worldWidth: 10
     }
