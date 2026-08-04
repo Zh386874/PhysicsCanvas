@@ -433,6 +433,7 @@ export function useSceneManager() {
     selectedIds.value = []
     mode.value = 'live'
     capturePlayStart() // 自动播放前捕获重置基线
+    saveCustomScene() // 持久化到 localStorage，切出再切回自定义时不丢失
     state.isPlaying = true
     aiToast.value = `AI 已生成：${info.title}（${info.objectCount} 个物体）`
     setTimeout(() => {
@@ -457,6 +458,7 @@ export function useSceneManager() {
     selectedIds.value = []
     mode.value = 'live'
     capturePlayStart() // 自动播放前捕获重置基线
+    saveCustomScene() // 持久化到 localStorage，切出再切回自定义时不丢失
     state.isPlaying = true
     currentQuestionDesc.value = question.description || ''
     aiToast.value = `已加载：${question.title}`

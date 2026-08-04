@@ -16,6 +16,32 @@ export interface RenderContext {
   cssW: number
   cssH: number
   dpr: number
+  /** 世界坐标偏移（画布平移量，屏幕像素） */
+  worldOffset: { x: number; y: number }
+  /** 世界坐标缩放（>1 放大，<1 缩小） */
+  worldScale: number
+}
+
+/**
+ * 反推当前屏幕覆盖的世界坐标范围（用于 drawGrid / drawField 等全画布平铺绘制）
+ * 绘制循环起点对齐到 step 的整数倍，避免缩放/平移后出现空白
+ */
+function getVisibleWorldBounds(
+  rc: RenderContext,
+  step: number
+): { startX: number; startY: number; endX: number; endY: number } {
+  const { cssW, cssH, worldOffset, worldScale } = rc
+  // 屏幕 (0, 0) 和 (cssW, cssH) 对应的世界坐标
+  const wx0 = -worldOffset.x / worldScale
+  const wy0 = -worldOffset.y / worldScale
+  const wx1 = (cssW - worldOffset.x) / worldScale
+  const wy1 = (cssH - worldOffset.y) / worldScale
+  // 起点向下取整对齐 step，终点向上取整对齐 step，保证铺满可视区域
+  const startX = Math.floor(wx0 / step) * step
+  const startY = Math.floor(wy0 / step) * step
+  const endX = Math.ceil(wx1 / step) * step
+  const endY = Math.ceil(wy1 / step) * step
+  return { startX, startY, endX, endY }
 }
 
 /** 场景显示数据 */
@@ -146,20 +172,23 @@ export function findContactSegment(
 // ===== 场景绘制函数 =====
 
 export function drawGrid(rc: RenderContext): void {
-  const { ctx, cssW, cssH } = rc
+  const { ctx } = rc
   ctx.strokeStyle = 'rgba(86, 156, 214, 0.08)'
   ctx.lineWidth = 1
   const step = 40
-  for (let x = 0; x < cssW; x += step) {
+  const { startX, startY, endX, endY } = getVisibleWorldBounds(rc, step)
+  // 竖线：从可视左边界向右遍历
+  for (let x = startX; x <= endX; x += step) {
     ctx.beginPath()
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, cssH)
+    ctx.moveTo(x, startY)
+    ctx.lineTo(x, endY)
     ctx.stroke()
   }
-  for (let y = 0; y < cssH; y += step) {
+  // 横线：从可视上边界向下遍历
+  for (let y = startY; y <= endY; y += step) {
     ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(cssW, y)
+    ctx.moveTo(startX, y)
+    ctx.lineTo(endX, y)
     ctx.stroke()
   }
 }
@@ -179,9 +208,48 @@ export function drawGround(rc: RenderContext, groundY: number): void {
   ctx.fillText('地面', 10, groundY + 18)
 }
 
+/** 场区域主题（标签 + 颜色），由 field.type 决定，不依赖 E/B 数值 */
+export interface FieldRegionTheme {
+  label: string
+  borderColor: string
+  labelBgColor: string
+}
+
+/**
+ * 根据 field.type 决定场区域显示主题
+ * 纯函数，可测试：不依赖 E/B 数值，避免「切完类型还没输数值就显示错」的 bug
+ */
+export function getFieldRegionTheme(field: FieldState): FieldRegionTheme {
+  switch (field.type) {
+    case 'magnetic':
+      return {
+        label: '磁场区域',
+        borderColor: 'rgba(78, 201, 176, 0.85)',
+        labelBgColor: 'rgba(78, 201, 176, 0.9)'
+      }
+    case 'composite':
+      return {
+        label: '复合场区域',
+        borderColor: 'rgba(197, 134, 192, 0.85)',
+        labelBgColor: 'rgba(197, 134, 192, 0.9)'
+      }
+    case 'electric':
+    default:
+      return {
+        label: '电场区域',
+        borderColor: 'rgba(86, 156, 214, 0.85)',
+        labelBgColor: 'rgba(86, 156, 214, 0.9)'
+      }
+  }
+}
+
 export function drawField(rc: RenderContext, field: FieldState): void {
-  const { ctx, cssW, cssH } = rc
+  const { ctx } = rc
   const step = 40
+  const { startX, startY, endX, endY } = getVisibleWorldBounds(rc, step)
+  // 图案起点对齐到格子中心（step / 2 偏移），始终是 startX + step/2 的整数倍步长
+  const patternStartX = startX + step / 2
+  const patternStartY = startY + step / 2
 
   // 如果定义了区域，裁剪绘制范围
   let restoreClip = false
@@ -195,15 +263,15 @@ export function drawField(rc: RenderContext, field: FieldState): void {
 
   // 多场同时绘制：磁场和电场可共存
   if (field.B !== 0) {
-    // 磁场背景填充
-    ctx.fillStyle = 'rgba(78, 201, 176, 0.06)'
-    ctx.fillRect(0, 0, cssW, cssH)
+    // 磁场背景填充（铺满可视世界范围）
+    ctx.fillStyle = 'rgba(78, 201, 176, 0.14)'
+    ctx.fillRect(startX, startY, endX - startX, endY - startY)
     // 磁场符号（⊙ 或 ⊗）
-    ctx.fillStyle = 'rgba(78, 201, 176, 0.35)'
-    ctx.strokeStyle = 'rgba(78, 201, 176, 0.35)'
+    ctx.fillStyle = 'rgba(78, 201, 176, 0.55)'
+    ctx.strokeStyle = 'rgba(78, 201, 176, 0.55)'
     ctx.lineWidth = 1.5
-    for (let x = step / 2; x < cssW; x += step) {
-      for (let y = step / 2; y < cssH; y += step) {
+    for (let x = patternStartX; x <= endX; x += step) {
+      for (let y = patternStartY; y <= endY; y += step) {
         ctx.beginPath()
         ctx.arc(x, y, 8, 0, Math.PI * 2)
         ctx.stroke()
@@ -226,28 +294,29 @@ export function drawField(rc: RenderContext, field: FieldState): void {
     const ex = field.E.x,
       ey = field.E.y
     const mag = Math.sqrt(ex * ex + ey * ey)
-    if (mag < 0.01) return
-    // 电场背景填充
-    ctx.fillStyle = 'rgba(86, 156, 214, 0.06)'
-    ctx.fillRect(0, 0, cssW, cssH)
-    const dx = (ex / mag) * 24,
-      dy = (ey / mag) * 24
-    ctx.strokeStyle = 'rgba(86, 156, 214, 0.35)'
-    ctx.fillStyle = 'rgba(86, 156, 214, 0.35)'
-    ctx.lineWidth = 1.5
-    for (let x = step / 2; x < cssW; x += step) {
-      for (let y = step / 2; y < cssH; y += step) {
-        ctx.beginPath()
-        ctx.moveTo(x - dx / 2, y - dy / 2)
-        ctx.lineTo(x + dx / 2, y + dy / 2)
-        ctx.stroke()
-        const angle = Math.atan2(dy, dx)
-        ctx.beginPath()
-        ctx.moveTo(x + dx / 2, y + dy / 2)
-        ctx.lineTo(x + dx / 2 - 6 * Math.cos(angle - 0.4), y + dy / 2 - 6 * Math.sin(angle - 0.4))
-        ctx.lineTo(x + dx / 2 - 6 * Math.cos(angle + 0.4), y + dy / 2 - 6 * Math.sin(angle + 0.4))
-        ctx.closePath()
-        ctx.fill()
+    if (mag >= 0.01) {
+      // 电场背景填充（铺满可视世界范围）
+      ctx.fillStyle = 'rgba(86, 156, 214, 0.14)'
+      ctx.fillRect(startX, startY, endX - startX, endY - startY)
+      const dx = (ex / mag) * 24,
+        dy = (ey / mag) * 24
+      ctx.strokeStyle = 'rgba(86, 156, 214, 0.55)'
+      ctx.fillStyle = 'rgba(86, 156, 214, 0.55)'
+      ctx.lineWidth = 1.5
+      for (let x = patternStartX; x <= endX; x += step) {
+        for (let y = patternStartY; y <= endY; y += step) {
+          ctx.beginPath()
+          ctx.moveTo(x - dx / 2, y - dy / 2)
+          ctx.lineTo(x + dx / 2, y + dy / 2)
+          ctx.stroke()
+          const angle = Math.atan2(dy, dx)
+          ctx.beginPath()
+          ctx.moveTo(x + dx / 2, y + dy / 2)
+          ctx.lineTo(x + dx / 2 - 6 * Math.cos(angle - 0.4), y + dy / 2 - 6 * Math.sin(angle - 0.4))
+          ctx.lineTo(x + dx / 2 - 6 * Math.cos(angle + 0.4), y + dy / 2 - 6 * Math.sin(angle + 0.4))
+          ctx.closePath()
+          ctx.fill()
+        }
       }
     }
   }
@@ -260,25 +329,34 @@ export function drawField(rc: RenderContext, field: FieldState): void {
   // 绘制区域边界（在裁剪恢复之后）
   if (field.region) {
     const { x, y, width, height } = field.region
+    // 按 field.type 决定主题（不依赖 E/B 数值，避免切完类型还没输数值时误判）
+    const theme = getFieldRegionTheme(field)
+    const borderColor = theme.borderColor
+    const labelBgColor = theme.labelBgColor
+    const label = theme.label
     // 虚线边框
-    ctx.strokeStyle = 'rgba(0, 122, 204, 0.5)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = borderColor
+    ctx.lineWidth = 2.5
     ctx.setLineDash([6, 4])
     ctx.strokeRect(x, y, width, height)
     ctx.setLineDash([])
-    // 区域标签
-    let label = ''
-    if (field.B !== 0 && (field.E.x !== 0 || field.E.y !== 0)) {
-      label = '复合场区域'
-    } else if (field.B !== 0) {
-      label = '磁场区域'
-    } else {
-      label = '电场区域'
-    }
-    ctx.fillStyle = 'rgba(0, 122, 204, 0.7)'
-    ctx.font = '12px sans-serif'
+    // 区域标签（带半透明圆角底色）
+    ctx.font = 'bold 12px sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText(label, x + 6, y + 16)
+    ctx.textBaseline = 'middle'
+    const metrics = ctx.measureText(label)
+    const padX = 8
+    const padY = 4
+    const labelW = metrics.width + padX * 2
+    const labelH = 20
+    const labelX = x + 6
+    const labelY = y + 6
+    ctx.fillStyle = labelBgColor
+    roundRect(ctx, labelX, labelY, labelW, labelH, 4)
+    ctx.fill()
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(label, labelX + padX, labelY + labelH / 2)
+    ctx.textBaseline = 'alphabetic'
   }
 }
 

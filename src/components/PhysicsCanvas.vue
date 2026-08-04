@@ -202,7 +202,7 @@ function draw() {
   const dpr = getDpr()
   const cssW = getCssW()
   const cssH = getCssH()
-  const rc = { ctx, cssW, cssH, dpr }
+  const rc = { ctx, cssW, cssH, dpr, worldOffset: worldOffset.value, worldScale: worldScale.value }
 
   // 高 DPI：基础变换设为 dpr 缩放，后续所有绘制用 CSS 像素坐标
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
