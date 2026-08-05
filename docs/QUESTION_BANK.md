@@ -157,7 +157,7 @@ interface QuestionItem {
 
 ### 3.1 plate-2023-zj 真实 sceneJson（圆环穿越场景）
 
-以下为题库唯一题目 `plate-2023-zj` 的完整 `sceneJson`，展示了 ball + platform（含可移动板块）+ arc（含动态缺口）的复合场景结构：
+以下为题库中圆环穿越场景 `plate-2023-zj` 的完整 `sceneJson`，展示了 ball + platform（含可移动板块）+ arc（含动态缺口）的复合场景结构：
 
 ```json
 {
@@ -283,7 +283,7 @@ interface QuestionItem {
     field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
     gravity: 9.8,
     groundY: 0,
-    worldWidth: 12  // 可选，用于自动缩放
+    worldWidth: 12  // 已废弃，保留兼容；不再自动缩放
   }
 }
 ```
@@ -297,7 +297,7 @@ interface QuestionItem {
 | 弹簧 k 值 | 建议范围 10-50 N/m，避免数值不稳定（dt×ω < 0.1） |
 | 电磁场粒子 | 使用宏观等效参数（m≥1e-4kg, v≤50m/s），避免微观粒子导致卡顿 |
 | groundY | 电磁场题目设为 `null` 禁用地面 |
-| worldWidth | 设置后自动缩放场景宽度以适配画布 |
+| worldWidth | 已废弃，保留兼容；不再自动缩放，物理量统一按 PIXELS_PER_METER=50 换算 |
 | 物体 ID | 同一题目内物体 `id`（字符串名）不可重复 |
 | 弹簧 ballId | 必须对应同题目内某个 ball 的 `id` |
 | 弧线约束 | 题库/自定义弧线默认 `constraintEnabled: true`（由 useSceneBuilder 自动设置首段），小球进环后约束在弧面无能量损耗运动 |

@@ -179,6 +179,7 @@ prevPos ────────► curPos
 螺旋圆轨（如 2023 浙江题）在 2D 拓扑下无法真正实现"环"，通过动态缺口（`entryGap`/`exitGap`）模拟小球进出环：
 
 - **缺口定义**：`centerAngle`（中心角度）+ `halfWidth`（半宽），缺口角度范围内放行小球穿过
+- **面板编辑**：属性面板以**度数**（起始角度/终止角度、触发角度）编辑缺口，内部存储仍为弧度，换算见 `src/utils/arcGap.ts`
 - **运行时状态**：`SegmentObject.arcGateState.{entryOpen, exitOpen}` 控制开关，由 `useSceneBuilder` 初始化
 - **触发类型**（`triggerType`）：
   - `enterRing`：小球从环外进入环内时触发（基于 `wasInside` 状态变化）
@@ -425,19 +426,18 @@ function derivePlateEndpoints(seg): void {
 
 ## 七、场景构建
 
-### 7.1 自动缩放（computeAutoScale）
+### 7.1 统一缩放比例（scale = PIXELS_PER_METER）
+
+所有场景固定按 `PIXELS_PER_METER = 50` 换算，`scale` 为常量，不再按 `worldWidth` 动态缩放：
 
 ```typescript
-function computeAutoScale(parsed: ParsedProblem): number {
-  if (!parsed.worldWidth) return PIXELS_PER_METER  // 默认 50
-  // scale = (画布宽度 - 2×边距) / 世界宽度
-  return (DEFAULT_CANVAS_WIDTH - 2 * CANVAS_MARGIN) / parsed.worldWidth
-}
+// useSceneBuilder.ts
+const scale = PIXELS_PER_METER  // 固定 50
 ```
 
-- `DEFAULT_CANVAS_WIDTH = 800`
-- `CANVAS_MARGIN = 60`
-- 默认 scale = 50（即 `PIXELS_PER_METER`）
+**取消原因**：旧 `computeAutoScale` 根据 `worldWidth` 动态计算 scale，导致题库/AI 场景与预设场景物理量不一致（如题库重力被错误缩放为 10×25=250 px/s²，而预设统一为 490 px/s²），破坏物理量一致性。
+
+**适配方式**：滚轮 `worldScale`（0.3~100）只改变**视图缩放**，不改变物理换算；`worldWidth` 字段保留但被忽略。
 
 ### 7.2 球底高度语义
 

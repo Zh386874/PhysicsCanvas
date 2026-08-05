@@ -6,6 +6,7 @@ import { ref, watch } from 'vue'
 import { autoComputeNormal } from './useCollision'
 import { PIXELS_PER_METER } from './usePhysics'
 import type { PhysicsObject, SegmentObject, ParticleObject, SpringObject } from './usePhysics'
+import { DEFAULT_PARTICLE_RADIUS } from '../constants'
 
 export type ToolType =
   'select' | 'ball' | 'platform' | 'conveyor' | 'plate' | 'arc' | 'spring' | 'field'
@@ -444,7 +445,7 @@ function findOverlap(
       const dx = x - p.x,
         dy = y - p.y
       const dist = Math.hypot(dx, dy)
-      const minDist = r + (p.radius || 10) + threshold
+      const minDist = r + (p.radius || DEFAULT_PARTICLE_RADIUS) + threshold
       if (dist < minDist) {
         const safeDist = dist > 1e-6 ? dist : 1
         return {

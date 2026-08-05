@@ -53,7 +53,7 @@
 | `field` | object | **是** | — | — | 场设置（见第八节） |
 | `gravity` | number | 否 | `9.8` | m/s² | 重力加速度；高考题常设 `10` |
 | `groundY` | number \| null | 否 | `0` | m | 地面 y 坐标；电磁场题目设 `null` 禁用地面 |
-| `worldWidth` | number | 否 | 自动计算 | m | 世界宽度；设置后自动缩放适配画布 |
+| `worldWidth` | number | 否 | 自动计算 | m | 世界宽度；**已废弃**，不再用于缩放，物理量统一按 `PIXELS_PER_METER=50` 换算，视图缩放由滚轮 `worldScale` 控制 |
 | `simulationTime` | number | 否 | — | s | 仿真时长（可选） |
 | `question` | string | 否 | — | — | 问题文本（可选） |
 | `particleRestitution` | number | 否 | `1` | — | 质点间恢复系数（0=完全非弹性，1=完全弹性） |
@@ -300,14 +300,14 @@
 |------|------|--------|------|
 | `gravity` | m/s² | `9.8` | 高考题常设 `10`；纯磁场/电场题可设 `0` |
 | `groundY` | m | `0` | 地面 y 坐标；电磁场题目设 `null` **禁用地面** |
-| `worldWidth` | m | 自动计算 | 设置后自动缩放；不设则按物体范围计算 |
+| `worldWidth` | m | 自动计算 | **已废弃**，不再自动缩放；物理量统一按 `PIXELS_PER_METER=50` 换算 |
 | `simulationTime` | s | — | 仿真时长（可选） |
 | `particleRestitution` | — | `1` | 质点间恢复系数（0=完全非弹性，1=完全弹性） |
 | `groundRestitution` | — | `0.6` | 地面恢复系数 |
 
-### 9.1 worldWidth 自动缩放
+### 9.1 worldWidth（已废弃）
 
-设置 `worldWidth` 后，引擎按 `scale = (画布宽度 - 2×边距) / worldWidth` 计算缩放比例，使场景完整显示在画布内。**建议根据物体 x 范围设置**，如物体最右 x=27m，则 `worldWidth: 27.2`（略留边距）。
+自动缩放已移除。所有场景固定按 `PIXELS_PER_METER=50` 换算像素，`worldWidth` 字段保留但被忽略。视图缩放由滚轮 `worldScale`（0.3~100）控制，不影响物理换算。
 
 ---
 

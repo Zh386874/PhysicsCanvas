@@ -1,6 +1,6 @@
 /**
  * 场景生成器：将 AI 解析的 JSON 转换为项目内部物理状态
- * 包含自动缩放逻辑（适配画布）和多物体/多场/几何体支持
+ * 物体坐标统一按 PIXELS_PER_METER=50 换算像素，支持多物体/多场/几何体
  */
 
 import { state, loadScene, PIXELS_PER_METER } from './usePhysics'
@@ -12,57 +12,12 @@ import type {
   FieldState
 } from './usePhysics'
 import type { ParsedProblem, ParsedObject, ParsedArc, ParsedSpring } from './useAIParser'
-import {
-  DEFAULT_CANVAS_WIDTH,
-  DEFAULT_CANVAS_HEIGHT,
-  CANVAS_MARGIN,
-  GROUND_BASELINE
-} from '../constants'
+import { CANVAS_MARGIN, GROUND_BASELINE } from '../constants'
 
 /** 物体颜色池 */
 const COLOR_POOL = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#fb7185']
 
 let nextId = 1000
-
-/**
- * 计算自动缩放比例
- * 根据 AI 返回的世界坐标范围和 worldWidth，计算合适的 PIXELS_PER_METER
- */
-function computeAutoScale(parsed: ParsedProblem): number {
-  // 如果 AI 指定了 worldWidth，直接用它计算
-  if (parsed.worldWidth && parsed.worldWidth > 0) {
-    const usableWidth = DEFAULT_CANVAS_WIDTH - 2 * CANVAS_MARGIN
-    return usableWidth / parsed.worldWidth
-  }
-
-  // 否则根据物体范围计算
-  // 联合类型：用 in 操作符做类型守卫，访问各类型特有字段
-  const allPoints: { x: number; y: number }[] = []
-  for (const obj of parsed.objects) {
-    if ('initialPosition' in obj && obj.initialPosition) allPoints.push(obj.initialPosition)
-    if ('startPoint' in obj && obj.startPoint) allPoints.push(obj.startPoint)
-    if ('endPoint' in obj && obj.endPoint) allPoints.push(obj.endPoint)
-    if ('center' in obj && obj.center) allPoints.push(obj.center)
-  }
-
-  if (allPoints.length === 0) return PIXELS_PER_METER
-
-  const xs = allPoints.map((p) => p.x)
-  const ys = allPoints.map((p) => p.y)
-  const worldW = Math.max(...xs) - Math.min(...xs)
-  const worldH = Math.max(...ys) - Math.min(...ys)
-
-  if (worldW <= 0 && worldH <= 0) return PIXELS_PER_METER
-
-  const usableW = DEFAULT_CANVAS_WIDTH - 2 * CANVAS_MARGIN
-  const usableH = DEFAULT_CANVAS_HEIGHT - 2 * CANVAS_MARGIN
-  const scaleX = worldW > 0 ? usableW / worldW : Infinity
-  const scaleY = worldH > 0 ? usableH / worldH : Infinity
-
-  // 取较小的比例确保完整显示，但不小于原始值的 0.1 倍
-  const scale = Math.min(scaleX, scaleY)
-  return Math.max(scale, PIXELS_PER_METER * 0.1)
-}
 
 /**
  * 将单个 AI 物体转换为项目内部物体格式
@@ -376,8 +331,8 @@ export function buildScene(parsed: ParsedProblem): {
     return { success: false, message: 'AI 未识别到任何物体', objectCount: 0 }
   }
 
-  // 1. 计算自动缩放
-  const scale = computeAutoScale(parsed)
+  // 1. 统一换算比例：所有场景按 PIXELS_PER_METER=50 转像素，保证物理量（重力/速度/电场）与预设场景一致
+  const scale = PIXELS_PER_METER
 
   // 2. 转换所有物体（先非弹簧，后弹簧——弹簧需引用球的内部 id）
   const physicsObjects: PhysicsObject[] = []

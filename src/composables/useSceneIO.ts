@@ -5,9 +5,16 @@
  * 有状态部分（handleExportScene / handleImportScene）通过 useSceneIO 工厂接收 context
  */
 import { ref, toRaw, type Ref } from 'vue'
-import type { PhysicsState, PhysicsObject, FieldState } from './usePhysics'
+import type { PhysicsState, PhysicsObject } from './usePhysics'
+import { isFieldState } from './usePhysics'
 import { pushHistory } from './useHistory'
-import { GROUND_DISABLED, SCENE_VERSION } from '../constants'
+import {
+  GROUND_DISABLED,
+  GROUND_BASELINE,
+  SCENE_VERSION,
+  URL_CLEANUP_DELAY,
+  TOAST_DURATION
+} from '../constants'
 import { SceneDataSchema, LegacySceneSchema } from '../schemas/sceneSchema'
 import { z } from 'zod'
 import { ElMessageBox } from 'element-plus'
@@ -106,11 +113,11 @@ export function useSceneIO(ctx: SceneIOContext) {
     a.click()
     document.body.removeChild(a)
     // 延迟释放 URL 对象，确保浏览器有足够时间启动下载
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    setTimeout(() => URL.revokeObjectURL(url), URL_CLEANUP_DELAY)
     aiToast.value = '场景已导出为文件'
     setTimeout(() => {
       aiToast.value = ''
-    }, 3000)
+    }, TOAST_DURATION)
   }
 
   /**
@@ -136,7 +143,7 @@ export function useSceneIO(ctx: SceneIOContext) {
         sceneData = {
           objects: result.data,
           gravity: 490,
-          groundY: 400,
+          groundY: GROUND_BASELINE,
           field: { type: 'none', E: { x: 0, y: 0 }, B: 0 }
         }
       } else {
@@ -179,7 +186,7 @@ export function useSceneIO(ctx: SceneIOContext) {
       if (typeof gravity === 'number' && isFinite(gravity)) state.gravity = gravity
       if (groundY === null) state.groundY = GROUND_DISABLED
       else if (typeof groundY === 'number' && isFinite(groundY)) state.groundY = groundY
-      if (field && typeof field === 'object') state.field = structuredClone(field) as FieldState
+      if (isFieldState(field)) state.field = structuredClone(field)
       selectedId.value = validObjs[0]?.id ?? null
       aiToast.value =
         '场景已导入（' +

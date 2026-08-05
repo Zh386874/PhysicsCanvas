@@ -1,38 +1,15 @@
 import type { ParticleObject, SegmentObject, PhysicsObject } from './usePhysics'
 import type { Vec2 } from '../types'
+import {
+  DEFAULT_GROUND_RESTITUTION,
+  DEFAULT_PARTICLE_RESTITUTION,
+  DEFAULT_DT,
+  DEFAULT_PARTICLE_RADIUS,
+  GROUND_DISABLED,
+  GRAVITY
+} from '../constants'
 
-// ===== 类型定义 =====
-
-interface TrailPoint {
-  x: number
-  y: number
-}
-
-interface ArcMeta {
-  cx: number
-  cy: number
-  r: number
-  startAngle: number
-  endAngle: number
-  entryGap?: {
-    centerAngle: number
-    halfWidth: number
-    initiallyOpen?: boolean
-    triggerType?: 'angleCross' | 'enterRing'
-    triggerAngle?: number
-    triggerAction?: 'open' | 'close'
-  }
-  exitGap?: {
-    centerAngle: number
-    halfWidth: number
-    initiallyOpen?: boolean
-    triggerType?: 'angleCross' | 'enterRing'
-    triggerAngle?: number
-    triggerAction?: 'open' | 'close'
-  }
-}
-
-// ParticleObject / SegmentObject / PhysicsObject 从 usePhysics.ts 导入，避免重复定义
+// ParticleObject / SegmentObject / PhysicsObject / ArcMeta / TrailPoint 均从 usePhysics.ts 导入，避免重复定义
 
 interface NormalResult {
   normalX: number
@@ -1022,10 +999,10 @@ export function applySlopeConstraint(obj: ParticleObject, segment: SegmentObject
 export function checkCollision(
   objects: PhysicsObject[],
   groundY: number,
-  groundRestitution = 0.6,
-  particleRestitution = 1.0,
-  dt = 0.016,
-  gravity = 490
+  groundRestitution = DEFAULT_GROUND_RESTITUTION,
+  particleRestitution = DEFAULT_PARTICLE_RESTITUTION,
+  dt = DEFAULT_DT,
+  gravity = GRAVITY
 ): boolean {
   let collided = false
 
@@ -1033,7 +1010,7 @@ export function checkCollision(
   updateArcGates(objects)
 
   // 地面碰撞（仅质点/刚体，groundY>=100000 时禁用地面）
-  if (groundY < 100000) {
+  if (groundY < GROUND_DISABLED) {
     for (const obj of objects) {
       if (obj.type === '质点' || obj.type === '刚体') {
         if (checkGroundCollision(obj, groundY, groundRestitution)) collided = true
@@ -1102,7 +1079,7 @@ export function checkCollision(
     // 网格大小取最大半径的 2 倍，最低 40px
     let maxR = 20
     for (const p of particles) {
-      if ((p.radius || 10) > maxR) maxR = p.radius || 10
+      if ((p.radius || DEFAULT_PARTICLE_RADIUS) > maxR) maxR = p.radius || DEFAULT_PARTICLE_RADIUS
     }
     const cellSize = Math.max(40, maxR * 2)
 

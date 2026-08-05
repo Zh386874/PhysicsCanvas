@@ -15,12 +15,14 @@ import {
   keyframeIndices
 } from './usePhysics'
 import type { PhysicsObject, FieldState } from './usePhysics'
+import { isFieldState } from './usePhysics'
 import type { ParsedProblem } from './useAIParser'
 import { getPreset } from './usePresets'
 import { buildScene } from './useSceneBuilder'
 import { clearHistory } from './useHistory'
 import { deepCopyObjects } from './useSceneIO'
-import { GROUND_DISABLED } from '../constants'
+import { viewingQuestionScene } from './questionView'
+import { GROUND_DISABLED, TOAST_DURATION } from '../constants'
 
 /** 已保存场景数据类型 */
 export interface SavedSceneData {
@@ -205,6 +207,7 @@ export function useSceneManager() {
     persistSavedScenes()
     // 如果当前正在查看被删除的场景，切回自定义
     if (activeScene.value === name) {
+      viewingQuestionScene.value = false
       savedSceneEditing.value = false
       activeScene.value = '自定义'
       const preset = getPreset('自定义')
@@ -276,6 +279,7 @@ export function useSceneManager() {
    */
   function saveCustomScene(): void {
     if (activeScene.value !== '自定义') return
+    if (viewingQuestionScene.value) return // 正在查看题目/AI 场景，不覆盖用户自定义场景
     try {
       const sceneData = {
         objects: deepCopyObjects(state.objects),
@@ -293,7 +297,7 @@ export function useSceneManager() {
         aiToast.value = '场景数据过大，已超出本地存储限制'
         setTimeout(() => {
           aiToast.value = ''
-        }, 3000)
+        }, TOAST_DURATION)
       }
     }
   }
@@ -332,7 +336,7 @@ export function useSceneManager() {
       if (gravity !== undefined && typeof gravity === 'number') state.gravity = gravity
       if (groundY !== undefined)
         state.groundY = groundY === null ? GROUND_DISABLED : (groundY as number)
-      if (field && typeof field === 'object') state.field = structuredClone(field) as FieldState
+      if (isFieldState(field)) state.field = structuredClone(field)
       selectedId.value = validObjs[0]?.id ?? null
       aiToast.value = '已恢复上次自定义场景'
       setTimeout(() => {
@@ -347,6 +351,24 @@ export function useSceneManager() {
    * 场景切换：加载预设或自定义场景
    */
   function onSceneSwitch(sceneName: string): void {
+    // 点击当前已激活的场景标签
+    if (sceneName === activeScene.value) {
+      // 正在查看题库/AI 场景时，点击「自定义」清除题目并恢复用户自定义场景
+      if (sceneName === '自定义' && viewingQuestionScene.value) {
+        viewingQuestionScene.value = false
+        currentQuestionDesc.value = ''
+        state.isPlaying = false
+        // 先重置为空白自定义场景，再尝试恢复已保存的自定义场景，
+        // 避免无保存场景时残留题目/AI 场景物体
+        const preset = getPreset('自定义')
+        loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
+        restoreCustomScene()
+        capturePlayStart()
+      }
+      return
+    }
+    // 切到其它场景：复位题目查看状态
+    viewingQuestionScene.value = false
     // 切换场景时退出编辑模式
     savedSceneEditing.value = false
     // 场景切换清空撤销/重做历史，避免跨场景撤销
@@ -410,6 +432,7 @@ export function useSceneManager() {
    * AI 解析完成：加载对应预设 + 自动播放 + 画布提示
    */
   function handleLoadPreset(sceneName: string): void {
+    viewingQuestionScene.value = false
     activeScene.value = sceneName
     const preset = getPreset(sceneName)
     loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
@@ -428,12 +451,12 @@ export function useSceneManager() {
    * 需切换到"自定义"场景并同步状态（选中、快照、播放）
    */
   function handleSceneBuilt(info: SceneBuiltInfo): void {
+    viewingQuestionScene.value = true
     activeScene.value = '自定义'
     selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
     selectedIds.value = []
     mode.value = 'live'
     capturePlayStart() // 自动播放前捕获重置基线
-    saveCustomScene() // 持久化到 localStorage，切出再切回自定义时不丢失
     state.isPlaying = true
     aiToast.value = `AI 已生成：${info.title}（${info.objectCount} 个物体）`
     setTimeout(() => {
@@ -445,8 +468,10 @@ export function useSceneManager() {
    * 从题库加载题目：调用 buildScene 构建场景
    */
   function handleLoadQuestion(question: QuestionPayload): void {
+    viewingQuestionScene.value = true
     const buildResult = buildScene(question.sceneJson)
     if (!buildResult.success) {
+      viewingQuestionScene.value = false
       aiToast.value = `加载失败：${buildResult.message}`
       setTimeout(() => {
         aiToast.value = ''
@@ -458,7 +483,6 @@ export function useSceneManager() {
     selectedIds.value = []
     mode.value = 'live'
     capturePlayStart() // 自动播放前捕获重置基线
-    saveCustomScene() // 持久化到 localStorage，切出再切回自定义时不丢失
     state.isPlaying = true
     currentQuestionDesc.value = question.description || ''
     aiToast.value = `已加载：${question.title}`

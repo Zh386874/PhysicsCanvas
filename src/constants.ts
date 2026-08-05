@@ -47,6 +47,36 @@ export const GROUND_BASELINE = 400
 /** 平移范围限制（像素），防止场景完全移出视野 */
 export const PAN_LIMIT = 3000
 
+// ===== 物理默认值 =====
+
+/** 地面碰撞恢复系数默认值 */
+export const DEFAULT_GROUND_RESTITUTION = 0.6
+
+/** 粒子碰撞恢复系数默认值 */
+export const DEFAULT_PARTICLE_RESTITUTION = 1.0
+
+/** 模拟时间步长（秒） */
+export const DEFAULT_DT = 0.016
+
+/** 默认粒子半径（像素），radius 缺失时的兜底值 */
+export const DEFAULT_PARTICLE_RADIUS = 10
+
+// ===== 交互检测阈值 =====
+
+/** 线段端点命中半径（像素） */
+export const HIT_RADIUS_POINT = 8
+
+/** 线段整体命中距离（像素） */
+export const HIT_RADIUS_SEGMENT = 5
+
+// ===== 场景 IO / 提示延迟 =====
+
+/** URL 对象释放延迟（毫秒），确保下载启动 */
+export const URL_CLEANUP_DELAY = 1000
+
+/** toast 自动消失时长（毫秒） */
+export const TOAST_DURATION = 3000
+
 // ===== 场景 IO 常量 =====
 
 /** 场景导出 JSON 的版本号（用于后续兼容性升级） */

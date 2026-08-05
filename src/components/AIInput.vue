@@ -107,6 +107,7 @@ import {
   isAIConfigured
 } from '../composables/useAIParser'
 import { buildScene } from '../composables/useSceneBuilder'
+import { viewingQuestionScene } from '../composables/questionView'
 
 const emit = defineEmits(['load-preset', 'update-params', 'scene-built'])
 
@@ -134,6 +135,7 @@ function toggleEdit() {
 /** 应用修改：用编辑后的数据重新调用 buildScene */
 function applyEdit() {
   if (!editableParsed.value) return
+  viewingQuestionScene.value = true
   const buildResult = buildScene(editableParsed.value)
   if (buildResult.success) {
     // 通知 App.vue 场景已重新构建
@@ -230,6 +232,7 @@ async function onParse() {
     const parsed = await parsePhysicsProblem(question.value)
 
     // 直接用 buildScene 构建完整场景（支持多物体/多场/几何体/自动缩放）
+    viewingQuestionScene.value = true
     const buildResult = buildScene(parsed)
 
     if (!buildResult.success) {
