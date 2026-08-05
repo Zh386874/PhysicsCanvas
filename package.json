@@ -26,7 +26,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "echarts": "^6.1.0",
     "element-plus": "^2.14.3",
     "vue": "^3.5.13",
     "zod": "^4.4.3"

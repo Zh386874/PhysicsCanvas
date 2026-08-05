@@ -20,6 +20,7 @@ import { useSceneManager } from '../../src/composables/useSceneManager'
 import { clearHistory } from '../../src/composables/useHistory'
 import { viewingQuestionScene } from '../../src/composables/questionView'
 import { GROUND_DISABLED } from '../../src/constants'
+import { getPreset } from '../../src/composables/usePresets'
 import type { ParticleObject, FieldState } from '../../src/composables/usePhysics'
 
 const NONE_FIELD: FieldState = { type: 'none', E: { x: 0, y: 0 }, B: 0 }
@@ -106,5 +107,80 @@ describe('useSceneManager — 查看题目后点击「自定义」', () => {
     expect(viewingQuestionScene.value).toBe(false)
     expect(state.objects.map((o) => o.id)).toContain(1)
     expect(state.objects.map((o) => o.name)).not.toContain('question-ball')
+  })
+})
+
+describe('useSceneManager — 保存/重命名/删除/切换', () => {
+  it('空场景保存被拒绝，toast 示警', () => {
+    const sm = useSceneManager()
+    sm.saveCurrentScene()
+    expect(sm.aiToast.value).toBe('场景为空，无法保存')
+    expect(sm.savedScenes.value).toHaveLength(0)
+  })
+
+  it('handleSaveNameConfirm(null) 取消返回 true', () => {
+    const sm = useSceneManager()
+    expect(sm.handleSaveNameConfirm(null)).toBe(true)
+  })
+
+  it('保存重名 → false 且提示名称已存在', () => {
+    const sm = useSceneManager()
+    loadScene([makeBall(1, 'b')], [], NONE_FIELD, GRAVITY, GROUND_DISABLED)
+    sm.savedScenes.value = [
+      { name: '已存', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD }
+    ]
+    expect(sm.handleSaveNameConfirm('已存')).toBe(false)
+    expect(sm.nameDialogError.value).toBe('名称已存在，请重新命名')
+  })
+
+  it('合法保存的具体状态写入（保存当前场景）因 reactive 代理克隆 bug 受阻，此处仅验证重复名校验', () => {
+    // 注：handleSaveNameConfirm 内部对 state.field（Vue reactive 代理）调用 structuredClone，
+    //     structuredClone 无法克隆 reactive 代理（见 usePhysics 中 capturePlayStart 注释），
+    //     会抛出 DataCloneError。此为真实生产缺陷，超出本「仅测试」会话范围，另行报告。
+    const sm = useSceneManager()
+    loadScene([makeBall(1, 'b')], [], NONE_FIELD, GRAVITY, GROUND_DISABLED)
+    sm.savedScenes.value = [
+      { name: '占位', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD }
+    ]
+    expect(sm.handleSaveNameConfirm('占位')).toBe(false)
+  })
+
+  it('renameSavedScene 成功时同步 activeScene', () => {
+    const sm = useSceneManager()
+    sm.savedScenes.value = [
+      { name: '旧', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD }
+    ]
+    sm.activeScene.value = '旧'
+    expect(sm.renameSavedScene('旧', '新')).toBe(true)
+    expect(sm.activeScene.value).toBe('新')
+  })
+
+  it('renameSavedScene 重名返回 false', () => {
+    const sm = useSceneManager()
+    sm.savedScenes.value = [
+      { name: '旧', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD },
+      { name: '新', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD }
+    ]
+    expect(sm.renameSavedScene('旧', '新')).toBe(false)
+  })
+
+  it('删除当前活动场景后切回自定义', () => {
+    const sm = useSceneManager()
+    sm.savedScenes.value = [
+      { name: '已存', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD }
+    ]
+    sm.activeScene.value = '已存'
+    sm.deleteSavedScene('已存')
+    sm.confirmDeleteScene()
+    expect(sm.savedScenes.value).toHaveLength(0)
+    expect(sm.activeScene.value).toBe('自定义')
+  })
+
+  it('onSceneSwitch 切换到预设场景时加载其物体', () => {
+    const sm = useSceneManager()
+    const preset = getPreset('抛体运动')
+    expect(preset.objects.length).toBeGreaterThan(0)
+    sm.onSceneSwitch('抛体运动')
+    expect(state.objects).toHaveLength(preset.objects.length)
   })
 })
