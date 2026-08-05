@@ -71,8 +71,8 @@
       :initialValue="nameDialogInitialValue"
       :placeholder="nameDialogPlaceholder"
       :errorMessage="nameDialogError"
-      @confirm="handleNameDialogConfirm"
-      @cancel="handleNameDialogConfirm(null)"
+      @confirm="onNameDialogConfirm"
+      @cancel="onNameDialogCancel"
     />
     <InputDialog
       :visible="showDeleteConfirm"
@@ -265,6 +265,16 @@ function onSceneSwitch(sceneName) {
 
 function onRenameScene(oldName) {
   openNameDialog('rename', { oldName })
+}
+
+function onNameDialogConfirm(value) {
+  if (handleNameDialogConfirm(value)) {
+    showNameDialog.value = false
+  }
+}
+
+function onNameDialogCancel() {
+  showNameDialog.value = false
 }
 
 // ===== 物体操作 =====

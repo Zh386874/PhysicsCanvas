@@ -711,7 +711,7 @@ function loadScene(
 ): void {
   state.objects = objects.map((o) => ({ ...o, trail: [] }))
   state.forces = forces ? [...forces] : []
-  state.field = field ? structuredClone(field) : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
+  state.field = field ? structuredClone(toRaw(field)) : { type: 'none', E: { x: 0, y: 0 }, B: 0 }
   state.gravity = gravity !== undefined ? gravity : GRAVITY
   if (groundY === null) {
     state.groundY = GROUND_DISABLED
@@ -720,7 +720,9 @@ function loadScene(
   }
   state.time = 0
   state.isPlaying = false
-  snapshot = structuredClone(objects)
+  // objects 可能来自 savedScenes（ref 数组，元素为 reactive 代理），
+  // structuredClone 无法克隆 reactive 代理对象，故用 JSON 序列化（同 capturePlayStart）
+  snapshot = JSON.parse(JSON.stringify(objects)) as PhysicsObject[]
   playStartSnapshot = null // 新场景：重置回退到 loadScene 快照
   clearSnapshots()
 }
