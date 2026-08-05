@@ -23,13 +23,21 @@
 
 ### Changed
 
+- **统一缩放比例**：移除 buildScene 的 `computeAutoScale` 自动缩放，所有场景固定按 `PIXELS_PER_METER=50` 换算像素，保证题库/AI 场景与预设场景物理量（重力/速度/电场）一致；滚轮缩放上限 5→100 以适配不同尺寸场景
+- **弧线缺口角度编辑改为度数**：PropertyPanel 缺口编辑由「中心角+半宽(rad)」改为「起始/终止角度(°)」，triggerAngle 同步改为度数；内部仍存弧度，换算见 `src/utils/arcGap.ts`
 - **题库精简**：真题库由 21 道精简为 1 道（plate-2023-zj，2023 浙江圆环题），聚焦圆环穿越场景的完整还原；保留添加新题目的扩展指南
 - **板块模型摩擦**：上/下表面摩擦分离（frictionTop/frictionBottom），未设置时回退 friction
 
 ### Fixed
 
+- **缺口跨 0°/360° 换算 bug**：`gapFromDegrees` 对跨边界缺口取长弧中点导致位置跳变，改为前向短弧中点；角度换算抽到 `src/utils/arcGap.ts` 并新增回归测试
+- **死码清理**：移除 useCollision.ts 中重复且未引用的 `ArcMeta`/`TrailPoint`（单一事实源保留在 usePhysics.ts）
 - **小球穿过圆环 bug**：tryActivateArcConstraint 与 detectArcCollision 均用 `closest.dist > radius`（4px）判定，球深入环内 >4px 时两者同时失效导致穿底。修复：添加 catch-up 逻辑，球在环内且所有缺口关闭时跳过距离判定强制激活约束
 - **isAngleInRange 完整圆误判**：完整弧（span≈2π）时返回 false，导致约束无法激活。修复：增加 2π 特判返回 true
+
+### Documentation
+
+- **文档同步更新**：README.md / ARCHITECTURE.md / API.md / PHYSICS.md / QUESTION_BANK.md / QUESTION_FORMAT_SPEC.md / REQUIREMENTS.md / TESTING.md / DEPLOYMENT.md / CODE_QUALITY_REVIEW.md 同步至当前实测状态：组件 12→16、composable 16→18、测试 335→358（22→26 文件）、编辑工具 4→8 种、`PIXELS_PER_METER` 等常量迁移至 `src/constants.ts`、ESLint/Prettier 配置文件名更正（eslint.config.mjs / .prettierrc.json）
 
 ---
 

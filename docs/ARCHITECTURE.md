@@ -23,16 +23,18 @@
 │                        App.vue                              │
 │         (全局状态管理 + 组件编排 + 布局)                      │
 ├──────────┬──────────────────────────┬───────────────────────┤
-│  左面板   │       画布区域            │      右面板           │
-│          │                          │                       │
-│  AIInput  │   ┌──────────────────┐   │  QuestionBankPanel   │
-│ ObjectList│   │  PhysicsCanvas   │   │                       │
-│ Property │   │  (渲染+事件分发)  │   │  (1道真题库)          │
-│ Panel    │   └────────┬─────────┘   │                       │
-│ ForceEdi │            │              │  DataChart            │
+│  左面板    │      画布区域            │      右面板           │
+│ LeftPanel │                          │     RightPanel        │
+│   │        │   ┌──────────────────┐   │   │                  │
+│  AIInput  │   │  PhysicsCanvas   │   │  QuestionBankPanel   │
+│ ObjectList│   │  (渲染+事件分发)  │   │                       │
+│ Property │   └────────┬─────────┘   │  (8道真题库)          │
+│ Panel    │            │              │                       │
+│ ForceEdi │     EditorToolbar         │  DataChart            │
 │ tor      │     ControlBar            │  (v-t图/能量曲线)     │
 │          │     Timeline              │                       │
 │          │     SceneTabs             │                       │
+│          │     SceneSettings         │                       │
 │          │     InputDialog           │                       │
 ├──────────┴────────────┴──────────────┴───────────────────────┤
 │                     Composable 层                            │
@@ -129,10 +131,12 @@ QuestionBankPanel ──emit('load-question')──► App.vue
 | `usePresets` | 预设场景数据 | 状态管理 |
 | `useQuestionBank` | 题库筛选/选中 | 场景构建 |
 | `useHistory` | 撤销/重做历史栈 | 状态管理 |
+| `questionView` | 题目视图状态（查看/返回） | 物理积分 |
+| `usePanelLayout` | 面板布局（尺寸/折叠/显隐） | 业务逻辑 |
 
 ### 3.2 组件职责
 
-当前共 **12 个** Vue 组件（含 App.vue）：
+当前共 **16 个** Vue 组件（含 App.vue）：
 
 | 组件 | 职责 |
 |------|------|
@@ -149,6 +153,10 @@ QuestionBankPanel ──emit('load-question')──► App.vue
 | `DataChart.vue` | 数据图表（v-t 图、能量曲线），基于 ECharts |
 | `InputDialog.vue` | 通用输入对话框（确认/取消，支持输入验证） |
 | `SceneTabs.vue` | 场景切换标签 |
+| `EditorToolbar.vue` | 编辑工具条（工具类型选择） |
+| `SceneSettings.vue` | 场景设置（重力、场区域、物理参数） |
+| `LeftPanel.vue` | 左侧面板容器（AI 输入 + 物体列表 + 属性） |
+| `RightPanel.vue` | 右侧面板容器（题库 + 数据图表） |
 
 **PhysicsCanvas.vue** 曾有 1541 行，拆分为 3 个 composable：
 
@@ -203,13 +211,13 @@ usePhysics 现仅保留物理状态、欧拉积分、场景加载与物体增删
 
 ### 4.2 常量定义
 
-> 全局共享常量集中管理在 `src/constants.ts`（遵循 DRY，消除魔法数字）。`PIXELS_PER_METER`/`GRAVITY`/`GRAVITY_SI` 因与物理引擎强耦合仍保留在 usePhysics.ts。
+> 全局共享常量集中管理在 `src/constants.ts`（遵循 DRY，消除魔法数字）。物理引擎与交互相关常量（`PIXELS_PER_METER`/`GRAVITY`/`GRAVITY_SI`/`DEFAULT_*`/`HIT_RADIUS_*` 等）也统一收敛到 constants.ts。
 
 | 常量 | 值 | 位置 | 说明 |
 |------|-----|------|------|
-| `PIXELS_PER_METER` | 50 | usePhysics.ts | 1 米 = 50 像素 |
-| `GRAVITY_SI` | 9.8 | usePhysics.ts | 标准重力（m/s²） |
-| `GRAVITY` | 490 | usePhysics.ts | 像素重力（px/s²） |
+| `PIXELS_PER_METER` | 50 | constants.ts | 1 米 = 50 像素 |
+| `GRAVITY_SI` | 9.8 | constants.ts | 标准重力（m/s²） |
+| `GRAVITY` | 490 | constants.ts | 像素重力（px/s²） |
 | `GROUND_DISABLED` | 100000 | constants.ts | 禁用地面标记值（groundY ≥ 此值表示禁用水平地面） |
 | `MAX_SUBSTEPS` | 200 | constants.ts | 子步循环上限 |
 | `MAX_STEP_DIST` | 10 | constants.ts | 单步最大移动距离（像素，防隧穿） |
@@ -220,6 +228,12 @@ usePhysics 现仅保留物理状态、欧拉积分、场景加载与物体增删
 | `CANVAS_MARGIN` | 60 | constants.ts | 画布边距 |
 | `GROUND_BASELINE` | 400 | constants.ts | 地面基准线 |
 | `PAN_LIMIT` | 3000 | constants.ts | 平移范围限制（像素） |
+| `DEFAULT_GROUND_RESTITUTION` | 0.6 | constants.ts | 地面碰撞恢复系数默认值 |
+| `DEFAULT_PARTICLE_RESTITUTION` | 1.0 | constants.ts | 粒子碰撞恢复系数默认值 |
+| `DEFAULT_DT` | 0.016 | constants.ts | 模拟时间步长（秒） |
+| `DEFAULT_PARTICLE_RADIUS` | 10 | constants.ts | 默认粒子半径（像素） |
+| `HIT_RADIUS_POINT` | 8 | constants.ts | 线段端点命中半径（像素） |
+| `HIT_RADIUS_SEGMENT` | 5 | constants.ts | 线段整体命中距离（像素） |
 | `SCENE_VERSION` | 2 | constants.ts | 场景导出 JSON 版本号 |
 | `MAX_HISTORY` | 50 | useHistory.ts | 撤销/重做上限 |
 
@@ -305,10 +319,14 @@ const editMode = computed(() =>
 
 | 工具 | 交互方式 | 生成物体 |
 |------|----------|----------|
+| `select` | 单击选择 / 拖拽 | —（选择模式） |
 | `ball` | 单击放置 | ParticleObject |
-| `platform` | 拖拽两端 | SegmentObject |
+| `platform` | 拖拽两端 | SegmentObject（subtype=platform） |
+| `conveyor` | 拖拽两端 | SegmentObject（subtype=conveyor，带速度） |
+| `plate` | 画矩形 | SegmentObject（subtype=plate，movable，矩形物理边界） |
 | `arc` | 三次点击（圆心→半径→角度） | 20 个 SegmentObject（弧线近似） |
 | `spring` | 两次点击（固定端→连接球） | SpringObject |
+| `field` | 拖拽范围矩形 | FieldRegion（场区域，电场/磁场/重力场） |
 
 ---
 
@@ -328,7 +346,7 @@ ParsedProblem (SI 单位)
     ▼
 useSceneBuilder.buildScene(parsed)
     │
-    ├── computeAutoScale()         ← 根据 worldWidth 计算缩放
+    ├── 统一 scale = PIXELS_PER_METER(50)  ← 固定换算，不再按 worldWidth 缩放
     ├── convertObject() × N        ← SI → 像素转换
     ├── convertSpring() × N        ← 弹簧（依赖 idMap）
     └── 构建 FieldState

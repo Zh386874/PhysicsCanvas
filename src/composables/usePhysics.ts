@@ -13,6 +13,9 @@ import {
   MAX_STEP_DIST,
   TRAIL_LENGTH,
   GROUND_DISABLED,
+  GROUND_BASELINE,
+  DEFAULT_GROUND_RESTITUTION,
+  DEFAULT_PARTICLE_RESTITUTION,
   PIXELS_PER_METER,
   GRAVITY_SI,
   GRAVITY
@@ -47,6 +50,15 @@ export interface FieldState {
   E: Vec2
   B: number
   region?: FieldRegion
+}
+
+const VALID_FIELD_TYPES = ['none', 'electric', 'magnetic', 'composite'] as const
+
+/** 运行时校验 field 结构，用于导入/恢复时的数据边界 */
+export function isFieldState(v: unknown): v is FieldState {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+  const f = v as Record<string, unknown>
+  return typeof f.type === 'string' && (VALID_FIELD_TYPES as readonly string[]).includes(f.type)
 }
 
 /** 自定义力 */
@@ -279,9 +291,9 @@ const state = reactive<PhysicsState>({
   isPlaying: false,
   showForce: true,
   showGateColors: true,
-  groundY: 400,
-  groundRestitution: 0.6,
-  particleRestitution: 1.0,
+  groundY: GROUND_BASELINE,
+  groundRestitution: DEFAULT_GROUND_RESTITUTION,
+  particleRestitution: DEFAULT_PARTICLE_RESTITUTION,
   gravity: GRAVITY
 })
 

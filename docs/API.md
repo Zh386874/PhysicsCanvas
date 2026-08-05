@@ -519,6 +519,84 @@ interface PresetScene {
 
 ---
 
+### 2.14 EditorToolbar.vue（编辑工具条）
+
+封装 `SceneTabs` 与「编辑/导出/导入/保存」按钮，位于画布顶部。
+
+**Props**：
+
+| Prop | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `activeScene` | String | **必填** | 当前场景名 |
+| `savedSceneNames` | Array | `[]` | 已保存的自定义场景名列表 |
+| `isSavedSceneActive` | Boolean | `false` | 当前是否为已保存自定义场景 |
+| `savedSceneEditing` | Boolean | `false` | 是否处于已保存场景编辑模式 |
+
+**Emits**：
+
+| 事件 | 参数 | 说明 |
+|------|------|------|
+| `switch` | `(scene: string)` | 切换场景 |
+| `delete` | `(scene: string)` | 删除已保存场景 |
+| `rename` | `(payload)` | 重命名场景 |
+| `toggle-saved-scene-edit` | — | 切换已保存场景编辑模式 |
+| `export` | — | 导出场景 |
+| `import` | — | 导入场景 |
+| `save-scene` | — | 保存场景 |
+
+---
+
+### 2.15 LeftPanel.vue（左侧面板）
+
+左侧面板容器，组合 AIInput / ObjectList / PropertyPanel / SceneSettings，并带拖拽分隔条。
+
+**Props**：
+
+| Prop | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `leftPanelWidth` | Number | `280` | 面板宽度（px） |
+| `leftCollapsed` | Boolean | `false` | 是否折叠 |
+| `objects` | Array | `[]` | 物体列表 |
+| `selectedId` | Number | `null` | 单选选中 id |
+| `selectedIds` | Array | `[]` | 多选选中 id 列表 |
+| `removable` | Boolean | `false` | 是否显示删除按钮 |
+| `selectedObject` | Object | `null` | 当前选中物体 |
+| `dragMoved` | Boolean | `false` | 分隔条是否已拖动 |
+| `dragSide` | String | `null` | 当前拖动的分隔条方向 |
+
+**Emits**：`splitter-mousedown`、`select`、`select-group`、`remove`、`update:object`、`load-preset`、`update-params`、`scene-built`
+
+---
+
+### 2.16 RightPanel.vue（右侧面板）
+
+右侧面板容器，组合 QuestionBankPanel，带拖拽分隔条。
+
+**Props**：
+
+| Prop | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `rightPanelWidth` | Number | `330` | 面板宽度（px） |
+| `rightCollapsed` | Boolean | `false` | 是否折叠 |
+| `dragMoved` | Boolean | `false` | 分隔条是否已拖动 |
+| `dragSide` | String | `null` | 当前拖动的分隔条方向 |
+
+**Emits**：`splitter-mousedown`、`load-question`
+
+---
+
+### 2.17 SceneSettings.vue（场景设置）
+
+场景设置面板（重力、场类型、场区域），**无 props/emits**，直接操作 `usePhysics` 的 `state` 与 `useEditTools` 的 `tool`。
+
+**内部能力**：
+- 重力加速度编辑（SI 显示，内部按像素存储）
+- 场类型切换（none/electric/magnetic/composite），切换时清零非当前类型的场数值
+- 场区域启用/禁用：启用时默认画布中心 10m×10m；关闭时若当前为 `field` 工具自动切回 `select`
+- 场区域中心/宽高编辑（SI 单位 → 像素换算）
+
+---
+
 ## 三、Composable 接口
 
 ### 3.1 usePhysics.ts — 物理引擎
@@ -746,7 +824,7 @@ function resizeCanvas(): void
 
 | 状态 | 类型 | 说明 |
 |------|------|------|
-| `tool` | `ref<ToolType>` | 当前工具（`'ball'`/`'platform'`/`'arc'`/`'spring'`） |
+| `tool` | `ref<ToolType>` | 当前工具（`'select'`/`'ball'`/`'platform'`/`'conveyor'`/`'plate'`/`'arc'`/`'spring'`/`'field'`） |
 | `chargeMode` | `ref<boolean>` | 带电模式 |
 | `previewArc` | `ref<object \| null>` | 弧线预览状态 |
 | `previewLine` | `ref<object \| null>` | 线段预览状态 |
@@ -807,7 +885,7 @@ function convertToSceneParams(parsed: ParsedProblem): {
 ```typescript
 /**
  * 将 AI 解析结果构建为可运行场景
- * 包含：自动缩放、SI→像素转换、弹簧 id 映射
+ * 包含：统一 SI→像素换算（PIXELS_PER_METER=50）、弹簧 id 映射
  */
 function buildScene(parsed: ParsedProblem): {
   success: boolean
@@ -1031,4 +1109,60 @@ function useKeyboard(ctx: KeyboardContext): void
 // Ctrl+Z → onUndo
 // Ctrl+Y 或 Ctrl+Shift+Z → onRedo
 // 输入框聚焦时不触发
+```
+
+---
+
+### 3.17 questionView.ts — 题目视图状态
+
+```typescript
+/** 是否正在查看题库/AI 构建的场景（此时不覆盖用户自定义场景） */
+export const viewingQuestionScene: Ref<boolean>
+```
+
+---
+
+### 3.18 usePanelLayout.ts — 面板布局
+
+面板折叠/展开/拖拽调整宽度，纯 UI 状态，与业务逻辑无关。单例：每次调用返回同一组状态。
+
+```typescript
+function usePanelLayout(): {
+  leftPanelWidth: Ref<number>    // 左侧面板宽度（px，localStorage 持久化）
+  rightPanelWidth: Ref<number>   // 右侧面板宽度（px）
+  leftCollapsed: Ref<boolean>    // 左侧折叠
+  rightCollapsed: Ref<boolean>   // 右侧折叠
+  dragSide: Ref<'left' | 'right' | null>  // 当前拖动的分隔条
+  dragMoved: Ref<boolean>        // 是否已拖动
+  onSplitterMouseDown(e: MouseEvent, side: 'left' | 'right'): void  // 分隔条按下
+}
+```
+
+---
+
+### 3.19 src/utils/arcGap.ts — 弧线缺口角度换算
+
+弧线缺口（ArcGap）与角度显示/编辑之间的纯换算工具函数，渲染、碰撞、场景构建三处共用，保证角度换算一致性。
+
+```typescript
+export interface ArcGapLike {
+  centerAngle?: number   // 缺口中心角（弧度）
+  halfWidth?: number     // 缺口半宽（弧度）
+  triggerAngle?: number  // 触发角（弧度）
+}
+export const RAD_TO_DEG: number   // 180 / Math.PI
+
+/** 弧度 → 归一化到 [0,360) 的度数 */
+function deg360(rad: number): number
+/** 缺口起始角度（°） */
+function gapStartDeg(gap?: ArcGapLike): number
+/** 缺口终止角度（°） */
+function gapEndDeg(gap?: ArcGapLike): number
+/** 缺口触发角度（°） */
+function triggerAngleDeg(gap?: ArcGapLike): number
+/**
+ * 由起始/终止角度（°）求 centerAngle/halfWidth（弧度）。
+ * 按「前向跨度」计算，跨 0°/360° 时取短弧中点，halfWidth 恒 >= 0。
+ */
+function gapFromDegrees(startDeg: number, endDeg: number): { centerAngle: number; halfWidth: number }
 ```

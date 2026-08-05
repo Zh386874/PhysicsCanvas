@@ -34,11 +34,11 @@
 
 ### 2. 自定义场景编辑器
 
-提供 **小球 / 平台 / 圆弧 / 弹簧** 四种绘制工具，支持：
+提供 **选择 / 小球 / 平台 / 传送带 / 板块 / 圆弧 / 弹簧 / 场区域** 八种工具，支持：
 
 - 右键框选批量操作（拖拽、删除）
 - Shift 键水平/垂直方向锁定
-- 中键平移 + 滚轮缩放（0.3~5x）
+- 中键平移 + 滚轮缩放（0.3~100x）
 - 撤销 / 重做（50 步历史）
 - 场景导出 / 导入（剪贴板 JSON）
 - 弧线高级选项：约束动力学开关、触发器缺口配置、🎨 触发器颜色可视化
@@ -126,7 +126,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   ├── main.js                      # 应用入口
 │   ├── App.vue                      # 主应用组件（布局 + 组合 composables）
 │   ├── constants.ts                 # 全局共享常量（PIXELS_PER_METER 等）
-│   ├── components/                  # Vue 组件
+│   ├── components/                  # Vue 组件（16 个）
 │   │   ├── PhysicsCanvas.vue        # 画布组件（渲染循环 + 事件分发）
 │   │   ├── AIInput.vue              # AI 题目解析输入
 │   │   ├── ApiKeyDialog.vue         # API Key 配置对话框
@@ -138,15 +138,19 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── Timeline.vue             # 回放时间轴
 │   │   ├── DataChart.vue            # 数据图表（v-t 图、能量曲线）
 │   │   ├── InputDialog.vue          # 通用输入对话框
-│   │   └── SceneTabs.vue            # 场景切换标签
-│   ├── composables/                 # 组合式函数（核心逻辑，共 16 个）
+│   │   ├── SceneTabs.vue            # 场景切换标签
+│   │   ├── EditorToolbar.vue        # 编辑工具条（工具选择）
+│   │   ├── SceneSettings.vue        # 场景设置（重力/场区域等）
+│   │   ├── LeftPanel.vue            # 左侧面板容器
+│   │   └── RightPanel.vue           # 右侧面板容器
+│   ├── composables/                 # 组合式函数（核心逻辑，共 18 个）
 │   │   ├── usePhysics.ts            # 物理引擎（状态 + 积分 + 场景加载）
 │   │   ├── useCollision.ts          # 碰撞检测（地面/质点/线段/弧线 + 约束动力学）
 │   │   ├── useForces.ts             # 力计算策略层（注册表 + OCP）
 │   │   ├── useSnapshotManager.ts    # 快照录制 + 关键帧检测
 │   │   ├── useCanvasRenderer.ts     # 画布渲染（所有绘制函数）
 │   │   ├── useCanvasInteraction.ts  # 画布交互（拖拽/框选/平移缩放）
-│   │   ├── useEditTools.ts          # 编辑工具（小球/平台/圆弧/弹簧）
+│   │   ├── useEditTools.ts          # 编辑工具（选择/小球/平台/传送带/板块/圆弧/弹簧/场区域）
 │   │   ├── useAIParser.ts           # AI 解析（DeepSeek + 本地回退）
 │   │   ├── useSceneBuilder.ts       # 场景构建（SI→像素转换）
 │   │   ├── useSceneManager.ts       # 场景切换/播放/重置/持久化
@@ -155,10 +159,16 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── useKeyboard.ts           # 键盘快捷键（Delete/Ctrl+Z/Ctrl+Y）
 │   │   ├── usePresets.ts            # 预设场景
 │   │   ├── useQuestionBank.ts       # 题库状态管理
-│   │   └── useHistory.ts            # 撤销/重做历史
+│   │   ├── useHistory.ts            # 撤销/重做历史
+│   │   ├── questionView.ts          # 题目视图状态
+│   │   └── usePanelLayout.ts        # 面板布局管理
+│   ├── utils/
+│   │   └── arcGap.ts                # 弧线缺口角度换算工具函数
+│   ├── schemas/
+│   │   └── sceneSchema.ts           # 场景 JSON 结构校验（Zod）
 │   └── data/
 │       └── questionBank.ts          # 高考真题数据（当前 8 道）
-├── tests/                           # Vitest 测试（22 文件，335 测试）
+├── tests/                           # Vitest 测试（26 文件，358 测试）
 │   ├── unit/                        # 单元测试
 │   │   ├── collision.test.ts        # 弧线碰撞与约束激活（6 测试）
 │   │   ├── collision-branches.test.ts   # 碰撞分支全覆盖（37 测试）
@@ -169,7 +179,11 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── presets.test.ts          # 预设场景（37 测试）
 │   │   ├── snapshot-manager.test.ts # 快照录制/回放（29 测试）
 │   │   ├── plate-definition.test.ts # 板块定义与默认值（7 测试）
-│   │   └── reset-merge.test.ts      # 重置合并策略（6 测试）
+│   │   ├── reset-merge.test.ts      # 重置合并策略（6 测试）
+│   │   ├── arc-gap-conversion.test.ts   # 弧线缺口角度换算（6 测试）
+│   │   ├── field-region-style.test.ts   # 场区域样式（10 测试）
+│   │   ├── plate-rect-model.test.ts # 板块矩形模型（5 测试）
+│   │   └── scene-manager.test.ts    # 场景管理（2 测试）
 │   ├── integration/                 # 集成测试
 │   │   ├── ring-scene.test.ts       # 圆环完整物理循环（3 测试）
 │   │   ├── forces-physics.test.ts   # 力与物理引擎集成（18 测试）
@@ -202,8 +216,8 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 ├── vitest.config.ts                 # Vitest 测试配置（含覆盖率）
 ├── tsconfig.json                    # TypeScript 配置
 ├── .env.example                     # 环境变量示例
-├── .eslintrc.cjs                    # ESLint 配置
-├── .prettierrc                      # Prettier 配置
+├── eslint.config.mjs                # ESLint 配置
+├── .prettierrc.json                 # Prettier 配置
 └── package.json
 ```
 
@@ -216,6 +230,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 | [架构设计](docs/ARCHITECTURE.md)            | 分层架构、单向数据流、模块职责划分                 |
 | [物理模型](docs/PHYSICS.md)                 | 单位系统、积分方法、碰撞检测、力模型               |
 | [题库文档](docs/QUESTION_BANK.md)           | 题库结构、题目列表、添加新题目                     |
+| [题目格式规范](docs/QUESTION_FORMAT_SPEC.md) | 场景 JSON 结构、字段定义、Schema 校验            |
 | [部署文档](docs/DEPLOYMENT.md)              | GitHub Pages 部署流程、CI/CD 配置                  |
 | [测试文档](docs/TESTING.md)                 | 测试策略与用例                                     |
 | [代码质量审查](docs/CODE_QUALITY_REVIEW.md) | SOLID 原则审查与现状评估                           |
@@ -225,8 +240,8 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 
 | 常量               | 值        | 位置             | 说明                        |
 | ------------------ | --------- | ---------------- | --------------------------- |
-| `PIXELS_PER_METER` | 50        | usePhysics.ts    | 1 米 = 50 像素              |
-| `GRAVITY`          | 490 px/s² | usePhysics.ts    | 重力加速度（9.8 m/s² × 50） |
+| `PIXELS_PER_METER` | 50        | constants.ts     | 1 米 = 50 像素              |
+| `GRAVITY`          | 490 px/s² | constants.ts     | 重力加速度（9.8 m/s² × 50） |
 | `GROUND_DISABLED`  | 100000    | constants.ts     | 禁用地面标记值              |
 | `MAX_SUBSTEPS`     | 200       | constants.ts     | 子步循环上限（防卡顿）      |
 | `MAX_STEP_DIST`    | 10        | constants.ts     | 单步最大移动距离（像素）    |
