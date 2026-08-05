@@ -26,12 +26,16 @@ const VALID_OBJECT_TYPES = ['质点', '刚体', 'line_segment', 'spring'] as con
  * 深拷贝物体数组，剥离运行时字段（trail/prevX/prevY/arcGateState/constrainedArcGroupId）
  */
 export function deepCopyObjects(objs: PhysicsObject[]): PhysicsObject[] {
-  return structuredClone(
-    objs.map((o) => {
-      const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } =
-        o as unknown as Record<string, unknown>
-      return rest
-    })
+  // 用 JSON 序列化而非 structuredClone：state.objects 元素为 Vue reactive 代理，
+  // structuredClone 无法处理 reactive 代理对象（同 usePhysics.ts capturePlayStart 的处理方式）
+  return JSON.parse(
+    JSON.stringify(
+      objs.map((o) => {
+        const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } =
+          o as unknown as Record<string, unknown>
+        return rest
+      })
+    )
   ) as unknown as PhysicsObject[]
 }
 

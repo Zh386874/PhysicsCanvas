@@ -4,7 +4,7 @@
  * 拥有共享状态：activeScene / mode / aiToast / selectedId / selectedIds
  * 通过 watch 监听 field/gravity 变化自动持久化
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, toRaw } from 'vue'
 import {
   state,
   loadScene,
@@ -159,7 +159,7 @@ export function useSceneManager() {
       objects: deepCopyObjects(state.objects),
       gravity: state.gravity,
       groundY: state.groundY >= GROUND_DISABLED ? null : state.groundY,
-      field: structuredClone(state.field)
+      field: structuredClone(toRaw(state).field)
     }
     savedScenes.value.push(sceneData)
     persistSavedScenes()
@@ -285,7 +285,7 @@ export function useSceneManager() {
         objects: deepCopyObjects(state.objects),
         gravity: state.gravity,
         groundY: state.groundY >= GROUND_DISABLED ? null : state.groundY,
-        field: structuredClone(state.field)
+        field: structuredClone(toRaw(state).field)
       }
       localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(sceneData))
     } catch (e: unknown) {
