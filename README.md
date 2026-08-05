@@ -17,16 +17,16 @@
 
 当前内置 8 道高考真题场景，覆盖力学与电磁学核心题型：
 
-| ID | 题目 | 难度 | 核心知识点 |
-| --- | --- | --- | --- |
-| plate-2023-zj | 2023·浙江·高考真题（游戏装置） | hard | 斜面 + 螺旋圆轨 + 板块模型 + 动量守恒 + 能量守恒 |
-| ski-jump-2022-eth-a | 2022·全国乙卷·高考真题（跳台滑雪·平抛段） | easy | 平抛运动、斜面约束、速度分解 |
-| ski-jump-2022-eth-b | 2022·全国乙卷·高考真题（跳台滑雪·反弹段） | medium | 斜抛运动、斜面约束、速度变换、多次落点 |
-| elastic-collision-2021-ng1 | 2021·新高考I卷·高考真题（一维弹性碰撞） | medium | 弹性碰撞、动量守恒、板块模型、摩擦力、能量守恒 |
-| conveyor-2020-ng1 | 2020·全国I卷·高考真题（水平传送带模型） | medium | 传送带模型、摩擦力、相对运动、能量守恒、功能关系 |
-| plate-2022-ngjia | 2022·全国甲卷·高考真题（板块模型） | hard | 板块模型、摩擦力、相对运动、动量守恒、能量守恒 |
-| electric-deflection-2020-ng3 | 2020·全国III卷·高考真题（电场偏转） | medium | 电场偏转、类平抛运动、匀强电场、带电粒子 |
-| magnetic-circle-2021-eth | 2021·全国乙卷·高考真题（有界磁场圆周运动） | hard | 有界磁场、圆周运动、洛伦兹力、带电粒子 |
+| ID                           | 题目                                       | 难度   | 核心知识点                                       |
+| ---------------------------- | ------------------------------------------ | ------ | ------------------------------------------------ |
+| plate-2023-zj                | 2023·浙江·高考真题（游戏装置）             | hard   | 斜面 + 螺旋圆轨 + 板块模型 + 动量守恒 + 能量守恒 |
+| ski-jump-2022-eth-a          | 2022·全国乙卷·高考真题（跳台滑雪·平抛段）  | easy   | 平抛运动、斜面约束、速度分解                     |
+| ski-jump-2022-eth-b          | 2022·全国乙卷·高考真题（跳台滑雪·反弹段）  | medium | 斜抛运动、斜面约束、速度变换、多次落点           |
+| elastic-collision-2021-ng1   | 2021·新高考I卷·高考真题（一维弹性碰撞）    | medium | 弹性碰撞、动量守恒、板块模型、摩擦力、能量守恒   |
+| conveyor-2020-ng1            | 2020·全国I卷·高考真题（水平传送带模型）    | medium | 传送带模型、摩擦力、相对运动、能量守恒、功能关系 |
+| plate-2022-ngjia             | 2022·全国甲卷·高考真题（板块模型）         | hard   | 板块模型、摩擦力、相对运动、动量守恒、能量守恒   |
+| electric-deflection-2020-ng3 | 2020·全国III卷·高考真题（电场偏转）        | medium | 电场偏转、类平抛运动、匀强电场、带电粒子         |
+| magnetic-circle-2021-eth     | 2021·全国乙卷·高考真题（有界磁场圆周运动） | hard   | 有界磁场、圆周运动、洛伦兹力、带电粒子           |
 
 > 其中 plate-2023-zj 螺旋圆轨受 2D 拓扑限制简化为单圆弧，并采用动态缺口（entryGap/exitGap 触发器）+ 弧线约束动力学还原小球穿环过程；轨道等比例放大 ×1.6、小球半径缩至 0.08m 以缓解碰撞卡顿。详见 [题库文档](docs/QUESTION_BANK.md)。
 
@@ -69,7 +69,7 @@
 | 渲染     | Canvas 2D + requestAnimationFrame                       |
 | 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 + 弧线约束动力学 |
 | AI       | DeepSeek API（可选）                                    |
-| 测试     | Vitest 4（单元 / 集成 / 回归 / 契约四层）                |
+| 测试     | Vitest 4（单元 / 集成 / 回归 / 契约四层）               |
 | 部署     | GitHub Actions → GitHub Pages                           |
 
 ## 📦 快速开始
@@ -136,7 +136,6 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── ForceEditor.vue          # 附加力编辑器
 │   │   ├── ControlBar.vue           # 播放控制栏（含触发器颜色按钮）
 │   │   ├── Timeline.vue             # 回放时间轴
-│   │   ├── DataChart.vue            # 数据图表（v-t 图、能量曲线）
 │   │   ├── InputDialog.vue          # 通用输入对话框
 │   │   ├── SceneTabs.vue            # 场景切换标签
 │   │   ├── EditorToolbar.vue        # 编辑工具条（工具选择）
@@ -168,7 +167,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   └── sceneSchema.ts           # 场景 JSON 结构校验（Zod）
 │   └── data/
 │       └── questionBank.ts          # 高考真题数据（当前 8 道）
-├── tests/                           # Vitest 测试（26 文件，358 测试）
+├── tests/                           # Vitest 测试（31 文件，419 测试）
 │   ├── unit/                        # 单元测试
 │   │   ├── collision.test.ts        # 弧线碰撞与约束激活（6 测试）
 │   │   ├── collision-branches.test.ts   # 碰撞分支全覆盖（37 测试）
@@ -183,7 +182,12 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── arc-gap-conversion.test.ts   # 弧线缺口角度换算（6 测试）
 │   │   ├── field-region-style.test.ts   # 场区域样式（10 测试）
 │   │   ├── plate-rect-model.test.ts # 板块矩形模型（5 测试）
-│   │   └── scene-manager.test.ts    # 场景管理（2 测试）
+│   │   ├── scene-manager.test.ts    # 场景管理（10 测试）
+│   │   ├── scene-io.test.ts         # 场景导入导出/物体校验/深拷贝（17 测试）
+│   │   ├── scene-builder.test.ts    # AI 场景构建各分支（11 测试）
+│   │   ├── scene-schema.test.ts     # Zod 导入校验（12 测试）
+│   │   ├── question-bank.test.ts    # 题库筛选/搜索/统计（8 测试）
+│   │   └── ai-parser.test.ts        # AI 解析参数提取（5 测试）
 │   ├── integration/                 # 集成测试
 │   │   ├── ring-scene.test.ts       # 圆环完整物理循环（3 测试）
 │   │   ├── forces-physics.test.ts   # 力与物理引擎集成（18 测试）
@@ -223,38 +227,39 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 
 ## 📖 文档
 
-| 文档                                        | 说明                                               |
-| ------------------------------------------- | -------------------------------------------------- |
-| [需求文档](docs/REQUIREMENTS.md)            | 功能需求、验收标准、发展路线图                     |
-| [接口文档](docs/API.md)                     | 组件 props/emit、composable 导出函数、数据结构定义 |
-| [架构设计](docs/ARCHITECTURE.md)            | 分层架构、单向数据流、模块职责划分                 |
-| [物理模型](docs/PHYSICS.md)                 | 单位系统、积分方法、碰撞检测、力模型               |
-| [题库文档](docs/QUESTION_BANK.md)           | 题库结构、题目列表、添加新题目                     |
-| [题目格式规范](docs/QUESTION_FORMAT_SPEC.md) | 场景 JSON 结构、字段定义、Schema 校验            |
-| [部署文档](docs/DEPLOYMENT.md)              | GitHub Pages 部署流程、CI/CD 配置                  |
-| [测试文档](docs/TESTING.md)                 | 测试策略与用例                                     |
-| [代码质量审查](docs/CODE_QUALITY_REVIEW.md) | SOLID 原则审查与现状评估                           |
-| [变更日志](CHANGELOG.md)                    | 版本变更记录                                       |
+| 文档                                         | 说明                                               |
+| -------------------------------------------- | -------------------------------------------------- |
+| [需求文档](docs/REQUIREMENTS.md)             | 功能需求、验收标准、发展路线图                     |
+| [接口文档](docs/API.md)                      | 组件 props/emit、composable 导出函数、数据结构定义 |
+| [架构设计](docs/ARCHITECTURE.md)             | 分层架构、单向数据流、模块职责划分                 |
+| [物理模型](docs/PHYSICS.md)                  | 单位系统、积分方法、碰撞检测、力模型               |
+| [题库文档](docs/QUESTION_BANK.md)            | 题库结构、题目列表、添加新题目                     |
+| [题目格式规范](docs/QUESTION_FORMAT_SPEC.md) | 场景 JSON 结构、字段定义、Schema 校验              |
+| [部署文档](docs/DEPLOYMENT.md)               | GitHub Pages 部署流程、CI/CD 配置                  |
+| [测试文档](docs/TESTING.md)                  | 测试策略与用例                                     |
+| [代码质量审查](docs/CODE_QUALITY_REVIEW.md)  | SOLID 原则审查与现状评估                           |
+| [变更日志](CHANGELOG.md)                     | 版本变更记录                                       |
 
 ## 🔑 核心常量
 
-| 常量               | 值        | 位置             | 说明                        |
-| ------------------ | --------- | ---------------- | --------------------------- |
-| `PIXELS_PER_METER` | 50        | constants.ts     | 1 米 = 50 像素              |
-| `GRAVITY`          | 490 px/s² | constants.ts     | 重力加速度（9.8 m/s² × 50） |
-| `GROUND_DISABLED`  | 100000    | constants.ts     | 禁用地面标记值              |
-| `MAX_SUBSTEPS`     | 200       | constants.ts     | 子步循环上限（防卡顿）      |
-| `MAX_STEP_DIST`    | 10        | constants.ts     | 单步最大移动距离（像素）    |
-| `TRAIL_LENGTH`     | 80        | constants.ts     | 轨迹最大长度（帧数）        |
-| `MAX_SNAPSHOTS`    | 1200      | constants.ts     | 快照缓冲区（20 秒 × 60fps） |
-| `MAX_HISTORY`      | 50        | useHistory.ts    | 撤销/重做历史上限           |
-| `SCENE_VERSION`    | 2         | constants.ts     | 场景导出 JSON 版本号        |
+| 常量               | 值        | 位置          | 说明                        |
+| ------------------ | --------- | ------------- | --------------------------- |
+| `PIXELS_PER_METER` | 50        | constants.ts  | 1 米 = 50 像素              |
+| `GRAVITY`          | 490 px/s² | constants.ts  | 重力加速度（9.8 m/s² × 50） |
+| `GROUND_DISABLED`  | 100000    | constants.ts  | 禁用地面标记值              |
+| `MAX_SUBSTEPS`     | 200       | constants.ts  | 子步循环上限（防卡顿）      |
+| `MAX_STEP_DIST`    | 10        | constants.ts  | 单步最大移动距离（像素）    |
+| `TRAIL_LENGTH`     | 80        | constants.ts  | 轨迹最大长度（帧数）        |
+| `MAX_SNAPSHOTS`    | 1200      | constants.ts  | 快照缓冲区（20 秒 × 60fps） |
+| `MAX_HISTORY`      | 50        | useHistory.ts | 撤销/重做历史上限           |
+| `SCENE_VERSION`    | 2         | constants.ts  | 场景导出 JSON 版本号        |
 
 ## 🔒 安全状态
 
 `npm audit` 当前报告 **0 项漏洞**，所有依赖链安全。
 
 **历史漏洞均已消除**：
+
 - `esbuild` / `vite` / `vitepress` 依赖链漏洞 —— 通过升级 `vitepress@1.6.4` → `2.0.0-alpha.18` 消除（内置 `vite@6.3.5`，已修复）
 - `brace-expansion` / `minimatch` 链 —— 通过升级 `eslint@9.x` → `10.8.0` 消除
 - `vue-tsc@2.x` 漏洞 —— 通过升级 `vue-tsc@2.x` → `3.3.8` 消除

@@ -20,7 +20,7 @@ export const keyframeIndices = ref<number[]>([])
 
 /** 是否正在播放回放 */
 export const isPlaying = ref<boolean>(false)
-/** 回放速度倍率（0.5 / 1 / 2） */
+/** 回放速度倍率（0.25 / 0.5 / 1 / 2） */
 export const playbackSpeed = ref<number>(1)
 
 /** rAF 句柄与上次时间戳（模块级，暂停时清理） */

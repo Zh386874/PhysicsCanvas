@@ -8,7 +8,7 @@
 
 ### 1.1 当前状态
 
-项目已建立 **Vitest 自动化测试体系**，覆盖物理引擎积分、碰撞检测、力计算、场景管理、物体操作、撤销重做、快照回放、场区域、弧线缺口换算、板块模型、物理定律契约等，共 **358 个测试** 跨 **26 个文件**（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，核心物理逻辑（积分、力、碰撞）均有单元测试覆盖。
+项目已建立 **Vitest 自动化测试体系**，覆盖物理引擎积分、碰撞检测、力计算、场景管理、物体操作、撤销重做、快照回放、场区域、弧线缺口换算、板块模型、场景导入校验、场景构建、Zod 校验、题库筛选、物理定律契约等，共 **419 个测试** 跨 **31 个文件**（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，核心物理逻辑（积分、力、碰撞）均有单元测试覆盖；纯逻辑模块（useSceneIO / useSceneBuilder / sceneSchema / useQuestionBank / useAIParser）的导入校验、场景构建、题库筛选等也已补齐单测，行覆盖率约 **43.65%**。
 
 ### 1.2 测试目标
 
@@ -25,7 +25,7 @@
 tests/
 ├── helpers/
 │   └── sceneBuilder.ts              ← 测试夹具：构建圆环场景 + 单步模拟（不依赖 Vue reactive）
-├── unit/                            ← 单元测试（14 文件，243 测试）
+├── unit/                            ← 单元测试（19 文件，304 测试）
 │   ├── collision.test.ts            ← 弧线碰撞与约束激活（6 测试）
 │   ├── collision-branches.test.ts   ← 碰撞分支全覆盖（37 测试）
 │   ├── physics-engine.test.ts       ← 物理引擎积分逻辑（27 测试）
@@ -39,7 +39,12 @@ tests/
 │   ├── arc-gap-conversion.test.ts   ← 弧线缺口角度换算（6 测试）
 │   ├── field-region-style.test.ts   ← 场区域样式（10 测试）
 │   ├── plate-rect-model.test.ts     ← 板块矩形模型（5 测试）
-│   └── scene-manager.test.ts        ← 场景管理（2 测试）
+│   ├── scene-manager.test.ts        ← 场景管理（10 测试）
+│   ├── scene-io.test.ts             ← 场景导入导出/物体校验/深拷贝（17 测试）
+│   ├── scene-builder.test.ts        ← AI 场景构建各分支（11 测试）
+│   ├── scene-schema.test.ts         ← Zod 导入校验（12 测试）
+│   ├── question-bank.test.ts        ← 题库筛选/搜索/统计（8 测试）
+│   └── ai-parser.test.ts            ← AI 解析参数提取（5 测试）
 ├── integration/                     ← 集成测试（4 文件，52 测试）
 │   ├── ring-scene.test.ts           ← 2023 浙江题圆环完整物理循环（3 测试）
 │   ├── forces-physics.test.ts       ← 力与物理引擎集成（18 测试）
@@ -271,12 +276,60 @@ export default defineConfig({
 - 板块由线段扩展为矩形（上/下表面 + 端面）的几何计算
 - 板块厚度（physicsThickness）与矩形边界的对应关系
 
-### 4.14 scene-manager.test.ts — 场景管理（2 测试）
+### 4.14 scene-manager.test.ts — 场景管理（10 测试）
 
-测试 `useSceneManager` 的场景切换行为：
+测试 `useSceneManager` 的场景切换与保存行为：
 
 - 查看题目后点击「自定义」：无保存自定义场景时清空题目回到空白画布
 - 有保存自定义场景时恢复用户自定义场景（防回归）
+- 空场景保存被拒绝并 toast 示警
+- 保存确认：取消返回 true、重名拒绝、预设场景切换加载
+- 场景重命名成功同步 activeScene / 重名返回 false
+- 删除当前活动场景后切回「自定义」
+
+### 4.15 scene-io.test.ts — 场景导入导出/物体校验/深拷贝（17 测试）
+
+测试 `useSceneIO` 的导入链路与物体规范化：
+
+- `deepCopyObjects`：剥离运行时字段（trail/prevX/prevY/arcGateState/constrainedArcGroupId），且不改原数组
+- `validateObject`：合法质点/线段/弹簧通过；`id`/`type`/坐标缺失或非有限 → null；`mass<=0`/`radius<=0` 重置默认；`name` 缺省「未命名」；restriction/normal 缺省值
+- `parseAndLoadScene`：新/旧格式导入、非法 JSON 拒绝、空物体拒绝、`groundY=null` → `GROUND_DISABLED`
+
+### 4.16 scene-builder.test.ts — AI 场景构建（11 测试）
+
+测试 `buildScene` 各对象分支（经模块级 state 断言）：
+
+- ball：坐标×scale + CANVAS_MARGIN、y 翻转、半径下限
+- platform：法线指向上方、传送带/可移动线段颜色与 velocity
+- arc：展开为 20 段、groupId 一致、缺口角度取反、仅首段携带 arcGateState
+- spring：引用解析、naturalLength 下限、未知 ballId 丢弃
+- 空 objects 失败、field/gravity/groundY 换算
+
+### 4.17 scene-schema.test.ts — Zod 导入校验（12 测试）
+
+测试 `SceneDataSchema` / `LegacySceneSchema` / `SceneObjectSchema`：
+
+- 合法新/旧格式通过
+- `min(1)`：空 objects 拒绝；`finite()`：NaN/Infinity 拒绝；`positive()`：mass/radius 为 0/负拒绝
+- 缺省字段默认值（name/mass/radius/vx/vy/restitution/normal）
+- `discriminatedUnion` 类型分支与非法 type 拒绝
+
+### 4.18 question-bank.test.ts — 题库筛选/搜索/统计（8 测试）
+
+测试 `useQuestionBank`（注入自定义数据，不依赖真实题库条目）：
+
+- 按难度 / 标签 / 关键词（大小写不敏感）筛选
+- 空关键词返回全部
+- `allTags` 去重排序、`difficultyStats` 统计
+- 选中 / 取消选中
+
+### 4.19 ai-parser.test.ts — AI 解析参数提取（5 测试）
+
+测试 `convertToSceneParams`（纯函数，不触网络）：
+
+- topic 映射（projectile → 抛体运动）与 ball 参数提取
+- electric / magnetic 场参数（Ex/Ey / B）
+- 未知 topic → sceneName 为 null；空 objects → 空 params
 
 ---
 
@@ -513,6 +566,9 @@ measure()
 - [x] 覆盖完整圆法线计算（arc-full-circle-normal.test.ts，7 测试）
 - [x] 建立物理定律契约测试（physics-laws.test.ts，4 测试）
 - [x] 建立四层测试完整性防御（CLAUDE.md 规则 + husky pre-commit + CI 门禁 + contracts 不可篡改）
+- [x] 补全纯逻辑模块单测：useSceneIO（scene-io.test.ts，17 测试）、useSceneBuilder（scene-builder.test.ts，11 测试）、Zod 校验（scene-schema.test.ts，12 测试）、useQuestionBank（question-bank.test.ts，8 测试）、useAIParser（ai-parser.test.ts，5 测试）
+- [x] 扩展 scene-manager 测试（2→10 测试），覆盖保存/重命名/删除/切换
+- [x] 全量测试 358→419（26→31 文件），行覆盖率约 43.65%
 
 ### 10.3 第三阶段：组件测试 🚧
 

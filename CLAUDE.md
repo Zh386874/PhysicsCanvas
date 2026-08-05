@@ -51,16 +51,16 @@ CRITICAL: Test integrity is non-negotiable.
 
 提交/审查时，若 diff 出现以下任一信号，必须中止并人工核查：
 
-| 信号 | 模式 | 风险 |
-|------|------|------|
-| 测试文件被删除/重命名 | `git diff --diff-filter=D -- tests/` | 删测试让构建变绿 |
-| 新增 skip 标记 | `it.skip(`/`xit(`/`describe.skip(`/`.todo(` | 跳过失败用例 |
-| 断言数量减少 | `expect(` 计数下降 | 删断言绕过失败 |
-| 弱断言替换强断言 | `toBe`→`toBeTruthy`、`toBeCloseTo(x, 6)`→`toBeCloseTo(x, 2)` | 放宽精度掩盖错误 |
-| 期望值反向调整 | `expect(v).toBe(10)`→`expect(v).toBe(11)` | 改期望值适配 bug |
-| contracts 目录改动 | `tests/contracts/` 任何 M/D | 篡改物理铁律 |
-| 覆盖率下降 > 0.5% | `npm run coverage:check` fail | 删测试导致覆盖回归 |
-| 测试中注入运行时补丁 | `Object.assign`/`vi.spyOn` 临时改被测行为 | 让被测代码"临时正确" |
+| 信号                  | 模式                                                         | 风险                 |
+| --------------------- | ------------------------------------------------------------ | -------------------- |
+| 测试文件被删除/重命名 | `git diff --diff-filter=D -- tests/`                         | 删测试让构建变绿     |
+| 新增 skip 标记        | `it.skip(`/`xit(`/`describe.skip(`/`.todo(`                  | 跳过失败用例         |
+| 断言数量减少          | `expect(` 计数下降                                           | 删断言绕过失败       |
+| 弱断言替换强断言      | `toBe`→`toBeTruthy`、`toBeCloseTo(x, 6)`→`toBeCloseTo(x, 2)` | 放宽精度掩盖错误     |
+| 期望值反向调整        | `expect(v).toBe(10)`→`expect(v).toBe(11)`                    | 改期望值适配 bug     |
+| contracts 目录改动    | `tests/contracts/` 任何 M/D                                  | 篡改物理铁律         |
+| 覆盖率下降 > 0.5%     | `npm run coverage:check` fail                                | 删测试导致覆盖回归   |
+| 测试中注入运行时补丁  | `Object.assign`/`vi.spyOn` 临时改被测行为                    | 让被测代码"临时正确" |
 
 ### 生产/验证会话分离
 

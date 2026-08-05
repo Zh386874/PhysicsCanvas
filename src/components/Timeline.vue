@@ -75,7 +75,7 @@ const props = defineProps({
   keyframeIndices: { type: Array, default: () => [] }
 })
 
-const speedOptions = [0.5, 1, 2]
+const speedOptions = [0.25, 0.5, 1, 2]
 
 const hasPrevKeyframe = computed(() => props.keyframeIndices.some((i) => i < props.currentFrame))
 
