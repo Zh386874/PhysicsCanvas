@@ -53,29 +53,29 @@ AI 配置弹窗新增第 4 个「🔧 自定义」模型选项，支持用户自
 
 ## 改动文件清单（11 个文件，+1441 / -1067）
 
-| 文件 | 主题 |
-| ---- | ---- |
-| `src/composables/usePhysics.ts` | spotOverlap 触发器引擎 |
-| `src/composables/useCollision.ts` | spotOverlap 触发器引擎 |
+| 文件                                 | 主题                   |
+| ------------------------------------ | ---------------------- |
+| `src/composables/usePhysics.ts`      | spotOverlap 触发器引擎 |
+| `src/composables/useCollision.ts`    | spotOverlap 触发器引擎 |
 | `src/composables/useSceneBuilder.ts` | spotOverlap 触发器引擎 |
-| `src/components/ApiKeyDialog.vue` | AI 自定义配置 |
-| `src/composables/useAIParser.ts` | AI 自定义配置 |
-| `src/data/questionBank.ts` | 真题库更新 |
-| `src/App.vue` | z-index 修复 |
-| `src/components/DataChart.vue` | 格式化 |
-| `package.json` / `package-lock.json` | 依赖更新 |
-| `docs/QUESTION_FORMAT_SPEC.md` | 文档（新增） |
+| `src/components/ApiKeyDialog.vue`    | AI 自定义配置          |
+| `src/composables/useAIParser.ts`     | AI 自定义配置          |
+| `src/data/questionBank.ts`           | 真题库更新             |
+| `src/App.vue`                        | z-index 修复           |
+| `src/components/DataChart.vue`       | 格式化                 |
+| `package.json` / `package-lock.json` | 依赖更新               |
+| `docs/QUESTION_FORMAT_SPEC.md`       | 文档（新增）           |
 
 ---
 
 ## 验证结果
 
-| 验证项 | 命令 | 结果 |
-| ------ | ---- | ---- |
-| 类型检查 | `npm run type-check` | ✅ 通过 |
-| 单元/集成/回归/契约测试 | `npm run test` | ✅ 335 passed (22 files) |
-| Gitee 推送 | `git push gitee chore/project-consolidation` | ✅ 已同步 |
-| GitHub 推送 | `git push github chore/project-consolidation` | ✅ 已同步 |
+| 验证项                  | 命令                                          | 结果                     |
+| ----------------------- | --------------------------------------------- | ------------------------ |
+| 类型检查                | `npm run type-check`                          | ✅ 通过                  |
+| 单元/集成/回归/契约测试 | `npm run test`                                | ✅ 335 passed (22 files) |
+| Gitee 推送              | `git push gitee chore/project-consolidation`  | ✅ 已同步                |
+| GitHub 推送             | `git push github chore/project-consolidation` | ✅ 已同步                |
 
 ### 手动验证建议
 

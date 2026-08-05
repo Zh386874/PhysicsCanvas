@@ -153,17 +153,6 @@
           @update:currentFrame="currentFrame = $event"
         />
 
-        <div v-if="mode === 'replay' && !showChart" class="chart-toggle-bar">
-          <button class="chart-toggle-btn" @click="showChart = true">📊 显示数据图表</button>
-        </div>
-        <DataChart
-          v-if="mode === 'replay' && showChart"
-          :snapshots="snapshots"
-          :objects="state.objects"
-          :currentFrame="currentFrame"
-          @collapse="showChart = false"
-        />
-
         <ControlBar
           :isPlaying="isPlaying"
           :showForce="showForce"
@@ -198,7 +187,6 @@ import SceneSettings from './components/SceneSettings.vue'
 import ControlBar from './components/ControlBar.vue'
 import PhysicsCanvas from './components/PhysicsCanvas.vue'
 import Timeline from './components/Timeline.vue'
-import DataChart from './components/DataChart.vue'
 import AIInput from './components/AIInput.vue'
 import ApiKeyDialog from './components/ApiKeyDialog.vue'
 import InputDialog from './components/InputDialog.vue'
@@ -324,9 +312,6 @@ useKeyboard({ onDeleteKey, onUndo, onRedo })
 function onLoadQuestion(question) {
   handleLoadQuestion(question)
 }
-
-// ===== 数据图表面板 =====
-const showChart = ref(true)
 
 // ===== 计算属性 =====
 const isPlaying = computed(() => state.isPlaying)
@@ -466,26 +451,5 @@ const showGateColors = computed(() => state.showGateColors)
   background: var(--vsd-bg);
   position: relative;
   overflow: hidden;
-}
-.chart-toggle-bar {
-  padding: 0.35rem 0.75rem;
-  background: var(--vsd-panel);
-  border-top: 1px solid var(--vsd-border);
-  flex-shrink: 0;
-}
-.chart-toggle-btn {
-  padding: 0.25rem 0.7rem;
-  border: 1px solid var(--vsd-border-light);
-  border-radius: 5px;
-  background: var(--vsd-button);
-  color: var(--vsd-info);
-  cursor: pointer;
-  font-size: 0.75rem;
-  transition: all 0.15s;
-}
-.chart-toggle-btn:hover {
-  background: var(--vsd-button-hover);
-  border-color: var(--vsd-blue);
-  color: var(--vsd-blue);
 }
 </style>

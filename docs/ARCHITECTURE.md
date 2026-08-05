@@ -30,8 +30,8 @@
 │ ObjectList│   │  (渲染+事件分发)  │   │                       │
 │ Property │   └────────┬─────────┘   │  (8道真题库)          │
 │ Panel    │            │              │                       │
-│ ForceEdi │     EditorToolbar         │  DataChart            │
-│ tor      │     ControlBar            │  (v-t图/能量曲线)     │
+│ ForceEdi │     EditorToolbar         │                       │
+│ tor      │     ControlBar            │                       │
 │          │     Timeline              │                       │
 │          │     SceneTabs             │                       │
 │          │     SceneSettings         │                       │
@@ -150,13 +150,12 @@ QuestionBankPanel ──emit('load-question')──► App.vue
 | `ForceEditor.vue` | 附加力编辑器 |
 | `ControlBar.vue` | 播放控制栏（含触发器颜色按钮） |
 | `Timeline.vue` | 回放时间轴 |
-| `DataChart.vue` | 数据图表（v-t 图、能量曲线），基于 ECharts |
 | `InputDialog.vue` | 通用输入对话框（确认/取消，支持输入验证） |
 | `SceneTabs.vue` | 场景切换标签 |
 | `EditorToolbar.vue` | 编辑工具条（工具类型选择） |
 | `SceneSettings.vue` | 场景设置（重力、场区域、物理参数） |
 | `LeftPanel.vue` | 左侧面板容器（AI 输入 + 物体列表 + 属性） |
-| `RightPanel.vue` | 右侧面板容器（题库 + 数据图表） |
+| `RightPanel.vue` | 右侧面板容器（题库） |
 
 **PhysicsCanvas.vue** 曾有 1541 行，拆分为 3 个 composable：
 
