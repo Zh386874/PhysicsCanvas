@@ -8,7 +8,7 @@
 
 ### 1.1 当前状态
 
-项目已建立 **Vitest 自动化测试体系**，覆盖物理引擎积分、碰撞检测、力计算、场景管理、物体操作、撤销重做、快照回放、物理定律契约等，共 **335 个测试** 跨 **22 个文件**（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，核心物理逻辑（积分、力、碰撞）均有单元测试覆盖。
+项目已建立 **Vitest 自动化测试体系**，覆盖物理引擎积分、碰撞检测、力计算、场景管理、物体操作、撤销重做、快照回放、场区域、弧线缺口换算、板块模型、物理定律契约等，共 **358 个测试** 跨 **26 个文件**（unit / integration / regression / contracts 四层）。物理引擎积分定律与碰撞守恒已由契约测试覆盖，核心物理逻辑（积分、力、碰撞）均有单元测试覆盖。
 
 ### 1.2 测试目标
 
@@ -25,7 +25,7 @@
 tests/
 ├── helpers/
 │   └── sceneBuilder.ts              ← 测试夹具：构建圆环场景 + 单步模拟（不依赖 Vue reactive）
-├── unit/                            ← 单元测试（10 文件，220 测试）
+├── unit/                            ← 单元测试（14 文件，243 测试）
 │   ├── collision.test.ts            ← 弧线碰撞与约束激活（6 测试）
 │   ├── collision-branches.test.ts   ← 碰撞分支全覆盖（37 测试）
 │   ├── physics-engine.test.ts       ← 物理引擎积分逻辑（27 测试）
@@ -35,7 +35,11 @@ tests/
 │   ├── presets.test.ts              ← 预设场景（37 测试）
 │   ├── snapshot-manager.test.ts     ← 快照录制/回放（29 测试）
 │   ├── plate-definition.test.ts     ← 板块 type:plate 定义与默认值（7 测试）
-│   └── reset-merge.test.ts          ← 重置合并策略（6 测试）
+│   ├── reset-merge.test.ts          ← 重置合并策略（6 测试）
+│   ├── arc-gap-conversion.test.ts   ← 弧线缺口角度换算（6 测试）
+│   ├── field-region-style.test.ts   ← 场区域样式（10 测试）
+│   ├── plate-rect-model.test.ts     ← 板块矩形模型（5 测试）
+│   └── scene-manager.test.ts        ← 场景管理（2 测试）
 ├── integration/                     ← 集成测试（4 文件，52 测试）
 │   ├── ring-scene.test.ts           ← 2023 浙江题圆环完整物理循环（3 测试）
 │   ├── forces-physics.test.ts       ← 力与物理引擎集成（18 测试）
@@ -138,6 +142,10 @@ export default defineConfig({
 | `npm run test:integrity` | 检查两次提交间的测试完整性（`node scripts/check-test-integrity.mjs`） |
 | `npm run coverage:check` | 检查覆盖率是否回归（`node scripts/check-coverage-regression.mjs`） |
 | `npm run coverage:save-baseline` | 保存当前覆盖率基线（`node scripts/save-coverage-baseline.mjs`，**人工操作，AI 禁止自动运行**） |
+| `npm run type-check` | vue-tsc 类型检查（`vue-tsc --noEmit`） |
+| `npm run lint` / `lint:check` | ESLint 自动修复 / 仅检查 |
+| `npm run format` / `format:check` | Prettier 格式化 / 仅检查 |
+| `npm run docs:dev` / `docs:build` / `docs:preview` | VitePress 文档开发 / 构建 / 预览 |
 
 ### 3.3 测试夹具（tests/helpers/sceneBuilder.ts）
 
@@ -240,6 +248,35 @@ export default defineConfig({
 ### 4.10 reset-merge.test.ts — 重置合并策略（6 测试）
 
 测试场景重置时的合并策略：保留自定义物体、清除选中状态、重置物理时间等。
+
+### 4.11 arc-gap-conversion.test.ts — 弧线缺口角度换算（6 测试）
+
+测试 `src/utils/arcGap.ts` 的角度换算工具函数：
+
+- `gapToDegrees` / `gapFromDegrees` 双向换算一致性
+- 经过 0°/360° 边界的缺口（如默认入口缺口中心角 0°、半宽 0.3）取短弧中点
+- 完整圆/跨边界缺口的中心角计算正确性
+
+### 4.12 field-region-style.test.ts — 场区域样式（10 测试）
+
+测试场区域（FieldRegion）的样式判定与渲染属性：
+
+- 场区域类型（电场/磁场/重力场）的样式区分
+- 尺寸、颜色、透明度等渲染参数的推导逻辑
+
+### 4.13 plate-rect-model.test.ts — 板块矩形模型（5 测试）
+
+测试板块（`type:'plate'`）的矩形模型：
+
+- 板块由线段扩展为矩形（上/下表面 + 端面）的几何计算
+- 板块厚度（physicsThickness）与矩形边界的对应关系
+
+### 4.14 scene-manager.test.ts — 场景管理（2 测试）
+
+测试 `useSceneManager` 的场景切换行为：
+
+- 查看题目后点击「自定义」：无保存自定义场景时清空题目回到空白画布
+- 有保存自定义场景时恢复用户自定义场景（防回归）
 
 ---
 
@@ -389,7 +426,7 @@ export default defineConfig({
 | 5 | 按住 Shift 拖拽线段 | 线段方向锁定水平或垂直 |
 | 6 | 右键拖拽框选 | 选中框内所有物体 |
 | 7 | 中键拖拽 | 平移画布 |
-| 8 | 滚轮缩放 | 以鼠标为中心缩放（0.3~5x） |
+| 8 | 滚轮缩放 | 以鼠标为中心缩放（0.3~100x） |
 | 9 | Ctrl+Z / Ctrl+Y | 撤销/重做 |
 | 10 | 切换到预设场景 | editMode 关闭，工具栏隐藏 |
 

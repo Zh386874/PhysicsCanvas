@@ -14,8 +14,8 @@ import { checkCollision } from '../../src/composables/useCollision'
 import type { ParsedProblem } from '../../src/composables/useAIParser'
 import type { PhysicsObject, ParticleObject, SegmentObject } from '../../src/composables/usePhysics'
 
-// computeAutoScale: worldWidth=10 → (800-120)/10 = 68
-const SCALE = 68
+// 统一换算比例：buildScene 固定按 PIXELS_PER_METER=50 转像素（不再按 worldWidth 自动缩放）
+const SCALE = PIXELS_PER_METER
 const CANVAS_MARGIN = 60
 const GROUND_BASELINE = 400
 
@@ -25,8 +25,25 @@ describe('板块定义 — type:plate 转换与默认值', () => {
       title: '板块显式字段测试',
       topic: 'custom',
       objects: [
-        { id: 'block', type: 'ball', mass: 1, radius: 0.2, initialPosition: { x: 0, y: 0.4 }, initialVelocity: { x: 4, y: 0 } },
-        { id: 'board', type: 'plate', startPoint: { x: -1, y: 0.2 }, endPoint: { x: 1, y: 0.2 }, physicsThickness: 0.15, angle: 0, frictionTop: 0.3, frictionBottom: 0, mass: 3 }
+        {
+          id: 'block',
+          type: 'ball',
+          mass: 1,
+          radius: 0.2,
+          initialPosition: { x: 0, y: 0.4 },
+          initialVelocity: { x: 4, y: 0 }
+        },
+        {
+          id: 'board',
+          type: 'plate',
+          startPoint: { x: -1, y: 0.2 },
+          endPoint: { x: 1, y: 0.2 },
+          physicsThickness: 0.15,
+          angle: 0,
+          frictionTop: 0.3,
+          frictionBottom: 0,
+          mass: 3
+        }
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 9.8,
@@ -36,7 +53,7 @@ describe('板块定义 — type:plate 转换与默认值', () => {
     const result = buildScene(problem)
     expect(result.success).toBe(true)
 
-    const board = state.objects.find(o => o.name === 'board') as SegmentObject
+    const board = state.objects.find((o) => o.name === 'board') as SegmentObject
     expect(board).toBeDefined()
     expect(board.type).toBe('line_segment')
     expect(board.subtype).toBe('plate')
@@ -54,16 +71,14 @@ describe('板块定义 — type:plate 转换与默认值', () => {
     const problem: ParsedProblem = {
       title: '板块默认值测试',
       topic: 'custom',
-      objects: [
-        { id: 'p', type: 'plate', startPoint: { x: 0, y: 0 }, endPoint: { x: 2, y: 0 } }
-      ],
+      objects: [{ id: 'p', type: 'plate', startPoint: { x: 0, y: 0 }, endPoint: { x: 2, y: 0 } }],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 9.8,
       groundY: 0,
       worldWidth: 10
     }
     buildScene(problem)
-    const p = state.objects.find(o => o.name === 'p') as SegmentObject
+    const p = state.objects.find((o) => o.name === 'p') as SegmentObject
     expect(p.mass).toBe(1)
     expect(p.frictionTop).toBe(0.3)
     expect(p.frictionBottom).toBe(0.1)
@@ -84,8 +99,12 @@ describe('板块端面碰撞 — 质点撞击端面（动量守恒，无摩擦�
       name: 'board',
       type: 'line_segment',
       subtype: 'plate',
-      x1: 100, y1: 200, x2: 300, y2: 200,
-      normalX: 0, normalY: -1,  // 法线向上
+      x1: 100,
+      y1: 200,
+      x2: 300,
+      y2: 200,
+      normalX: 0,
+      normalY: -1, // 法线向上
       movable: true,
       mass: 3,
       velocity: { x: 0, y: 0 },
@@ -100,14 +119,17 @@ describe('板块端面碰撞 — 质点撞击端面（动量守恒，无摩擦�
       name: 'ball',
       type: '质点',
       mass: 1,
-      x: 305, y: 205,      // 右端面右侧 5px，y 在板块厚度中点
-      vx: -100, vy: 0,     // 向左运动撞击右端面
+      x: 305,
+      y: 205, // 右端面右侧 5px，y 在板块厚度中点
+      vx: -100,
+      vy: 0, // 向左运动撞击右端面
       radius: 5,
       color: '#60a5fa',
       charge: 0,
       friction: 0,
       trail: [],
-      prevX: 315, prevY: 205
+      prevX: 315,
+      prevY: 205
     }
     return { ball, board }
   }
@@ -130,9 +152,10 @@ describe('板块端面碰撞 — 质点撞击端面（动量守恒，无摩擦�
 
   it('动量守恒（m_obj*v_obj + m_seg*v_seg 碰撞前后相等）', () => {
     const { ball, board } = buildEndCollisionScene()
-    const m_obj = ball.mass, m_seg = board.mass!
-    const v_obj_before = ball.vx            // -100
-    const v_seg_before = board.velocity!.x  // 0
+    const m_obj = ball.mass,
+      m_seg = board.mass!
+    const v_obj_before = ball.vx // -100
+    const v_seg_before = board.velocity!.x // 0
     const objects: PhysicsObject[] = [board, ball]
     checkCollision(objects, 100000, 0.6, 1.0, 0.016, 490)
     // 带恢复系数的正确碰撞公式保证动量守恒
@@ -148,7 +171,15 @@ describe('板块摩擦分离 — 上表面 frictionTop / 下表面 frictionBotto
       title: '摩擦分离测试',
       topic: 'custom',
       objects: [
-        { id: 'p', type: 'plate', startPoint: { x: 0, y: 0 }, endPoint: { x: 2, y: 0 }, frictionTop: 0.5, frictionBottom: 0.05, mass: 2 }
+        {
+          id: 'p',
+          type: 'plate',
+          startPoint: { x: 0, y: 0 },
+          endPoint: { x: 2, y: 0 },
+          frictionTop: 0.5,
+          frictionBottom: 0.05,
+          mass: 2
+        }
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
       gravity: 9.8,
@@ -156,7 +187,7 @@ describe('板块摩擦分离 — 上表面 frictionTop / 下表面 frictionBotto
       worldWidth: 10
     }
     buildScene(problem)
-    const p = state.objects.find(o => o.name === 'p') as SegmentObject
+    const p = state.objects.find((o) => o.name === 'p') as SegmentObject
     expect(p.frictionTop).toBe(0.5)
     expect(p.frictionBottom).toBe(0.05)
     expect(p.mass).toBe(2)
@@ -167,9 +198,15 @@ describe('题库摆渡车场景 — plate 类型与侧壁 IJ 完整性', () => {
   it('摆渡车为 plate 类型，带物理厚度与上下表面摩擦分离', () => {
     // 直接验证 questionBank 中的摆渡车配置（避免 buildScene 全局状态污染）
     const ferryCar = {
-      id: '摆渡车', type: 'plate' as const,
-      startPoint: { x: 11.68, y: 0 }, endPoint: { x: 16.48, y: 0 },
-      physicsThickness: 0.8, angle: 0, frictionTop: 0.3, frictionBottom: 0, mass: 1
+      id: '摆渡车',
+      type: 'plate' as const,
+      startPoint: { x: 11.68, y: 0 },
+      endPoint: { x: 16.48, y: 0 },
+      physicsThickness: 0.8,
+      angle: 0,
+      frictionTop: 0.3,
+      frictionBottom: 0,
+      mass: 1
     }
     expect(ferryCar.type).toBe('plate')
     expect(ferryCar.physicsThickness).toBe(0.8)

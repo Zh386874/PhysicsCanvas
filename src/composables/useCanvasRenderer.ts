@@ -9,6 +9,7 @@ import type {
   SegmentObject,
   SpringObject
 } from './usePhysics'
+import { DEFAULT_PARTICLE_RADIUS } from '../constants'
 
 /** 渲染上下文：绘制所需的外部依赖 */
 export interface RenderContext {
@@ -159,7 +160,7 @@ export function findContactSegment(
   obj: ParticleObject,
   objects: PhysicsObject[]
 ): SegmentObject | null {
-  const threshold = (obj.radius || 10) + 1
+  const threshold = (obj.radius || DEFAULT_PARTICLE_RADIUS) + 1
   for (const seg of objects) {
     if (seg.type !== 'line_segment') continue
     const s = seg as SegmentObject
@@ -435,7 +436,7 @@ export function drawObjects(rc: RenderContext, objects: PhysicsObject[]): void {
   for (const obj of objects) {
     if (obj.type !== '质点' && obj.type !== '刚体') continue
     const p = obj as ParticleObject
-    const r = p.radius || 10
+    const r = p.radius || DEFAULT_PARTICLE_RADIUS
     ctx.beginPath()
     ctx.arc(p.x, p.y, r + 6, 0, Math.PI * 2)
     const glow = ctx.createRadialGradient(p.x, p.y, r, p.x, p.y, r + 6)
@@ -913,7 +914,7 @@ export function drawSelectionHighlight(
     if (!selectedSet.has(obj.id)) continue
     if (obj.type === '质点' || obj.type === '刚体') {
       const p = obj as ParticleObject
-      const r = p.radius || 10
+      const r = p.radius || DEFAULT_PARTICLE_RADIUS
       ctx.strokeStyle = 'rgba(0, 122, 204, 0.95)'
       ctx.lineWidth = 2.5
       ctx.shadowColor = 'rgba(0, 122, 204, 0.8)'

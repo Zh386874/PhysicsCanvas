@@ -48,7 +48,7 @@ npm run build
 
 # 5. 运行测试（可选，验证物理引擎核心逻辑）
 npm run test
-# → Vitest 单次运行，335 个测试跨 unit/integration/regression/contracts 四层
+# → Vitest 单次运行，358 个测试跨 unit/integration/regression/contracts 四层（26 文件）
 
 # 6. 本地预览构建结果
 npm run preview
@@ -100,7 +100,7 @@ export default defineConfig({
 
 | 命令 | 说明 |
 |------|------|
-| `npm run test` | 单次运行全部测试（`vitest run`，335 测试，22 文件） |
+| `npm run test` | 单次运行全部测试（`vitest run`，358 测试，26 文件） |
 | `npm run test:watch` | 监听模式，文件变动自动重跑（`vitest`） |
 | `npm run test:contracts` | 仅运行契约测试（`vitest run tests/contracts`） |
 | `npm run test:coverage` | 运行测试并生成覆盖率报告（`vitest run --coverage`） |
@@ -175,7 +175,7 @@ jobs:
 1. checkout 代码
 2. 安装 Node.js 24
 3. npm ci（严格按 lockfile 安装）
-4. npm run test（运行全部测试，335 测试通过才继续）
+4. npm run test（运行全部测试，358 测试通过才继续）
 5. npm run build（Vite 生产构建）
 6. 上传 dist/ 为 Pages artifact
 7. 部署到 GitHub Pages

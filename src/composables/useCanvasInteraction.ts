@@ -29,7 +29,14 @@ import {
 } from './useEditTools'
 import { pointToSegmentDistance } from './useCanvasRenderer'
 import type { PhysicsObject, ParticleObject, SegmentObject, FieldRegion } from './usePhysics'
-import { GROUND_DISABLED, PAN_LIMIT } from '../constants'
+import {
+  GROUND_DISABLED,
+  GROUND_BASELINE,
+  PAN_LIMIT,
+  HIT_RADIUS_POINT,
+  HIT_RADIUS_SEGMENT,
+  DEFAULT_PARTICLE_RADIUS
+} from '../constants'
 
 /**
  * 物理状态访问接口（DIP 抽象）
@@ -85,6 +92,11 @@ interface CanvasProps {
 export const worldOffset = ref({ x: 0, y: 0 })
 export const worldScale = ref(1)
 
+/** 滚轮缩放下限（最小 0.3 倍） */
+const MIN_WORLD_SCALE = 0.3
+/** 滚轮缩放上限（最大 100 倍，适配按 PIXELS_PER_METER=50 统一换算后的极小场景） */
+const MAX_WORLD_SCALE = 100
+
 // ===== 高 DPI 适配 =====
 let dpr = 1
 let cssW = 0
@@ -127,7 +139,7 @@ let batchDragInitial: BatchDragItem[] | null = null
 let canvasRef: Ref<HTMLCanvasElement | null> | null = null
 let getProps: () => CanvasProps = () => ({ editMode: false, selectedIds: [] })
 let emitFn: (event: string, ...args: unknown[]) => void = () => {}
-let stateAccess: PhysicsStateAccess = { objects: [], groundY: 400, field: {} }
+let stateAccess: PhysicsStateAccess = { objects: [], groundY: GROUND_BASELINE, field: {} }
 
 // ===== Getter（供渲染层和组件使用） =====
 export function getDpr(): number {
@@ -207,8 +219,8 @@ function hitTest(pos: { x: number; y: number }, skipSegments = false): DragTarge
         const seg = obj as SegmentObject
         const d1 = Math.hypot(pos.x - seg.x1, pos.y - seg.y1)
         const d2 = Math.hypot(pos.x - seg.x2, pos.y - seg.y2)
-        if (d1 <= 8) return { id: obj.id, mode: 'endpoint', endpointIdx: 0 }
-        if (d2 <= 8) return { id: obj.id, mode: 'endpoint', endpointIdx: 1 }
+        if (d1 <= HIT_RADIUS_POINT) return { id: obj.id, mode: 'endpoint', endpointIdx: 0 }
+        if (d2 <= HIT_RADIUS_POINT) return { id: obj.id, mode: 'endpoint', endpointIdx: 1 }
       }
     }
     // 再检测线段整体（点击在线段附近 5px）
@@ -216,7 +228,7 @@ function hitTest(pos: { x: number; y: number }, skipSegments = false): DragTarge
       if (obj.type === 'line_segment') {
         const seg = obj as SegmentObject
         const dist = pointToSegmentDistance(pos.x, pos.y, seg.x1, seg.y1, seg.x2, seg.y2)
-        if (dist <= 5) return { id: obj.id, mode: 'segment' }
+        if (dist <= HIT_RADIUS_SEGMENT) return { id: obj.id, mode: 'segment' }
       }
     }
   }
@@ -225,7 +237,7 @@ function hitTest(pos: { x: number; y: number }, skipSegments = false): DragTarge
     if (obj.type === '质点') {
       const p = obj as ParticleObject
       const d = Math.hypot(pos.x - p.x, pos.y - p.y)
-      if (d <= (p.radius || 10)) return { id: obj.id, mode: 'circle' }
+      if (d <= (p.radius || DEFAULT_PARTICLE_RADIUS)) return { id: obj.id, mode: 'circle' }
     }
   }
   return null
@@ -524,7 +536,12 @@ function onMouseMove(e: MouseEvent): void {
       // Shift 吸附：精准落到最近线段表面（边缘接触）
       if (shiftPressed) {
         const p = obj as ParticleObject
-        const snapped = snapToSegmentSurface(targetX, targetY, p.radius || 10, stateAccess.objects)
+        const snapped = snapToSegmentSurface(
+          targetX,
+          targetY,
+          p.radius || DEFAULT_PARTICLE_RADIUS,
+          stateAccess.objects
+        )
         if (snapped) {
           targetX = snapped.x
           targetY = snapped.y
@@ -735,7 +752,7 @@ function onWheel(e: WheelEvent): void {
   const mouseX = e.clientX - rect.left
   const mouseY = e.clientY - rect.top
   const factor = e.deltaY < 0 ? 1.1 : 0.9
-  const newScale = Math.max(0.3, Math.min(5, worldScale.value * factor))
+  const newScale = Math.max(MIN_WORLD_SCALE, Math.min(MAX_WORLD_SCALE, worldScale.value * factor))
   // 以鼠标为中心缩放：保持鼠标点对应的世界坐标不变
   const worldX = (mouseX - worldOffset.value.x) / worldScale.value
   const worldY = (mouseY - worldOffset.value.y) / worldScale.value

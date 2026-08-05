@@ -342,24 +342,25 @@
                   删除
                 </button>
                 <div class="field">
-                  <label>中心角 (rad)</label>
+                  <label>起始角度 (°)</label>
                   <input
                     type="number"
-                    step="0.1"
-                    :value="object.arc.entryGap.centerAngle"
-                    @input="
-                      updateArcGap('entryGap', 'centerAngle', parseFloat($event.target.value))
-                    "
+                    step="1"
+                    min="0"
+                    max="360"
+                    :value="gapStartDeg(object.arc.entryGap)"
+                    @input="onGapStartDegInput('entryGap', $event.target.value)"
                   />
                 </div>
                 <div class="field">
-                  <label>半宽 (rad)</label>
+                  <label>终止角度 (°)</label>
                   <input
                     type="number"
-                    step="0.05"
-                    min="0.01"
-                    :value="object.arc.entryGap.halfWidth"
-                    @input="updateArcGap('entryGap', 'halfWidth', parseFloat($event.target.value))"
+                    step="1"
+                    min="0"
+                    max="360"
+                    :value="gapEndDeg(object.arc.entryGap)"
+                    @input="onGapEndDegInput('entryGap', $event.target.value)"
                   />
                 </div>
                 <div class="field">
@@ -386,14 +387,14 @@
                   </select>
                 </div>
                 <div v-if="getTriggerType(object.arc.entryGap) === 'angleCross'" class="field">
-                  <label>触发角度 (rad)</label>
+                  <label>触发角度 (°)</label>
                   <input
                     type="number"
-                    step="0.1"
-                    :value="object.arc.entryGap.triggerAngle"
-                    @input="
-                      updateArcGap('entryGap', 'triggerAngle', parseFloat($event.target.value))
-                    "
+                    step="1"
+                    min="0"
+                    max="360"
+                    :value="triggerAngleDeg(object.arc.entryGap)"
+                    @input="onTriggerAngleDegInput('entryGap', $event.target.value)"
                   />
                 </div>
                 <div v-if="getTriggerType(object.arc.entryGap) !== 'none'" class="field">
@@ -433,22 +434,25 @@
                   删除
                 </button>
                 <div class="field">
-                  <label>中心角 (rad)</label>
+                  <label>起始角度 (°)</label>
                   <input
                     type="number"
-                    step="0.1"
-                    :value="object.arc.exitGap.centerAngle"
-                    @input="updateArcGap('exitGap', 'centerAngle', parseFloat($event.target.value))"
+                    step="1"
+                    min="0"
+                    max="360"
+                    :value="gapStartDeg(object.arc.exitGap)"
+                    @input="onGapStartDegInput('exitGap', $event.target.value)"
                   />
                 </div>
                 <div class="field">
-                  <label>半宽 (rad)</label>
+                  <label>终止角度 (°)</label>
                   <input
                     type="number"
-                    step="0.05"
-                    min="0.01"
-                    :value="object.arc.exitGap.halfWidth"
-                    @input="updateArcGap('exitGap', 'halfWidth', parseFloat($event.target.value))"
+                    step="1"
+                    min="0"
+                    max="360"
+                    :value="gapEndDeg(object.arc.exitGap)"
+                    @input="onGapEndDegInput('exitGap', $event.target.value)"
                   />
                 </div>
                 <div class="field">
@@ -475,14 +479,14 @@
                   </select>
                 </div>
                 <div v-if="getTriggerType(object.arc.exitGap) === 'angleCross'" class="field">
-                  <label>触发角度 (rad)</label>
+                  <label>触发角度 (°)</label>
                   <input
                     type="number"
-                    step="0.1"
-                    :value="object.arc.exitGap.triggerAngle"
-                    @input="
-                      updateArcGap('exitGap', 'triggerAngle', parseFloat($event.target.value))
-                    "
+                    step="1"
+                    min="0"
+                    max="360"
+                    :value="triggerAngleDeg(object.arc.exitGap)"
+                    @input="onTriggerAngleDegInput('exitGap', $event.target.value)"
                   />
                 </div>
                 <div v-if="getTriggerType(object.arc.exitGap) !== 'none'" class="field">
@@ -551,6 +555,7 @@ import { ref } from 'vue'
 import ForceEditor from './ForceEditor.vue'
 import { PIXELS_PER_METER } from '../composables/usePhysics'
 import { autoComputeNormal } from '../composables/useCollision'
+import { gapStartDeg, gapEndDeg, triggerAngleDeg, gapFromDegrees } from '../utils/arcGap'
 
 const props = defineProps({
   object: { type: Object, default: null }
@@ -594,6 +599,32 @@ function updateArcGap(gapKey, key, value) {
     arc[gapKey] = { ...arc[gapKey], [key]: value }
   }
   emit('update:object', { ...props.object, arc })
+}
+
+/** 单次 emit 更新缺口范围（避免两次 updateArcGap 产生两条历史） */
+function updateGapRange(gapKey, startDeg, endDeg) {
+  const arc = { ...props.object.arc }
+  if (!arc[gapKey]) return
+  const { centerAngle, halfWidth } = gapFromDegrees(startDeg, endDeg)
+  arc[gapKey] = { ...arc[gapKey], centerAngle, halfWidth }
+  emit('update:object', { ...props.object, arc })
+}
+
+function onGapStartDegInput(gapKey, degVal) {
+  const gap = props.object.arc && props.object.arc[gapKey]
+  if (!gap) return
+  updateGapRange(gapKey, parseFloat(degVal) || 0, gapEndDeg(gap))
+}
+
+function onGapEndDegInput(gapKey, degVal) {
+  const gap = props.object.arc && props.object.arc[gapKey]
+  if (!gap) return
+  updateGapRange(gapKey, gapStartDeg(gap), parseFloat(degVal) || 0)
+}
+
+/** 触发角度（°）→ rad 存储 */
+function onTriggerAngleDegInput(gapKey, degVal) {
+  updateArcGap(gapKey, 'triggerAngle', (parseFloat(degVal) || 0) * (Math.PI / 180))
 }
 
 /**
