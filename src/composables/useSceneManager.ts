@@ -134,6 +134,8 @@ export function useSceneManager() {
       return
     }
     nameDialogError.value = ''
+    nameDialogMode.value = 'save' // 确保保存进入保存分支，避免重命名模式残留
+    renameOldName.value = '' // 清空重命名残留的旧名
     nameDialogTitle.value = '保存场景'
     nameDialogInitialValue.value = ''
     nameDialogPlaceholder.value = '请输入场景名称'
