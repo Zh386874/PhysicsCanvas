@@ -15,8 +15,7 @@ import {
   keyframeIndices
 } from './usePhysics'
 import type { PhysicsObject, FieldState } from './usePhysics'
-import { isFieldState } from './usePhysics'
-import type { ParsedProblem } from './useAIParser'
+import type { ParsedProblem } from '../types/aiProblem'
 import { getPreset } from './usePresets'
 import { buildScene } from './useSceneBuilder'
 import { clearHistory } from './useHistory'
@@ -215,7 +214,6 @@ export function useSceneManager() {
       const preset = getPreset('自定义')
       loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
       state.isPlaying = false
-      restoreCustomScene()
       capturePlayStart()
     }
   }
@@ -262,7 +260,7 @@ export function useSceneManager() {
       !state.isPlaying
   )
 
-  // 初始化默认场景：自定义（首屏即自定义页面，尝试恢复上次保存的自定义场景）
+  // 初始化默认场景：自定义（首屏即自定义页面，显示空白画布）
   const initialPreset = getPreset('自定义')
   loadScene(
     initialPreset.objects,
@@ -272,7 +270,6 @@ export function useSceneManager() {
     initialPreset.groundY
   )
   state.isPlaying = false
-  restoreCustomScene()
   capturePlayStart()
 
   /**
@@ -305,66 +302,19 @@ export function useSceneManager() {
   }
 
   /**
-   * 从 localStorage 恢复自定义场景
-   * 兼容旧格式（纯数组）和新格式（含全局参数的对象）
-   */
-  function restoreCustomScene(): void {
-    try {
-      const data = localStorage.getItem(CUSTOM_STORAGE_KEY)
-      if (!data) return
-      const parsed = JSON.parse(data)
-      let objs: unknown[]
-      let gravity: unknown
-      let groundY: unknown
-      let field: unknown
-      if (Array.isArray(parsed)) {
-        // 旧格式兼容：仅 objects
-        objs = parsed
-      } else if (parsed && Array.isArray(parsed.objects)) {
-        objs = parsed.objects
-        gravity = parsed.gravity
-        groundY = parsed.groundY
-        field = parsed.field
-      } else {
-        return
-      }
-      if (!Array.isArray(objs) || objs.length === 0) return
-      const validObjs = objs.filter((o) => o && typeof o === 'object') as PhysicsObject[]
-      if (validObjs.length === 0) return
-      state.objects.splice(0, state.objects.length)
-      for (const o of validObjs) {
-        state.objects.push({ ...o, trail: [] } as PhysicsObject)
-      }
-      if (gravity !== undefined && typeof gravity === 'number') state.gravity = gravity
-      if (groundY !== undefined)
-        state.groundY = groundY === null ? GROUND_DISABLED : (groundY as number)
-      if (isFieldState(field)) state.field = structuredClone(field)
-      selectedId.value = validObjs[0]?.id ?? null
-      aiToast.value = '已恢复上次自定义场景'
-      setTimeout(() => {
-        aiToast.value = ''
-      }, 2500)
-    } catch {
-      // 静默失败：恢复失败不影响主流程
-    }
-  }
-
-  /**
    * 场景切换：加载预设或自定义场景
    */
   function onSceneSwitch(sceneName: string): void {
     // 点击当前已激活的场景标签
     if (sceneName === activeScene.value) {
-      // 正在查看题库/AI 场景时，点击「自定义」清除题目并恢复用户自定义场景
+      // 正在查看题库/AI 场景时，点击「自定义」清除题目并重置为空白自定义画布
       if (sceneName === '自定义' && viewingQuestionScene.value) {
         viewingQuestionScene.value = false
         currentQuestionDesc.value = ''
         state.isPlaying = false
-        // 先重置为空白自定义场景，再尝试恢复已保存的自定义场景，
-        // 避免无保存场景时残留题目/AI 场景物体
+        // 重置为空白自定义场景，避免残留题目/AI 场景物体
         const preset = getPreset('自定义')
         loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
-        restoreCustomScene()
         capturePlayStart()
       }
       return
@@ -387,11 +337,9 @@ export function useSceneManager() {
     const preset = getPreset(sceneName)
     loadScene(preset.objects, preset.forces, preset.field, preset.gravity, preset.groundY)
     selectedId.value = preset.objects[0]?.id ?? null
-    // 自定义场景：确保暂停，进入编辑模式；尝试从 localStorage 恢复
+    // 自定义场景：确保暂停，进入编辑模式（显示空白画布）
     if (sceneName === '自定义') {
       state.isPlaying = false
-      restoreCustomScene()
-      // restoreCustomScene 绕过 loadScene，须显式捕获重置基线
       capturePlayStart()
     }
   }

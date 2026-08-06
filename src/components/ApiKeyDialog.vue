@@ -31,6 +31,17 @@
         </div>
         <div v-else class="status-info status-inactive">⚠️ 未配置，当前使用本地关键词解析</div>
 
+        <!-- 安全说明（如实披露加密强度） -->
+        <div class="security-note">
+          🔒 API Key 以加密形式仅保存在
+          <strong>本机浏览器</strong>
+          （localStorage）， 用于本次会话直接调用你选择的模型服务商 API。该加密用于
+          <strong>防止误读/明文暴露</strong>
+          ， 但因加解密密钥派生自应用内固定参数，
+          <strong>不构成强加密防护</strong>
+          。 请勿在不可信设备上使用，也不要将本页面/浏览器分享给他人，以免他人读取你的 Key。
+        </div>
+
         <!-- 模型服务商 Tab -->
         <div v-if="activeTab === 'provider'" class="tab-panel">
           <div class="model-options">
@@ -145,6 +156,7 @@
               </label>
             </div>
             <input v-model="customModelName" class="custom-input" placeholder="输入模型 ID" />
+            <span class="field-hint">多模态模型可上传题图进行解析（如 glm-4v-plus）</span>
           </div>
 
           <!-- API 密钥 -->
@@ -276,6 +288,15 @@ const providerModels = [
     docUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
     apiBase: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     modelName: 'glm-4-flash'
+  },
+  {
+    id: 'glm-vl',
+    name: '智谱 GLM-4V（多模态）',
+    icon: '🖼️',
+    placeholder: 'xxxxxxxx.xxxxxxxx',
+    docUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
+    apiBase: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    modelName: 'glm-4v-plus'
   },
   {
     id: 'openai',
@@ -850,6 +871,13 @@ function onClose() {
   display: block;
 }
 
+.field-hint {
+  color: var(--vsd-text-muted);
+  font-size: 0.72rem;
+  display: block;
+  margin-top: 0.2rem;
+}
+
 .advanced-body {
   padding: 0.3rem 0 0.3rem 1.8rem;
   display: flex;
@@ -874,6 +902,21 @@ function onClose() {
   background: rgba(var(--vsd-yellow-rgb), 0.08);
   border: 1px solid rgba(var(--vsd-yellow-rgb), 0.3);
   color: var(--vsd-yellow);
+}
+
+/* 安全说明框 */
+.security-note {
+  padding: 0.7rem 0.9rem;
+  background: rgba(var(--vsd-yellow-rgb), 0.06);
+  border: 1px dashed rgba(var(--vsd-yellow-rgb), 0.5);
+  border-radius: 8px;
+  color: var(--vsd-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.security-note strong {
+  color: var(--vsd-text);
 }
 
 /* 底部按钮 */

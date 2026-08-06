@@ -11,7 +11,8 @@ import type {
   SpringObject,
   FieldState
 } from './usePhysics'
-import type { ParsedProblem, ParsedObject, ParsedArc, ParsedSpring } from './useAIParser'
+import type { ParsedProblem, ParsedObject, ParsedArc, ParsedSpring } from '../types/aiProblem'
+import { validateParsedProblem } from '../utils/aiSchema'
 import { CANVAS_MARGIN, GROUND_BASELINE } from '../constants'
 
 /** 物体颜色池 */
@@ -210,9 +211,6 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         triggerType: obj.entryGap.triggerType,
         triggerAngle:
           obj.entryGap.triggerAngle !== undefined ? -obj.entryGap.triggerAngle : undefined,
-        triggerSpotAngle:
-          obj.entryGap.triggerSpotAngle !== undefined ? -obj.entryGap.triggerSpotAngle : undefined,
-        triggerSpotRadius: obj.entryGap.triggerSpotRadius,
         triggerAction: obj.entryGap.triggerAction
       }
     : undefined
@@ -224,9 +222,6 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         triggerType: obj.exitGap.triggerType,
         triggerAngle:
           obj.exitGap.triggerAngle !== undefined ? -obj.exitGap.triggerAngle : undefined,
-        triggerSpotAngle:
-          obj.exitGap.triggerSpotAngle !== undefined ? -obj.exitGap.triggerSpotAngle : undefined,
-        triggerSpotRadius: obj.exitGap.triggerSpotRadius,
         triggerAction: obj.exitGap.triggerAction
       }
     : undefined
@@ -238,9 +233,7 @@ function expandArcToSegments(obj: ParsedArc, scale: number, index: number): Segm
         entryOpen: entryGap?.initiallyOpen ?? false,
         exitOpen: exitGap?.initiallyOpen ?? false,
         prevAngle: undefined,
-        wasInside: undefined,
-        entrySpotTriggered: false,
-        exitSpotTriggered: false
+        wasInside: undefined
       }
     : undefined
 
@@ -329,6 +322,12 @@ export function buildScene(parsed: ParsedProblem): {
 } {
   if (!parsed.objects || parsed.objects.length === 0) {
     return { success: false, message: 'AI 未识别到任何物体', objectCount: 0 }
+  }
+
+  // 0. 物理量前置校验：非法输入不进入 loadScene，避免污染物理状态
+  const check = validateParsedProblem(parsed)
+  if (!check.ok) {
+    return { success: false, message: check.message || '物理量非法', objectCount: 0 }
   }
 
   // 1. 统一换算比例：所有场景按 PIXELS_PER_METER=50 转像素，保证物理量（重力/速度/电场）与预设场景一致

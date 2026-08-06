@@ -264,6 +264,13 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 - `brace-expansion` / `minimatch` 链 —— 通过升级 `eslint@9.x` → `10.8.0` 消除
 - `vue-tsc@2.x` 漏洞 —— 通过升级 `vue-tsc@2.x` → `3.3.8` 消除
 
+**API Key 处理说明（如实披露）**：
+
+- 本项目为**纯前端**，代码库中不包含任何 API Key。AI 模型的 API Key 由用户在本机界面自行输入，并以 AES-GCM 加密保存在**本机浏览器 localStorage**。
+- 该加密用于**防止误读/明文暴露**，但加解密密钥派生自应用内固定参数，**不构成强加密防护**——具备源码/bundle 访问权限者可逆向解密。请勿在不可信设备上使用。
+- Key 会从**你的浏览器直接发送**到你所选的模型服务商 API，**无中间代理**。
+- XSS 防护：本项目不使用 `v-html`，场景等数据均经 Vue 文本插值渲染，XSS 攻击面低；但用户仍应避免在不可信环境使用本应用。
+
 ## 📄 License
 
 MIT

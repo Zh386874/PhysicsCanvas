@@ -75,16 +75,12 @@ interface ArcGap {
   halfWidth: number
   /** 初始开关状态（默认 false = 关闭） */
   initiallyOpen?: boolean
-  /** 触发类型：'angleCross' 角度穿越 / 'enterRing' 进入圆环 / 'spotOverlap' 触发点重叠 */
-  triggerType?: 'angleCross' | 'enterRing' | 'spotOverlap'
+  /** 触发类型：'angleCross' 角度穿越 / 'enterRing' 进入圆环 */
+  triggerType?: 'angleCross' | 'enterRing'
   /** 触发角度（画布坐标系弧度）。triggerType='angleCross' 时使用 */
   triggerAngle?: number
   /** 触发动作：'open' 打开缺口 / 'close' 关闭缺口 */
   triggerAction?: 'open' | 'close'
-  /** 触发点在环上的弧度（画布坐标系）。triggerType='spotOverlap' 时使用 */
-  triggerSpotAngle?: number
-  /** 触发点半径（像素）。缺省运行时取球半径 1.5 倍 */
-  triggerSpotRadius?: number
 }
 
 /** 弧线元数据 */
@@ -171,9 +167,6 @@ export interface SegmentObject {
     prevAngle?: number
     /** 上一帧小球是否在环内（enterRing 触发检测）。undefined = 尚未跟踪 */
     wasInside?: boolean
-    /** spotOverlap 一次性触发标志：true=已触发，不再响应。undefined 视为未触发 */
-    entrySpotTriggered?: boolean
-    exitSpotTriggered?: boolean
   }
   /** 弧线约束动力学开关（仅首段，true=约束模式，false=碰撞模式）。未设置视为 true */
   constraintEnabled?: boolean
@@ -320,7 +313,8 @@ function isRectPlate(seg: SegmentObject): boolean {
  * 法线方向：nx = sin(angle), ny = -cos(angle)（指向上方）
  * 宽度方向：wdx = cos(angle), wdy = sin(angle)（切线方向）
  *
- * BUG FIX 1: x1 = topCenterX - wdx·halfW（左端点），x2 = topCenterX + wdx·halfW（右端点）
+ * x1 取上表面沿宽度反方向（左端点），x2 取正方向（右端点）。
+ * 默认 angle=0 时 wdx>0，保证 x1 < x2，与画布坐标一致，便于端点拖拽与碰撞方向判断。
  */
 function derivePlateEndpoints(seg: SegmentObject): void {
   if (!isRectPlate(seg)) return
@@ -377,13 +371,7 @@ function subStepPhysics(subDt: number): boolean {
   for (const obj of state.objects) {
     if (obj.type !== 'line_segment') continue
     const seg = obj as SegmentObject
-    // 传送带（有 velocity 且非 movable）：保持恒速水平平移
-    if (seg.velocity && !seg.movable) {
-      const dx = seg.velocity.x * subDt
-      seg.x1 += dx
-      seg.x2 += dx
-      continue
-    }
+    // 传送带（有 velocity 且非 movable）：静止，velocity 仅作皮带表面速度（摩擦力相对速度），不移动自身
     // 板块（movable）：经典板块模型 —— 受重力、位置更新、地面/平台支撑、摩擦阻尼
     if (!seg.movable) continue
     // 1. 受重力
@@ -450,7 +438,8 @@ function subStepPhysics(subDt: number): boolean {
     // 4. 应用支撑：下表面归位到 supportY + vy 清零 + 摩擦减速 vx（相对支撑面速度）
     if (supportY !== null && seg.velocity) {
       if (isRectPlate(seg)) {
-        // BUG FIX 2: centerY = supportY - halfH（当 ny = -1 时 bottomY = centerY + halfH = supportY）
+        // 支撑时把板块下表面归位到支撑面：centerY = supportY + ny·halfH。
+        // ny = -1（angle=0）时 bottomY = centerY + halfH，故 centerY = supportY - halfH。
         const halfH = seg.height! / 2
         const plateAngle = seg.angle ?? 0
         const ny = -Math.cos(plateAngle)
@@ -643,9 +632,7 @@ export function mergeResetState(
             entryOpen: s.arc.entryGap?.initiallyOpen ?? false,
             exitOpen: s.arc.exitGap?.initiallyOpen ?? false,
             prevAngle: undefined,
-            wasInside: undefined,
-            entrySpotTriggered: false,
-            exitSpotTriggered: false
+            wasInside: undefined
           }
         : undefined
       return merged

@@ -88,3 +88,16 @@ jobs:
             echo "契约测试为物理铁律，不可篡改。如确需修改，请人工批准并在 PR 说明中写明理由。"
             exit 1
           fi
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: 运行 E2E 测试
+        run: npm run test:e2e

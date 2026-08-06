@@ -4,6 +4,13 @@
  * 防止 localStorage 中的密钥被明文窃取。
  *
  * 加密密钥由应用标识符派生，非持久化（每次页面加载时重新派生）。
+ *
+ * ⚠️ 局限说明（如实披露）：
+ * 本加密为"混淆层"（obfuscation），而非对攻击者的强安全防护。
+ * 加解密密钥派生自应用内固定参数（APP_SEED + 固定 SALT），任何能
+ * 获取本应用源码/JS bundle 的人都能逆向解出密钥并解密 localStorage
+ * 中的 Key。真正的安全边界在于：XSS 防护（本项目不使用 v-html，渲染
+ * 均走 Vue 文本插值）+ 不在不可信设备/浏览器中输入或保存 Key。
  */
 
 const APP_SEED = 'physics-sim-app-v1'

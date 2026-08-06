@@ -147,6 +147,19 @@ export function detectSegmentCollision(
   if (!hit) {
     const dist = pointToSegmentDistance(obj.x, obj.y, x1, y1, x2, y2)
     if (dist <= radius) {
+      // 球心投影参数 t（未钳制）。若 t<0 或 t>1，球已越过线段端点，
+      // 不应被端点"卡住"（否则无法滚离线段边缘），应允许脱离。
+      const sdx = x2 - x1
+      const sdy = y2 - y1
+      const len2 = sdx * sdx + sdy * sdy
+      const t = len2 < 1e-10 ? 0 : ((obj.x - x1) * sdx + (obj.y - y1) * sdy) / len2
+      if (t < 0 || t > 1) {
+        // 板块：越过端点仍检测端面碰撞；普通线段/传送带：直接脱离
+        if (segment.subtype === 'plate' && segment.physicsThickness) {
+          return detectPlateEndCollision(obj, segment)
+        }
+        return false
+      }
       const P = closestPointOnSegment(obj.x, obj.y, x1, y1, x2, y2)
       hitX = P.x
       hitY = P.y
@@ -901,34 +914,6 @@ function updateArcGates(objects: PhysicsObject[]): void {
           if (didAngleCross(gate.prevAngle, angle, exitGap.triggerAngle)) {
             gate.exitOpen = exitGap.triggerAction === 'open'
           }
-        }
-      }
-      // spotOverlap 触发：小球碰撞体积与环上固定触发点重叠（一次性，触发后永久失效）
-      // 触发点世界坐标（画布坐标系）：(cx + r*cos(spotAngle), cy + r*sin(spotAngle))
-      if (
-        entryGap?.triggerType === 'spotOverlap' &&
-        entryGap.triggerSpotAngle !== undefined &&
-        !gate.entrySpotTriggered
-      ) {
-        const spotRadius = entryGap.triggerSpotRadius ?? p.radius * 1.5
-        const spotX = cx + r * Math.cos(entryGap.triggerSpotAngle)
-        const spotY = cy + r * Math.sin(entryGap.triggerSpotAngle)
-        if (Math.hypot(p.x - spotX, p.y - spotY) <= p.radius + spotRadius) {
-          gate.entryOpen = entryGap.triggerAction === 'open'
-          gate.entrySpotTriggered = true
-        }
-      }
-      if (
-        exitGap?.triggerType === 'spotOverlap' &&
-        exitGap.triggerSpotAngle !== undefined &&
-        !gate.exitSpotTriggered
-      ) {
-        const spotRadius = exitGap.triggerSpotRadius ?? p.radius * 1.5
-        const spotX = cx + r * Math.cos(exitGap.triggerSpotAngle)
-        const spotY = cy + r * Math.sin(exitGap.triggerSpotAngle)
-        if (Math.hypot(p.x - spotX, p.y - spotY) <= p.radius + spotRadius) {
-          gate.exitOpen = exitGap.triggerAction === 'open'
-          gate.exitSpotTriggered = true
         }
       }
       gate.prevAngle = angle

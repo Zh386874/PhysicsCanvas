@@ -13,6 +13,8 @@
     "test:contracts": "vitest run tests/contracts",
     "test:coverage": "vitest run --coverage",
     "test:integrity": "node scripts/check-test-integrity.mjs HEAD~1 HEAD",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "coverage:check": "node scripts/check-coverage-regression.mjs",
     "coverage:save-baseline": "node scripts/save-coverage-baseline.mjs",
     "type-check": "vue-tsc --noEmit",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/eslint-config-prettier": "^10.2.0",

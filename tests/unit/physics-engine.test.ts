@@ -212,8 +212,8 @@ describe('usePhysics — 快照录制', () => {
   })
 })
 
-describe('usePhysics — 传送带（velocity && !movable）平移', () => {
-  it('传送带随带速水平平移', () => {
+describe('usePhysics — 传送带（velocity && !movable）保持静止', () => {
+  it('传送带不随带速平移，两端点保持静止', () => {
     const belt: SegmentObject = {
       id: 2,
       name: 'belt',
@@ -225,15 +225,16 @@ describe('usePhysics — 传送带（velocity && !movable）平移', () => {
       normalX: 0,
       normalY: -1,
       friction: 0.2,
-      velocity: { x: 50, y: 0 } // 传送带速度 50px/s，非 movable
+      velocity: { x: 50, y: 0 } // 传送带表面速度 50px/s，非 movable；仅用于摩擦，不移动自身
     }
     loadScene([belt], [], NONE_FIELD, 0, GROUND_DISABLED)
     state.isPlaying = true
     const x1Before = (state.objects[0] as SegmentObject).x1
+    const x2Before = (state.objects[0] as SegmentObject).x2
     updatePhysics(DT)
     const seg = state.objects[0] as SegmentObject
-    expect(seg.x1).toBeCloseTo(x1Before + 50 * DT, 5)
-    expect(seg.x2).toBeCloseTo(100 + 50 * DT, 5)
+    expect(seg.x1).toBeCloseTo(x1Before, 5)
+    expect(seg.x2).toBeCloseTo(x2Before, 5)
   })
 })
 
