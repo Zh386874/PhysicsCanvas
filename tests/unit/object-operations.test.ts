@@ -89,7 +89,8 @@ function makeContext(activeScene = '自定义', mode: 'live' | 'replay' = 'live'
     aiToast: ref(''),
     selectedId: ref<number | null>(null),
     selectedIds: ref<number[]>([]),
-    saveCustomScene: vi.fn()
+    saveCustomScene: vi.fn(),
+    editMode: ref(activeScene === '自定义' && mode === 'live')
   }
 }
 
