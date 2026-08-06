@@ -1,15 +1,11 @@
 /**
- * 单元测试：useSceneManager 场景切换（自定义场景恢复）
+ * 单元测试：useSceneManager 场景切换（自定义场景空白画布）
  *
- * 复现 Bug：查看题库/AI 场景后点击「自定义」，场景仍停留在特定（题目/AI）场景，
- * 而未回到用户之前设定的自定义场景。
+ * 契约变更：点击「自定义」（以及所有进入自定义的路径）一律显示空白画布，
+ * 不再自动从 localStorage['custom_scene_objects'] 恢复上次保存的自定义设计。
  *
- * 根因：onSceneSwitch 同标签分支直接调用 restoreCustomScene()，
- * 当 localStorage['custom_scene_objects'] 为空/缺失时 restoreCustomScene 直接 return，
- * 不清空画布上的题目/AI 场景物体，导致题目场景残留。
- *
- * 修复：同标签分支先重置为空白自定义场景（loadScene(getPreset('自定义'))），
- * 再尝试恢复已保存的自定义场景。
+ * 覆盖场景：查看题库/AI 场景后点击「自定义」应清空题目并回到空白画布；
+ * 即使 localStorage 中存在历史自定义场景，进入「自定义」也保持空白。
  *
  * 环境：vitest 为 node 环境，无 localStorage，需 vi.stubGlobal 提供 polyfill；
  * state / viewingQuestionScene 为模块级单例，beforeEach 需重置。
@@ -86,27 +82,28 @@ describe('useSceneManager — 查看题目后点击「自定义」', () => {
     expect(viewingQuestionScene.value).toBe(false)
   })
 
-  it('有保存自定义场景时，恢复用户自定义场景（防回归）', () => {
+  it('即使 localStorage 有历史自定义场景，进入「自定义」仍保持空白画布（契约）', () => {
     const customBall = makeBall(1, 'custom-ball')
     localStorage.setItem(
       CUSTOM_STORAGE_KEY,
       JSON.stringify({ objects: [customBall], gravity: GRAVITY, groundY: null, field: NONE_FIELD })
     )
     const sm = useSceneManager()
-    // 初始化时已恢复自定义场景
-    expect(state.objects.map((o) => o.id)).toContain(1)
+    // 初始化时不应恢复历史自定义场景，画布保持空白
+    expect(state.objects).toHaveLength(0)
 
     // 模拟查看题目
     viewingQuestionScene.value = true
     loadScene([makeBall(99, 'question-ball')], [], NONE_FIELD, GRAVITY, GROUND_DISABLED)
     expect(state.objects[0].name).toBe('question-ball')
 
-    // 点击「自定义」→ 恢复用户自定义场景
+    // 点击「自定义」→ 清空题目且不恢复历史自定义场景，保持空白
     sm.onSceneSwitch('自定义')
 
     expect(viewingQuestionScene.value).toBe(false)
-    expect(state.objects.map((o) => o.id)).toContain(1)
+    expect(state.objects).toHaveLength(0)
     expect(state.objects.map((o) => o.name)).not.toContain('question-ball')
+    expect(state.objects.some((o) => o.name === 'custom-ball')).toBe(false)
   })
 })
 
@@ -133,16 +130,17 @@ describe('useSceneManager — 保存/重命名/删除/切换', () => {
     expect(sm.nameDialogError.value).toBe('名称已存在，请重新命名')
   })
 
-  it('合法保存的具体状态写入（保存当前场景）因 reactive 代理克隆 bug 受阻，此处仅验证重复名校验', () => {
-    // 注：handleSaveNameConfirm 内部对 state.field（Vue reactive 代理）调用 structuredClone，
-    //     structuredClone 无法克隆 reactive 代理（见 usePhysics 中 capturePlayStart 注释），
-    //     会抛出 DataCloneError。此为真实生产缺陷，超出本「仅测试」会话范围，另行报告。
+  it('合法保存：写入场景状态（回归：reactive 代理克隆 bug 已修复，不再抛 DataCloneError）', () => {
+    // 回归：handleSaveNameConfirm 曾对 state.field（Vue reactive 代理）直接 structuredClone，
+    // 会抛 DataCloneError 导致无法保存。修复后改用 structuredClone(toRaw(state).field)，
+    // 此处验证真实保存写入成功且字段完整。
     const sm = useSceneManager()
     loadScene([makeBall(1, 'b')], [], NONE_FIELD, GRAVITY, GROUND_DISABLED)
-    sm.savedScenes.value = [
-      { name: '占位', objects: [], gravity: GRAVITY, groundY: null, field: NONE_FIELD }
-    ]
-    expect(sm.handleSaveNameConfirm('占位')).toBe(false)
+    expect(sm.handleSaveNameConfirm('我的场景')).toBe(true)
+    expect(sm.savedScenes.value).toHaveLength(1)
+    expect(sm.activeScene.value).toBe('我的场景')
+    expect(sm.savedScenes.value[0].objects[0].id).toBe(1)
+    expect(sm.savedScenes.value[0].gravity).toBe(GRAVITY)
   })
 
   it('renameSavedScene 成功时同步 activeScene', () => {

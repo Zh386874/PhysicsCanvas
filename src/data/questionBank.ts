@@ -5,7 +5,7 @@
  * 题目标题末尾标注真题年份与题号，便于体现项目需求
  */
 
-import type { ParsedProblem } from '../composables/useAIParser'
+import type { ParsedProblem } from '../types/aiProblem'
 
 export interface QuestionItem {
   id: string

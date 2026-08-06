@@ -89,7 +89,7 @@
         :objects="state.objects"
         :selectedId="selectedId"
         :selectedIds="selectedIds"
-        :removable="activeScene === '自定义'"
+        :removable="editMode"
         :selectedObject="selectedObject"
         :dragMoved="dragMoved"
         :dragSide="dragSide"
@@ -297,7 +297,8 @@ const {
   aiToast,
   selectedId,
   selectedIds,
-  saveCustomScene
+  saveCustomScene,
+  editMode
 })
 
 // ===== 场景 IO =====

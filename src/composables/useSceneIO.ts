@@ -18,6 +18,7 @@ import {
 import { SceneDataSchema, LegacySceneSchema } from '../schemas/sceneSchema'
 import { z } from 'zod'
 import { ElMessageBox } from 'element-plus'
+import { stripRuntimeFields } from '../utils/objectSerialization'
 
 /** 合法物体类型字面量 */
 const VALID_OBJECT_TYPES = ['质点', '刚体', 'line_segment', 'spring'] as const
@@ -29,13 +30,7 @@ export function deepCopyObjects(objs: PhysicsObject[]): PhysicsObject[] {
   // 用 JSON 序列化而非 structuredClone：state.objects 元素为 Vue reactive 代理，
   // structuredClone 无法处理 reactive 代理对象（同 usePhysics.ts capturePlayStart 的处理方式）
   return JSON.parse(
-    JSON.stringify(
-      objs.map((o) => {
-        const { trail, prevX, prevY, arcGateState, constrainedArcGroupId, ...rest } =
-          o as unknown as Record<string, unknown>
-        return rest
-      })
-    )
+    JSON.stringify(objs.map((o) => stripRuntimeFields(o)))
   ) as unknown as PhysicsObject[]
 }
 

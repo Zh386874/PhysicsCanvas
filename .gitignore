@@ -25,6 +25,11 @@ docs/.vitepress/dist
 # Test coverage output
 coverage/
 
+# Playwright E2E artifacts
+test-results/
+playwright-report/
+.playwright-browsers/
+
 # Environment variables
 .env
 
@@ -42,6 +47,9 @@ coverage/
 
 # Trae AI workspace files
 .trae/
+
+# 旧版嵌套仓库（仅保留本地目录，不再纳入主仓库索引）
+物理解模/
 
 # Temporary screenshots from local UI testing
 screenshots/

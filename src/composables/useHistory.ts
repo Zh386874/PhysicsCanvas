@@ -1,6 +1,7 @@
 import { ref, toRaw } from 'vue'
 import type { PhysicsObject, FieldState } from './usePhysics'
 import { GROUND_DISABLED } from '../constants'
+import { stripRuntimeFields } from '../utils/objectSerialization'
 
 /** 历史快照：完整场景状态 */
 interface HistorySnapshot {
@@ -32,12 +33,10 @@ function useHistory() {
       objects: JSON.parse(
         JSON.stringify(
           objects.map((o) => {
-            if (o.type === 'line_segment') {
-              const { ...rest } = o
-              return rest
-            }
-            const { trail, prevX, prevY, ...rest } = o as unknown as Record<string, unknown>
-            return rest
+            // 线段（含弧线）保留全部字段（含 arcGateState），撤销/重做依赖其状态
+            if (o.type === 'line_segment') return o
+            // 质点/刚体等剥离运行时字段
+            return stripRuntimeFields(o)
           })
         )
       ) as PhysicsObject[],

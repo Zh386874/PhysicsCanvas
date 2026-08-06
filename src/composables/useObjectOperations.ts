@@ -30,13 +30,15 @@ export interface ObjectOpsContext {
   selectedId: Ref<number | null>
   selectedIds: Ref<number[]>
   saveCustomScene: () => void
+  /** 当前是否处于可编辑模式（自定义场景或已保存场景编辑模式，且未播放、live） */
+  editMode: Ref<boolean>
 }
 
 /**
  * 创建物体操作集合
  */
 export function useObjectOperations(ctx: ObjectOpsContext) {
-  const { activeScene, mode, aiToast, selectedId, selectedIds, saveCustomScene } = ctx
+  const { aiToast, selectedId, selectedIds, saveCustomScene, editMode } = ctx
 
   /** 当前选中物体（基于 selectedId） */
   const selectedObject = computed(() => state.objects.find((o) => o.id === selectedId.value))
@@ -91,8 +93,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * 批量更新（框选拖拽时整体平移）
    */
   function handleBatchUpdate(updates: BatchUpdateItem[]): void {
-    if (activeScene.value === '自定义')
-      pushHistory(state.objects, state.gravity, state.groundY, state.field)
+    if (editMode.value) pushHistory(state.objects, state.gravity, state.groundY, state.field)
     for (const { id, props } of updates) {
       const obj = state.objects.find((o) => o.id === id)
       if (obj) Object.assign(obj, props)
@@ -102,8 +103,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
 
   /** 添加物体（自定义场景编辑） */
   function handleAddObject(obj: PhysicsObject): void {
-    if (activeScene.value === '自定义')
-      pushHistory(state.objects, state.gravity, state.groundY, state.field)
+    if (editMode.value) pushHistory(state.objects, state.gravity, state.groundY, state.field)
     addObject(obj)
     selectedId.value = obj.id
     saveCustomScene()
@@ -145,8 +145,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * 删除质点/刚体时级联删除连接它的弹簧，避免孤儿弹簧
    */
   function handleRemoveObject(id: number): void {
-    if (activeScene.value === '自定义')
-      pushHistory(state.objects, state.gravity, state.groundY, state.field)
+    if (editMode.value) pushHistory(state.objects, state.gravity, state.groundY, state.field)
     const target = state.objects.find((o) => o.id === id)
     const toDelete = new Set<number>([id])
     if (target && (target as SegmentObjectLike).groupId) {
@@ -185,8 +184,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
    * 删除选中物体（Delete 键）
    */
   function onDeleteKey(): void {
-    if (activeScene.value !== '自定义') return
-    if (mode.value === 'replay') return
+    if (!editMode.value) return
     // 优先批量删除多选（弧线组整组删除，避免断裂）
     if (selectedIds.value.length > 0) {
       pushHistory(state.objects, state.gravity, state.groundY, state.field)
@@ -240,8 +238,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
 
   /** 撤销 */
   function onUndo(): void {
-    if (activeScene.value !== '自定义') return
-    if (mode.value === 'replay') return
+    if (!editMode.value) return
     const prev = historyUndo(state.objects, state.gravity, state.groundY, state.field)
     if (!prev) return
     applyHistorySnapshot(prev)
@@ -253,8 +250,7 @@ export function useObjectOperations(ctx: ObjectOpsContext) {
 
   /** 重做 */
   function onRedo(): void {
-    if (activeScene.value !== '自定义') return
-    if (mode.value === 'replay') return
+    if (!editMode.value) return
     const next = historyRedo(state.objects, state.gravity, state.groundY, state.field)
     if (!next) return
     applyHistorySnapshot(next)
