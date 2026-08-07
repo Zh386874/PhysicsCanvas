@@ -62,9 +62,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { state, updatePhysics, snapshots, currentFrame } from '../composables/usePhysics'
 // 渲染层：纯绘制函数
 import {
-  drawGrid,
   drawField,
-  drawGround,
   drawSegments,
   drawArcsVisually,
   drawTrails,
@@ -83,6 +81,13 @@ import {
   drawFieldRegionPreview,
   drawPlateRectPreview
 } from '../composables/useCanvasRenderer'
+// 离屏静态层：网格 + 地面 预渲染
+import {
+  shouldRenderStaticLayer,
+  renderStaticLayer,
+  getStaticCanvas,
+  resetStaticLayer
+} from '../composables/useStaticLayer'
 // 工具层：工具状态 + 弧线 + Shift 防重叠
 import {
   tool,
@@ -207,23 +212,33 @@ function draw() {
   // 高 DPI：基础变换设为 dpr 缩放，后续所有绘制用 CSS 像素坐标
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cssW, cssH)
-  // 画布 2D 底色：VS 2019 Dark 纯 #1e1e1e，保证画布与外围 UI 色一致
-  ctx.fillStyle = '#1e1e1e'
-  ctx.fillRect(0, 0, cssW, cssH)
 
   const objects = getDisplayObjects()
   const field = getDisplayField()
   const groundY = getDisplayGroundY()
+  const offset = worldOffset.value
+  const scale = worldScale.value
+
+  // 静态层（网格+地面）：输入不变时不重绘，每帧仅 blit 一次，减少重复绘制
+  if (shouldRenderStaticLayer(cssW * dpr, cssH * dpr, offset.x, offset.y, scale, groundY)) {
+    renderStaticLayer(dpr, cssW, cssH, offset.x, offset.y, scale, groundY)
+  }
+  const staticCanvas = getStaticCanvas()
+  if (staticCanvas) {
+    ctx.drawImage(staticCanvas, 0, 0, cssW, cssH)
+  } else {
+    // 兜底：静态层未就绪时不出现黑屏
+    ctx.fillStyle = '#1e1e1e'
+    ctx.fillRect(0, 0, cssW, cssH)
+  }
 
   // 应用世界坐标变换（平移 + 缩放），叠加在 dpr 之上
   ctx.save()
-  ctx.translate(worldOffset.value.x, worldOffset.value.y)
-  ctx.scale(worldScale.value, worldScale.value)
+  ctx.translate(offset.x, offset.y)
+  ctx.scale(scale, scale)
 
-  drawGrid(rc)
   drawField(rc, field)
   drawFieldRegionPreview(rc, fieldRegionPreview.value, field)
-  drawGround(rc, groundY)
   drawSegments(rc, objects)
   drawArcsVisually(rc, objects, props.selectedIds, state.showGateColors)
   drawTrails(rc, objects, props.mode === 'replay')
@@ -296,6 +311,7 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(rafId)
   window.removeEventListener('resize', resizeCanvas)
+  resetStaticLayer()
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null

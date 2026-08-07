@@ -37,6 +37,17 @@ export default [
       }
     }
   },
+  {
+    name: 'app/electron-main',
+    files: ['electron/**/*.js'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        __dirname: 'readonly'
+      }
+    }
+  },
   js.configs.recommended,
   ...pluginVue.configs['flat/essential'],
   ...vueTsEslintConfig(),

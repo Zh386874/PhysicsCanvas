@@ -51,7 +51,7 @@
 2. 提取物体参数（质量、速度、位置、电荷等）
 3. 生成可运行的模拟场景
 
-支持 DeepSeek AI 接入，未配置 API Key 时回退本地关键词解析。解析完成后支持参数二次微调。
+支持 **DeepSeek / OpenAI / Claude / Gemini** 多服务商接入（兼容 OpenAI Chat 与 Anthropic Messages 两种请求格式），未配置 API Key 时回退本地关键词解析。解析完成后支持参数二次微调。
 
 ### 4. 受力分析与过程回放
 
@@ -68,9 +68,9 @@
 | 语言     | JavaScript + TypeScript（渐进式迁移）                   |
 | 渲染     | Canvas 2D + requestAnimationFrame                       |
 | 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 + 弧线约束动力学 |
-| AI       | DeepSeek API（可选）                                    |
+| AI       | DeepSeek / OpenAI / Claude / Gemini API（可选）         |
 | 测试     | Vitest 4（单元 / 集成 / 回归 / 契约四层）               |
-| 部署     | GitHub Actions → GitHub Pages                           |
+| 部署     | GitHub Actions → GitHub Pages / Electron 桌面打包       |
 
 ## 📦 快速开始
 
@@ -103,8 +103,12 @@ npm run preview
 
 ### 配置 AI 解析（可选）
 
-1. 复制 `.env.example` 为 `.env`
-2. 填入 DeepSeek API Key：
+支持两种配置方式：
+
+**方式一：应用内配置（推荐）**
+点击界面「AI 设置」打开 `ApiKeyDialog`，选择服务商（DeepSeek / OpenAI / Claude / Gemini / 自定义）并填入对应 API Key，即存即用。支持 OpenAI Chat 与 Anthropic Messages 两种请求格式。
+
+**方式二：环境变量（网页版）**
 
 ```bash
 cp .env.example .env
@@ -114,11 +118,32 @@ cp .env.example .env
 VITE_AI_API_KEY=your_deepseek_api_key_here
 ```
 
-获取 API Key：https://platform.deepseek.com/api_keys
+获取 API Key：DeepSeek https://platform.deepseek.com/api_keys · OpenAI https://platform.openai.com/api-keys · Anthropic https://console.anthropic.com/settings/keys · Gemini https://aistudio.google.com/apikey
 
 > 未配置时自动回退本地关键词解析，不影响其他功能使用。
 
-## 📁 目录结构
+## � 打包桌面应用（Windows .exe）
+
+将项目打包为 Windows 桌面安装包（基于 Electron + electron-builder）：
+
+```bash
+# 1. 安装 Electron 打包依赖
+npm install -D electron electron-builder
+
+# 2. 构建生成 .exe 安装包
+npm run electron:build
+```
+
+构建完成后，`release/` 目录生成：
+
+- `物理解模 Setup <版本>.exe` —— NSIS 安装包（安装后生成桌面 + 开始菜单快捷方式）
+- `win-unpacked/物理解模.exe` —— 免安装版，解压即用
+
+> 中国大陆网络：镜像已通过 `package.json` 的 `config` 字段持久化（`electron_mirror` / `electron_builder_binaries_mirror` 指向 npmmirror），解决从 GitHub 下载二进制时的证书校验失败，直接 `npm run electron:build` 即可。
+> 桌面打包使用独立的 `vite.electron.config.js`（`base:'./'`），不影响线上 GitHub Pages 部署。
+> 分享给他人：发送 `release/物理解模 Setup <版本>.exe` 安装包即可；因未购买商业代码签名证书，Windows SmartScreen 会提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」即可。桌面版 AI 解析需在应用内自行填写 API Key。详见 [桌面打包](docs/ELECTRON.md)。
+
+## �� 目录结构
 
 ```
 物理解模/
@@ -142,7 +167,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── SceneSettings.vue        # 场景设置（重力/场区域等）
 │   │   ├── LeftPanel.vue            # 左侧面板容器
 │   │   └── RightPanel.vue           # 右侧面板容器
-│   ├── composables/                 # 组合式函数（核心逻辑，共 18 个）
+│   ├── composables/                 # 组合式函数（核心逻辑，共 20 个）
 │   │   ├── usePhysics.ts            # 物理引擎（状态 + 积分 + 场景加载）
 │   │   ├── useCollision.ts          # 碰撞检测（地面/质点/线段/弧线 + 约束动力学）
 │   │   ├── useForces.ts             # 力计算策略层（注册表 + OCP）
@@ -150,7 +175,9 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── useCanvasRenderer.ts     # 画布渲染（所有绘制函数）
 │   │   ├── useCanvasInteraction.ts  # 画布交互（拖拽/框选/平移缩放）
 │   │   ├── useEditTools.ts          # 编辑工具（选择/小球/平台/传送带/板块/圆弧/弹簧/场区域）
-│   │   ├── useAIParser.ts           # AI 解析（DeepSeek + 本地回退）
+│   │   ├── useAIParser.ts           # AI 解析（多服务商 + 本地回退）
+│   │   ├── useStaticLayer.ts        # 离屏静态层（网格+地面）预渲染优化
+│   │   ├── useParseHistory.ts       # AI 解析历史记录
 │   │   ├── useSceneBuilder.ts       # 场景构建（SI→像素转换）
 │   │   ├── useSceneManager.ts       # 场景切换/播放/重置/持久化
 │   │   ├── useObjectOperations.ts   # 物体增删改 + 撤销/重做 + Delete 键
@@ -162,12 +189,16 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── questionView.ts          # 题目视图状态
 │   │   └── usePanelLayout.ts        # 面板布局管理
 │   ├── utils/
-│   │   └── arcGap.ts                # 弧线缺口角度换算工具函数
+│   │   ├── aiClient.ts              # 通用 LLM 客户端（OpenAI Chat / Anthropic Messages）
+│   │   ├── aiSchema.ts              # AI 返回结果校验（Zod）
+│   │   ├── arcGap.ts                # 弧线缺口角度换算工具函数
+│   │   ├── crypto.ts                # API Key AES-GCM 加解密
+│   │   └── objectSerialization.ts   # 物体序列化工具
 │   ├── schemas/
 │   │   └── sceneSchema.ts           # 场景 JSON 结构校验（Zod）
 │   └── data/
 │       └── questionBank.ts          # 高考真题数据（当前 8 道）
-├── tests/                           # Vitest 测试（31 文件，419 测试）
+├── tests/                           # Vitest 测试（43 文件，492 测试）
 │   ├── unit/                        # 单元测试
 │   │   ├── collision.test.ts        # 弧线碰撞与约束激活（6 测试）
 │   │   ├── collision-branches.test.ts   # 碰撞分支全覆盖（37 测试）
@@ -187,7 +218,13 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── scene-builder.test.ts    # AI 场景构建各分支（11 测试）
 │   │   ├── scene-schema.test.ts     # Zod 导入校验（12 测试）
 │   │   ├── question-bank.test.ts    # 题库筛选/搜索/统计（8 测试）
-│   │   └── ai-parser.test.ts        # AI 解析参数提取（5 测试）
+│   │   ├── ai-parser.test.ts        # AI 解析参数提取（5 测试）
+│   │   ├── ai-schema.test.ts        # AI 返回结构校验（12 测试）
+│   │   ├── ai-prompts.test.ts       # Prompt 模板（4 测试）
+│   │   ├── ai-parser-link.test.ts   # AI 解析器链路（5 测试）
+│   │   ├── ai-client-format.test.ts # 双 API 格式客户端（5 测试）
+│   │   ├── static-layer.test.ts     # 离屏静态层（7 测试）
+│   │   └── scene-builder-validation.test.ts # 场景构建校验（5 测试）
 │   ├── integration/                 # 集成测试
 │   │   ├── ring-scene.test.ts       # 圆环完整物理循环（3 测试）
 │   │   ├── forces-physics.test.ts   # 力与物理引擎集成（18 测试）
@@ -200,6 +237,8 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 │   │   ├── non-elastic-common-velocity.test.ts    # 非弹性碰撞共速（7 测试）
 │   │   ├── friction-direction.test.ts   # 摩擦力方向（11 测试）
 │   │   ├── plate-wall-collision.test.ts # 板块与墙壁碰撞（7 测试）
+│   │   ├── conveyor-static.test.ts      # 传送带静止回归（2 测试）
+│   │   ├── segment-roll-off-end.test.ts # 质点滚落线段端点（6 测试）
 │   │   └── arc-full-circle-normal.test.ts   # 完整圆法线计算（7 测试）
 │   ├── contracts/                   # 物理定律契约（不可篡改）
 │   │   └── physics-laws.test.ts     # 自由落体/匀速/弹性碰撞/非弹性碰撞（4 测试）
@@ -215,8 +254,11 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 ├── .husky/                          # Git hooks
 │   └── pre-commit                   # 提交前测试与lint检查
 ├── docs/                            # 项目文档
+├── electron/                        # Electron 桌面应用主进程
+│   └── main.js                      # 创建窗口、生命周期、安全配置
 ├── index.html                       # HTML 入口
-├── vite.config.js                   # Vite 配置
+├── vite.config.js                   # Vite 配置（GitHub Pages）
+├── vite.electron.config.js          # Electron 专用 Vite 配置（base:'./'）
 ├── vitest.config.ts                 # Vitest 测试配置（含覆盖率）
 ├── tsconfig.json                    # TypeScript 配置
 ├── .env.example                     # 环境变量示例
@@ -236,6 +278,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 | [题库文档](docs/QUESTION_BANK.md)            | 题库结构、题目列表、添加新题目                     |
 | [题目格式规范](docs/QUESTION_FORMAT_SPEC.md) | 场景 JSON 结构、字段定义、Schema 校验              |
 | [部署文档](docs/DEPLOYMENT.md)               | GitHub Pages 部署流程、CI/CD 配置                  |
+| [桌面打包](docs/ELECTRON.md)                 | Electron 打包 Windows .exe 安装包                  |
 | [测试文档](docs/TESTING.md)                  | 测试策略与用例                                     |
 | [代码质量审查](docs/CODE_QUALITY_REVIEW.md)  | SOLID 原则审查与现状评估                           |
 | [变更日志](CHANGELOG.md)                     | 版本变更记录                                       |
@@ -263,6 +306,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 - `esbuild` / `vite` / `vitepress` 依赖链漏洞 —— 通过升级 `vitepress@1.6.4` → `2.0.0-alpha.18` 消除（内置 `vite@6.3.5`，已修复）
 - `brace-expansion` / `minimatch` 链 —— 通过升级 `eslint@9.x` → `10.8.0` 消除
 - `vue-tsc@2.x` 漏洞 —— 通过升级 `vue-tsc@2.x` → `3.3.8` 消除
+- `electron@35` 高危通告 —— 通过升级 `electron@43` 消除
 
 **API Key 处理说明（如实披露）**：
 
