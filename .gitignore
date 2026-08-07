@@ -18,6 +18,15 @@ dist-ssr
 *.local
 .vite
 
+# Electron builder output
+release/
+release-43/
+
+# Electron build caches (redirected into workspace)
+.electron-cache/
+.electron-builder-cache/
+.localappdata/
+
 # VitePress build cache
 docs/.vitepress/cache
 docs/.vitepress/dist

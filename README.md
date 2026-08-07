@@ -70,7 +70,7 @@
 | 物理引擎 | 自研欧拉积分 + 子步循环 + CCD 碰撞检测 + 弧线约束动力学 |
 | AI       | DeepSeek API（可选）                                    |
 | 测试     | Vitest 4（单元 / 集成 / 回归 / 契约四层）               |
-| 部署     | GitHub Actions → GitHub Pages                           |
+| 部署     | GitHub Actions → GitHub Pages / Electron 桌面打包       |
 
 ## 📦 快速开始
 
@@ -118,7 +118,27 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 
 > 未配置时自动回退本地关键词解析，不影响其他功能使用。
 
-## 📁 目录结构
+## � 打包桌面应用（Windows .exe）
+
+将项目打包为 Windows 桌面安装包（基于 Electron + electron-builder）：
+
+```bash
+# 1. 安装 Electron 打包依赖
+npm install -D electron electron-builder
+
+# 2. 构建生成 .exe 安装包
+npm run electron:build
+```
+
+构建完成后，`release/` 目录生成：
+
+- `物理解模 Setup <版本>.exe` —— NSIS 安装包（安装后生成桌面 + 开始菜单快捷方式）
+- `win-unpacked/物理解模.exe` —— 免安装版，解压即用
+
+> 中国大陆网络若遇二进制下载/证书失败，设置 npmmirror 镜像后再构建（详见 [桌面打包](docs/ELECTRON.md)）。
+> 桌面打包使用独立的 `vite.electron.config.js`（`base:'./'`），不影响线上 GitHub Pages 部署。
+
+## �📁 目录结构
 
 ```
 物理解模/
@@ -215,8 +235,11 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 ├── .husky/                          # Git hooks
 │   └── pre-commit                   # 提交前测试与lint检查
 ├── docs/                            # 项目文档
+├── electron/                        # Electron 桌面应用主进程
+│   └── main.js                      # 创建窗口、生命周期、安全配置
 ├── index.html                       # HTML 入口
-├── vite.config.js                   # Vite 配置
+├── vite.config.js                   # Vite 配置（GitHub Pages）
+├── vite.electron.config.js          # Electron 专用 Vite 配置（base:'./'）
 ├── vitest.config.ts                 # Vitest 测试配置（含覆盖率）
 ├── tsconfig.json                    # TypeScript 配置
 ├── .env.example                     # 环境变量示例
@@ -236,6 +259,7 @@ VITE_AI_API_KEY=your_deepseek_api_key_here
 | [题库文档](docs/QUESTION_BANK.md)            | 题库结构、题目列表、添加新题目                     |
 | [题目格式规范](docs/QUESTION_FORMAT_SPEC.md) | 场景 JSON 结构、字段定义、Schema 校验              |
 | [部署文档](docs/DEPLOYMENT.md)               | GitHub Pages 部署流程、CI/CD 配置                  |
+| [桌面打包](docs/ELECTRON.md)                 | Electron 打包 Windows .exe 安装包                  |
 | [测试文档](docs/TESTING.md)                  | 测试策略与用例                                     |
 | [代码质量审查](docs/CODE_QUALITY_REVIEW.md)  | SOLID 原则审查与现状评估                           |
 | [变更日志](CHANGELOG.md)                     | 版本变更记录                                       |

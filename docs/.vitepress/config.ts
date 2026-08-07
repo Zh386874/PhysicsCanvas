@@ -16,7 +16,8 @@ export default defineConfig({
       { text: '测试', link: '/TESTING' },
       { text: '题库', link: '/QUESTION_BANK' },
       { text: 'API', link: '/API' },
-      { text: '部署', link: '/DEPLOYMENT' }
+      { text: '部署', link: '/DEPLOYMENT' },
+      { text: '桌面打包', link: '/ELECTRON' }
     ],
     sidebar: [
       {
@@ -40,7 +41,8 @@ export default defineConfig({
         items: [
           { text: '测试', link: '/TESTING' },
           { text: '题库', link: '/QUESTION_BANK' },
-          { text: '部署', link: '/DEPLOYMENT' }
+          { text: '部署', link: '/DEPLOYMENT' },
+          { text: '桌面打包', link: '/ELECTRON' }
         ]
       }
     ],
