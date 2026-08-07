@@ -141,6 +141,12 @@ release/
 2. 安装完成后自动创建**桌面快捷方式**与**开始菜单快捷方式**
 3. 首次运行建议确认页面正常显示（非白屏）、无 CSP 报错、AI 调用可用
 
+### 5.5 分发给他人
+
+- **发送安装包**：只需发送 `release/物理解模 Setup <版本>.exe`（自包含，对方双击安装即可，无需拷贝 `win-unpacked/`）。
+- **SmartScreen 提示**：因未购买商业代码签名证书，对方首次运行可能提示「Windows 已保护你的电脑」——点击「更多信息 → 仍要运行」即可，属正常现象。
+- **AI 功能**：物理模拟开箱即用；AI 解析需对方在应用内「AI 设置」自行填写 API Key。
+
 ---
 
 ## 六、开发模式
@@ -199,6 +205,6 @@ npm 会以 `npm_package_config_*` 把上述配置传给构建脚本，因此**�
 
 ## 九、注意事项
 
-- **AI 功能**：桌面版 AI 解析仍通过页面内的 API Key 配置对话框使用，无需配置 `.env`。
+- **AI 功能**：桌面版 AI 解析通过页面内「AI 设置」对话框使用，支持 **DeepSeek / OpenAI / Claude / Gemini** 多服务商与 OpenAI Chat / Anthropic Messages 两种请求格式，无需配置 `.env`。
 - **CSP 验证**：`index.html` 使用 `script-src 'self'`、`connect-src 'self' https:`，理论上在 `file://` 下可用；若实际运行出现 CSP 报错，需按需调整。
 - **与网页部署隔离**：桌面打包**不得**改动 `vite.config.js` 的 `base`，否则会破坏 GitHub Pages 部署（详见 [DEPLOYMENT.md](DEPLOYMENT.md)）。
