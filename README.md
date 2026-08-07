@@ -135,10 +135,10 @@ npm run electron:build
 - `物理解模 Setup <版本>.exe` —— NSIS 安装包（安装后生成桌面 + 开始菜单快捷方式）
 - `win-unpacked/物理解模.exe` —— 免安装版，解压即用
 
-> 中国大陆网络若遇二进制下载/证书失败，设置 npmmirror 镜像后再构建（详见 [桌面打包](docs/ELECTRON.md)）。
+> 中国大陆网络：镜像已通过 `package.json` 的 `config` 字段持久化（`electron_mirror` / `electron_builder_binaries_mirror` 指向 npmmirror），解决从 GitHub 下载二进制时的证书校验失败，直接 `npm run electron:build` 即可。
 > 桌面打包使用独立的 `vite.electron.config.js`（`base:'./'`），不影响线上 GitHub Pages 部署。
 
-## �📁 目录结构
+## �� 目录结构
 
 ```
 物理解模/

@@ -5,6 +5,10 @@
   "type": "module",
   "license": "MIT",
   "main": "electron/main.js",
+  "config": {
+    "electron_mirror": "https://npmmirror.com/mirrors/electron/",
+    "electron_builder_binaries_mirror": "https://npmmirror.com/mirrors/electron-builder-binaries/"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

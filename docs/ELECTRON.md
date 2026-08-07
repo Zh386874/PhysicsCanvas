@@ -159,18 +159,29 @@ vite build --config vite.electron.config.js && electron electron/main.js
 
 ---
 
-## 七、网络镜像（中国大陆可选）
+## 七、网络镜像（中国大陆）
 
-首次构建需从 GitHub 下载 Electron 二进制与 NSIS 工具，可能因网络/证书校验失败。可改用 npmmirror 镜像：
+首次构建需从 GitHub 下载 Electron 二进制与 NSIS 工具，国内网络可能因证书校验失败报 `unable to verify the first certificate`。
 
-```bash
-# PowerShell
-$env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
-$env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
-npm run electron:build
+项目 `package.json` 的 `config` 字段已**持久化**镜像配置，指向 npmmirror：
+
+```json
+"config": {
+  "electron_mirror": "https://npmmirror.com/mirrors/electron/",
+  "electron_builder_binaries_mirror": "https://npmmirror.com/mirrors/electron-builder-binaries/"
+}
 ```
 
-> 上述环境变量仅对当前命令会话生效，不会写入项目文件。
+npm 会以 `npm_package_config_*` 把上述配置传给构建脚本，因此**直接 `npm run electron:build` 即可**，无需额外设置环境变量，也不会产生 npm 警告。
+
+> 若需临时覆盖，可在命令前设置环境变量（优先级更高）：
+>
+> ```bash
+> # PowerShell
+> $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+> $env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+> npm run electron:build
+> ```
 
 ---
 
