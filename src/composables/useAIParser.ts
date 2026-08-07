@@ -36,7 +36,7 @@ interface ModelConfig {
   modelName: string
   isMultimodal?: boolean
   contextWindow?: number
-  modelFamily?: 'general' | 'deepseek' | 'gpt' | 'claude' | 'glm' | 'other'
+  format?: 'openai-chat' | 'anthropic-messages'
 }
 
 const MODELS: ModelConfig[] = [
@@ -64,6 +64,19 @@ const MODELS: ModelConfig[] = [
     name: 'OpenAI',
     apiBase: 'https://api.openai.com/v1/chat/completions',
     modelName: 'gpt-4o-mini'
+  },
+  {
+    id: 'claude',
+    name: 'Claude (Anthropic)',
+    apiBase: 'https://api.anthropic.com/v1/messages',
+    modelName: 'claude-sonnet-4-20250514',
+    format: 'anthropic-messages'
+  },
+  {
+    id: 'gemini',
+    name: 'Google Gemini',
+    apiBase: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    modelName: 'gemini-1.5-flash'
   }
 ]
 
@@ -106,16 +119,25 @@ async function initConfig(): Promise<void> {
         return
       }
 
-      // 地址拼接逻辑：
-      // 1. 若显式 isFullUrl=true → 用户填写的是完整地址
-      // 2. 若 isFullUrl=false → baseUrl + /chat/completions
-      // 3. 若 isFullUrl 缺失（旧配置兼容）：
-      //    - 若 customApiBase 已以 /chat/completions 结尾 → 视为完整 URL
-      //    - 否则 → 视为完整 URL（旧版自定义填写的就是完整路径）
-      const isFullUrl = typeof config.isFullUrl === 'boolean' ? config.isFullUrl : true
-      const resolvedBase = isFullUrl
-        ? config.customApiBase
-        : stripTrailingSlash(config.customApiBase) + '/chat/completions'
+      // 地址拼接逻辑（按 API 格式感知）：
+      // - anthropic-messages：用户填写的是完整端点（/v1/messages），不拼接
+      // - openai-chat：
+      //   1. 若显式 isFullUrl=true → 用户填写的是完整地址
+      //   2. 若 isFullUrl=false → baseUrl + /chat/completions
+      //   3. 若 isFullUrl 缺失（旧配置兼容）：
+      //      - 若 customApiBase 已以 /chat/completions 结尾 → 视为完整 URL
+      //      - 否则 → 视为完整 URL（旧版自定义填写的就是完整路径）
+      const apiFormat =
+        config.apiFormat === 'anthropic-messages' ? 'anthropic-messages' : 'openai-chat'
+      let resolvedBase: string
+      if (apiFormat === 'anthropic-messages') {
+        resolvedBase = config.customApiBase
+      } else {
+        const isFullUrl = typeof config.isFullUrl === 'boolean' ? config.isFullUrl : true
+        resolvedBase = isFullUrl
+          ? config.customApiBase
+          : stripTrailingSlash(config.customApiBase) + '/chat/completions'
+      }
 
       const displayName =
         (config.customName && config.customName.trim()) || config.customModelName.trim() || '自定义'
@@ -128,7 +150,7 @@ async function initConfig(): Promise<void> {
           modelName: config.customModelName,
           isMultimodal: config.isMultimodal,
           contextWindow: config.contextWindow,
-          modelFamily: config.modelFamily
+          format: apiFormat
         },
         apiKey: config.apiKey
       }
@@ -221,6 +243,7 @@ export async function parsePhysicsProblem(
         messages,
         temperature: 0.1,
         responseFormat: { type: 'json_object' },
+        format: model.format,
         onStatus: attempt === 0 ? options.onStatus : undefined
       })
 

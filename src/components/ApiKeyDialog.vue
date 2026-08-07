@@ -57,6 +57,29 @@
             </button>
           </div>
 
+          <!-- 服务商信息（选中非自定义时展示） -->
+          <div v-if="selectedModel !== 'custom'" class="provider-info">
+            <div class="provider-info-row">
+              <span class="provider-info-label">API 地址</span>
+              <code class="provider-info-code">{{ currentProviderModel.apiBase }}</code>
+            </div>
+            <div class="provider-info-row">
+              <span class="provider-info-label">默认模型</span>
+              <code class="provider-info-code">{{ currentProviderModel.modelName }}</code>
+            </div>
+            <div v-if="currentProviderModel.docUrl" class="provider-info-row">
+              <span class="provider-info-label">文档</span>
+              <a
+                :href="currentProviderModel.docUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="provider-info-link"
+              >
+                获取 API Key →
+              </a>
+            </div>
+          </div>
+
           <!-- API Key 输入（服务商下） -->
           <div class="form-group api-key-group">
             <label class="form-label required">API Key</label>
@@ -115,6 +138,7 @@
             <label class="form-label required">API 格式</label>
             <select v-model="apiFormat" class="custom-select">
               <option value="openai-chat">OpenAI Chat Completions 格式</option>
+              <option value="anthropic-messages">Anthropic Messages 格式（Claude）</option>
             </select>
           </div>
 
@@ -122,7 +146,7 @@
           <div class="form-group">
             <div class="label-row">
               <label class="form-label required">自定义请求地址</label>
-              <label class="switch-wrap">
+              <label v-if="!isAnthropicFormat" class="switch-wrap">
                 <input type="checkbox" v-model="isFullUrl" class="switch-input" />
                 <span class="switch-slider"></span>
                 <span class="switch-label">完整 URL</span>
@@ -131,14 +155,23 @@
             <input
               v-model="customApiBase"
               class="custom-input"
-              placeholder="e.g. https://api.openai.com/v1"
+              :placeholder="
+                isAnthropicFormat
+                  ? 'e.g. https://api.anthropic.com/v1/messages'
+                  : 'e.g. https://api.openai.com/v1'
+              "
             />
           </div>
 
           <!-- 蓝色提示框 -->
           <div class="info-tip">
             <span class="info-icon">ⓘ</span>
-            <span class="info-text">
+            <span v-if="isAnthropicFormat" class="info-text">
+              请填写 Anthropic Messages 完整端点地址（以
+              <code>/v1/messages</code>
+              结尾），无需再拼接。
+            </span>
+            <span v-else class="info-text">
               请填写兼容 OpenAI API 的服务端点地址，不要以斜杠结尾。
               <code>/chat/completions</code>
               将会被补充到你填写的地址末尾。
@@ -149,14 +182,16 @@
           <div class="form-group">
             <div class="label-row">
               <label class="form-label required">模型 ID</label>
-              <label class="switch-wrap">
+              <label v-if="!isAnthropicFormat" class="switch-wrap">
                 <input type="checkbox" v-model="isMultimodal" class="switch-input" />
                 <span class="switch-slider"></span>
                 <span class="switch-label">多模态</span>
               </label>
             </div>
             <input v-model="customModelName" class="custom-input" placeholder="输入模型 ID" />
-            <span class="field-hint">多模态模型可上传题图进行解析（如 glm-4v-plus）</span>
+            <span v-if="!isAnthropicFormat" class="field-hint">
+              多模态模型可上传题图进行解析（如 glm-4v-plus）
+            </span>
           </div>
 
           <!-- API 密钥 -->
@@ -215,26 +250,13 @@
               <span class="advanced-arrow" :class="{ open: isAdvancedOpen }">〉</span>
               <div class="advanced-text">
                 <span class="advanced-title">高级配置</span>
-                <span class="advanced-hint">
-                  包含模型系列（优化的 Prompt 和超参）、展示名称、上下文窗口等配置。
-                </span>
+                <span class="advanced-hint">包含展示名称、上下文窗口等配置。</span>
               </div>
             </button>
             <div v-show="isAdvancedOpen" class="advanced-body">
               <div class="form-group">
                 <label class="form-label">展示名称</label>
                 <input v-model="customName" class="custom-input" placeholder="如：我的 Claude" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">模型系列</label>
-                <select v-model="modelFamily" class="custom-select">
-                  <option value="general">通用</option>
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="gpt">GPT</option>
-                  <option value="claude">Claude</option>
-                  <option value="glm">GLM</option>
-                  <option value="other">其他</option>
-                </select>
               </div>
               <div class="form-group">
                 <label class="form-label">上下文窗口 (tokens)</label>
@@ -308,6 +330,25 @@ const providerModels = [
     modelName: 'gpt-4o-mini'
   },
   {
+    id: 'claude',
+    name: 'Claude',
+    icon: '🤖',
+    placeholder: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx',
+    docUrl: 'https://console.anthropic.com/settings/keys',
+    apiBase: 'https://api.anthropic.com/v1/messages',
+    modelName: 'claude-sonnet-4-20250514',
+    format: 'anthropic-messages'
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    icon: '🔮',
+    placeholder: 'AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    docUrl: 'https://aistudio.google.com/apikey',
+    apiBase: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    modelName: 'gemini-1.5-flash'
+  },
+  {
     id: 'custom',
     name: '自定义',
     icon: '🔧',
@@ -321,7 +362,7 @@ const providerModels = [
 const STORAGE_KEY = 'ai_api_config'
 
 // Tab 与选中状态
-const activeTab = ref('custom')
+const activeTab = ref('provider')
 const selectedModel = ref('deepseek')
 
 // 服务商下 API Key
@@ -335,7 +376,6 @@ const customModelName = ref('')
 const apiFormat = ref('openai-chat')
 const isFullUrl = ref(false)
 const isMultimodal = ref(false)
-const modelFamily = ref('general')
 const contextWindow = ref(null)
 
 // 高级配置折叠
@@ -344,6 +384,9 @@ const isAdvancedOpen = ref(false)
 const currentProviderModel = computed(
   () => providerModels.find((m) => m.id === selectedModel.value) || providerModels[0]
 )
+
+// 自定义配置是否为 Anthropic Messages 格式（控制 URL/开关/提示联动）
+const isAnthropicFormat = computed(() => apiFormat.value === 'anthropic-messages')
 
 // 保存按钮可用性
 const canSave = computed(() => {
@@ -392,7 +435,6 @@ function resetFormFields() {
   customModelName.value = ''
   isMultimodal.value = false
   customName.value = ''
-  modelFamily.value = 'general'
   contextWindow.value = null
   isAdvancedOpen.value = false
   apiFormat.value = 'openai-chat'
@@ -401,7 +443,7 @@ function resetFormFields() {
 function onReset() {
   resetFormFields()
   selectedModel.value = 'deepseek'
-  activeTab.value = 'custom'
+  activeTab.value = 'provider'
 }
 
 async function onSave() {
@@ -432,7 +474,6 @@ async function onSave() {
     customModelName: customModelName.value.trim(),
     isMultimodal: isMultimodal.value,
     customName: customName.value.trim() || undefined,
-    modelFamily: modelFamily.value,
     contextWindow: contextWindow.value || undefined
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
@@ -643,11 +684,12 @@ function onClose() {
 /* 服务商卡片按钮 */
 .model-options {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .model-btn {
-  flex: 1;
+  flex: 1 1 calc(33% - 0.5rem);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -659,6 +701,46 @@ function onClose() {
   color: var(--vsd-text-muted);
   cursor: pointer;
   transition: all 0.2s;
+}
+
+/* 服务商信息卡片 */
+.provider-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  background: rgba(var(--vsd-panel-light-rgb), 0.5);
+  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
+  border-radius: 8px;
+}
+
+.provider-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.provider-info-label {
+  color: var(--vsd-text-dim);
+  flex-shrink: 0;
+  min-width: 3.5rem;
+}
+
+.provider-info-code {
+  color: var(--vsd-info);
+  font-family: monospace;
+  font-size: 0.74rem;
+  word-break: break-all;
+}
+
+.provider-info-link {
+  color: var(--vsd-info);
+  text-decoration: none;
+}
+
+.provider-info-link:hover {
+  text-decoration: underline;
 }
 
 .model-btn:hover {
