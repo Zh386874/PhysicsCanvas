@@ -187,6 +187,13 @@ const configuredModelIsMultimodal = computed(() => {
   return savedConfigCache.value?.model.isMultimodal ?? false
 })
 
+/** 供 ApiKeyDialog 展示（单一状态来源）：已配置时返回模型名与占位 Key 标记，否则 null */
+const savedConfigDisplay = computed(() =>
+  savedConfigCache.value
+    ? { modelName: savedConfigCache.value.model.name, maskedKey: '已配置' }
+    : null
+)
+
 // 模块加载时初始化配置缓存
 initConfig()
 
@@ -348,6 +355,7 @@ export {
   isAIConfigured,
   configuredModelName,
   configuredModelIsMultimodal,
+  savedConfigDisplay,
   initConfig
 }
 

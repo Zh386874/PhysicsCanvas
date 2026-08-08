@@ -91,75 +91,16 @@
           <div class="answer-text">{{ lastParsed.answer }}</div>
         </div>
 
-        <div v-if="savedTip" class="saved-tip">✅ {{ savedTip }}</div>
-
         <div v-if="isAIConfigured" class="result-status">✅ AI 解析完成，已生成模拟场景</div>
         <div v-else class="result-status">✅ 本地解析完成，已生成模拟场景</div>
-
-        <!-- 参数微调 UI -->
-        <button v-if="lastParsed" class="edit-btn" @click="toggleEdit">
-          {{ editMode ? '收起编辑' : '✏️ 编辑参数' }}
-        </button>
-
-        <!-- 保存到题库 -->
-        <button v-if="isAIConfigured && lastParsed" class="save-btn" @click="saveToBank">
-          💾 保存到题库
-        </button>
-
-        <div v-if="editMode && lastParsed" class="edit-panel">
-          <div v-for="(obj, idx) in editableObjects" :key="idx" class="edit-object">
-            <div class="edit-object-title">物体 {{ idx + 1 }}（{{ obj.type }}）</div>
-            <div v-if="obj.type === 'ball'" class="edit-fields">
-              <label>
-                质量(kg)
-                <input type="number" step="0.1" v-model.number="obj.mass" />
-              </label>
-              <label>
-                电荷(C)
-                <input type="number" step="0.0001" v-model.number="obj.charge" />
-              </label>
-              <label>
-                半径(m)
-                <input type="number" step="0.1" v-model.number="obj.radius" />
-              </label>
-              <label>
-                初速 vx(m/s)
-                <input type="number" step="0.1" v-model.number="obj.initialVelocity.x" />
-              </label>
-              <label>
-                初速 vy(m/s)
-                <input type="number" step="0.1" v-model.number="obj.initialVelocity.y" />
-              </label>
-            </div>
-          </div>
-          <div class="edit-global">
-            <label>
-              重力(m/s²)
-              <input type="number" step="0.1" v-model.number="editableParsed.gravity" />
-            </label>
-            <label v-if="editableParsed.field.B !== undefined">
-              磁场(T)
-              <input type="number" step="0.1" v-model.number="editableParsed.field.B" />
-            </label>
-            <label v-if="editableParsed.field.E">
-              Ex(N/C)
-              <input type="number" step="1" v-model.number="editableParsed.field.E.x" />
-            </label>
-            <label v-if="editableParsed.field.E">
-              Ey(N/C)
-              <input type="number" step="1" v-model.number="editableParsed.field.E.y" />
-            </label>
-          </div>
-          <button class="apply-btn" @click="applyEdit">应用修改</button>
-        </div>
       </div>
 
       <div v-else-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
 
       <div v-if="isAIConfigured" class="ai-hint">🤖 已接入 AI，支持任意物理题目（及题图）解析</div>
       <div v-else class="ai-hint">
-        ⚠️ 未配置 API Key，当前为本地关键词解析。配置方法：复制 .env.example 为 .env 并填入
-        VITE_AI_API_KEY
+        ⚠️ 未配置 API Key，当前为本地关键词解析。点击右上角「🔑 AI 配置」添加模型即可接入真实 AI
+        解析。
       </div>
     </div>
   </div>
@@ -176,7 +117,6 @@ import {
 import { buildScene } from '../composables/useSceneBuilder'
 import { viewingQuestionScene } from '../composables/questionView'
 import { useParseHistory } from '../composables/useParseHistory'
-import { useQuestionBank } from '../composables/useQuestionBank'
 
 const emit = defineEmits(['load-preset', 'update-params', 'scene-built'])
 
@@ -199,49 +139,8 @@ const reasoningOpen = ref(true)
 const historyOpen = ref(false)
 const { history, addHistory, clearHistory } = useParseHistory()
 
-// 参数微调状态
-const lastParsed = ref(null) // 保存最近一次 AI 解析结果
-const editMode = ref(false)
-const editableParsed = ref(null) // 可编辑的副本
-const editableObjects = ref([])
-const savedTip = ref('')
-
-// 题库（模块级共享，addQuestion 会同步到题库面板）
-const { addQuestion } = useQuestionBank()
-
-/** 切换编辑模式 */
-function toggleEdit() {
-  if (!editMode.value && lastParsed.value) {
-    // 进入编辑：深拷贝一份用于编辑
-    editableParsed.value = structuredClone(lastParsed.value)
-    editableObjects.value = editableParsed.value.objects.filter((o) => o.type === 'ball')
-  }
-  editMode.value = !editMode.value
-}
-
-/** 应用修改：用编辑后的数据重新调用 buildScene */
-function applyEdit() {
-  if (!editableParsed.value) return
-  viewingQuestionScene.value = true
-  const buildResult = buildScene(editableParsed.value)
-  if (buildResult.success) {
-    // 通知 App.vue 场景已重新构建
-    emit('scene-built', {
-      title: editableParsed.value.title || 'AI 解析场景',
-      objectCount: buildResult.objectCount
-    })
-    result.value = {
-      items: [
-        { label: '场景标题', value: editableParsed.value.title || 'AI 解析场景' },
-        { label: '识别类型', value: topicToName(editableParsed.value.topic) },
-        { label: '物体数量', value: buildResult.objectCount + ' 个' },
-        { label: '状态', value: '✅ 参数已更新' }
-      ]
-    }
-    lastParsed.value = editableParsed.value
-    editMode.value = false
-  }
-}
+// 最近一次 AI 解析结果
+const lastParsed = ref(null)
 
 /** 文件选择：读取为 data URL */
 function onFileChange(e) {
@@ -315,7 +214,6 @@ async function onParse() {
   if (!question.value.trim()) return
   result.value = null
   errorMsg.value = ''
-  savedTip.value = ''
   historyOpen.value = false
 
   // 未配置 API Key：使用本地关键词解析（降级模式）
@@ -378,9 +276,8 @@ async function onParse() {
       items.push({ label: '重力加速度', value: parsed.gravity + ' m/s²' })
 
     result.value = { items }
-    // 保存解析结果用于参数微调
+    // 保存解析结果
     lastParsed.value = parsed
-    editMode.value = false
     aiStatus.value = ''
   } catch (err) {
     aiStatus.value = ''
@@ -406,24 +303,6 @@ async function onParse() {
     result.value = { items }
     errorMsg.value = '⚠️ AI 调用失败，已降级为本地解析'
   }
-}
-
-/** 保存到题库 */
-function saveToBank() {
-  if (!lastParsed.value) return
-  const parsed = lastParsed.value
-  addQuestion({
-    id: `custom-${Date.now()}`,
-    title: parsed.title || 'AI 解析题目',
-    description: question.value || parsed.description || '',
-    difficulty: 'medium',
-    tags: topicTags(parsed.topic),
-    sceneJson: parsed
-  })
-  savedTip.value = '已保存到题库'
-  setTimeout(() => {
-    savedTip.value = ''
-  }, 2000)
 }
 
 /** 从历史回填并重建场景 */
@@ -457,19 +336,6 @@ function clearAllHistory() {
 /** 截断字符串 */
 function truncate(str, n) {
   return str.length > n ? str.slice(0, n) + '…' : str
-}
-
-/** topic → 默认标签 */
-function topicTags(topic) {
-  const map = {
-    projectile: ['抛体运动'],
-    slope: ['斜面'],
-    elastic_collision: ['碰撞'],
-    magnetic_circle: ['磁场'],
-    electric_deflection: ['电场'],
-    custom: ['自定义']
-  }
-  return map[topic] || ['自定义']
 }
 
 /** topic 转中文名称 */
@@ -767,119 +633,6 @@ function topicToName(topic) {
   font-size: 0.75rem;
   color: var(--vsd-text);
   line-height: 1.6;
-}
-
-.saved-tip {
-  margin-top: 0.4rem;
-  font-size: 0.72rem;
-  color: var(--vsd-green);
-}
-
-.edit-btn {
-  margin-top: 0.5rem;
-  padding: 0.3rem 0.7rem;
-  background: rgba(var(--vsd-blue-rgb), 0.15);
-  border: 1px solid rgba(var(--vsd-blue-rgb), 0.3);
-  border-radius: 5px;
-  color: var(--vsd-info);
-  font-size: 0.75rem;
-  cursor: pointer;
-  width: 100%;
-  transition: all 0.2s;
-}
-
-.edit-btn:hover {
-  background: rgba(var(--vsd-blue-rgb), 0.25);
-}
-
-.save-btn {
-  margin-top: 0.4rem;
-  padding: 0.3rem 0.7rem;
-  background: rgba(var(--vsd-green-rgb), 0.15);
-  border: 1px solid rgba(var(--vsd-green-rgb), 0.35);
-  border-radius: 5px;
-  color: var(--vsd-green);
-  font-size: 0.75rem;
-  cursor: pointer;
-  width: 100%;
-  transition: all 0.2s;
-}
-
-.save-btn:hover {
-  background: rgba(var(--vsd-green-rgb), 0.25);
-}
-
-.edit-panel {
-  margin-top: 0.5rem;
-  padding: 0.6rem;
-  background: rgba(var(--vsd-panel-rgb), 0.6);
-  border: 1px solid rgba(var(--vsd-blue-rgb), 0.2);
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.edit-object {
-  padding: 0.4rem;
-  background: rgba(var(--vsd-panel-light-rgb), 0.5);
-  border-radius: 4px;
-}
-
-.edit-object-title {
-  font-size: 0.72rem;
-  color: var(--vsd-text-muted);
-  margin-bottom: 0.3rem;
-  font-weight: 600;
-}
-
-.edit-fields,
-.edit-global {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.3rem;
-}
-
-.edit-fields label,
-.edit-global label {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.68rem;
-  color: var(--vsd-text-dim);
-  gap: 0.15rem;
-}
-
-.edit-fields input,
-.edit-global input {
-  padding: 0.25rem 0.35rem;
-  background: rgba(var(--vsd-panel-rgb), 0.8);
-  border: 1px solid rgba(var(--vsd-blue-rgb), 0.25);
-  border-radius: 4px;
-  color: var(--vsd-text);
-  font-size: 0.75rem;
-  outline: none;
-}
-
-.edit-fields input:focus,
-.edit-global input:focus {
-  border-color: rgba(var(--vsd-blue-rgb), 0.6);
-}
-
-.apply-btn {
-  margin-top: 0.3rem;
-  padding: 0.4rem;
-  background: linear-gradient(135deg, var(--vsd-blue), var(--vsd-blue-hover));
-  border: none;
-  border-radius: 5px;
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.apply-btn:hover {
-  opacity: 0.92;
 }
 
 @keyframes fadeIn {

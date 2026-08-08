@@ -285,7 +285,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { encrypt } from '../utils/crypto'
-import { initConfig } from '../composables/useAIParser'
+import { initConfig, savedConfigDisplay } from '../composables/useAIParser'
 
 const props = defineProps({
   visible: { type: Boolean, default: false }
@@ -400,29 +400,8 @@ const canSave = computed(() => {
   )
 })
 
-// 已保存的配置（从 localStorage 读取）
-const savedConfig = computed(() => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const config = JSON.parse(raw)
-    // API Key 已加密存储，仅显示"已配置"而非原文
-    const maskedKey = config.apiKey ? '已配置' : ''
-    if (config.modelId === 'custom') {
-      const displayName = config.customName?.trim() || config.customModelName?.trim() || '自定义'
-      return { ...config, modelName: displayName, maskedKey }
-    }
-    const model = providerModels.find((m) => m.id === config.modelId)
-    if (!model) return null
-    return {
-      ...config,
-      modelName: model.name,
-      maskedKey
-    }
-  } catch {
-    return null
-  }
-})
+// 已保存的配置（单一状态来源：与 AIInput/App 共用 useAIParser 的缓存）
+const savedConfig = computed(() => savedConfigDisplay.value)
 
 function resetFormFields() {
   apiKey.value = ''
