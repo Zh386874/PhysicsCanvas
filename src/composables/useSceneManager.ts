@@ -18,6 +18,7 @@ import type { PhysicsObject, FieldState } from './usePhysics'
 import type { ParsedProblem } from '../types/aiProblem'
 import { getPreset } from './usePresets'
 import { buildScene } from './useSceneBuilder'
+import { fitViewToObjects } from './useCanvasInteraction'
 import { clearHistory } from './useHistory'
 import { deepCopyObjects } from './useSceneIO'
 import { viewingQuestionScene } from './questionView'
@@ -431,6 +432,7 @@ export function useSceneManager() {
     activeScene.value = '自定义'
     selectedId.value = state.objects.length > 0 ? state.objects[0].id : null
     selectedIds.value = []
+    fitViewToObjects(state.objects) // 加载后自动居中完整显示场景
     mode.value = 'live'
     capturePlayStart() // 自动播放前捕获重置基线
     state.isPlaying = true
