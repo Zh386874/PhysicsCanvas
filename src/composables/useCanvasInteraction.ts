@@ -795,6 +795,72 @@ function resetView(): void {
   worldScale.value = 1
 }
 
+/**
+ * 根据物体包围盒自动适配视图：将场景居中并完整放入可视区
+ * 屏幕坐标 = 世界坐标 × worldScale + worldOffset
+ * @param objects 物理物体列表（质点/线段/弹簧）
+ */
+export function fitViewToObjects(objects: PhysicsObject[]): void {
+  if (cssW <= 0 || cssH <= 0) {
+    resetView()
+    return
+  }
+  if ((!objects || objects.length === 0) && !stateAccess.field?.region) {
+    resetView()
+    return
+  }
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity
+  for (const o of objects) {
+    if (o.type === '质点') {
+      minX = Math.min(minX, o.x - o.radius)
+      maxX = Math.max(maxX, o.x + o.radius)
+      minY = Math.min(minY, o.y - o.radius)
+      maxY = Math.max(maxY, o.y + o.radius)
+    } else if (o.type === 'line_segment') {
+      minX = Math.min(minX, o.x1, o.x2)
+      maxX = Math.max(maxX, o.x1, o.x2)
+      minY = Math.min(minY, o.y1, o.y2)
+      maxY = Math.max(maxY, o.y1, o.y2)
+    } else if (o.type === 'spring') {
+      minX = Math.min(minX, o.anchorX)
+      maxX = Math.max(maxX, o.anchorX)
+      minY = Math.min(minY, o.anchorY)
+      maxY = Math.max(maxY, o.anchorY)
+    }
+  }
+  // 场区域并入包围盒，使自动适配能框住整个磁场/电场区域
+  const region = stateAccess.field?.region
+  if (region) {
+    minX = Math.min(minX, region.x)
+    minY = Math.min(minY, region.y)
+    maxX = Math.max(maxX, region.x + region.width)
+    maxY = Math.max(maxY, region.y + region.height)
+  }
+  if (minX === Infinity) {
+    resetView()
+    return
+  }
+  const w = Math.max(maxX - minX, 1)
+  const h = Math.max(maxY - minY, 1)
+  // 屏幕留白（占画布比例），保证小模型正确放大（世界 bbox 不叠加留白）
+  const SCREEN_PAD_RATIO = 0.12
+  const availW = cssW * (1 - SCREEN_PAD_RATIO * 2)
+  const availH = cssH * (1 - SCREEN_PAD_RATIO * 2)
+  // 适配缩放：不沿用滚轮缩放下限 0.3；允许大模型缩小完整入框、微观场景适度放大
+  const FIT_MIN_SCALE = 0.05
+  const FIT_MAX_SCALE = 30
+  const scale = Math.max(FIT_MIN_SCALE, Math.min(FIT_MAX_SCALE, Math.min(availW / w, availH / h)))
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  worldScale.value = scale
+  const target = { x: cssW / 2 - cx * scale, y: cssH / 2 - cy * scale }
+  const canvas = canvasRef?.value
+  worldOffset.value = canvas ? clampOffset(target, scale, canvas) : target
+}
+
 // ===== 调整画布尺寸（高 DPI 适配）=====
 // 注意：不使用 RAF 节流，因为 ResizeObserver 已在每帧渲染前触发，
 // 同步更新 canvas backing store 确保下一帧的 draw() 使用正确的尺寸，

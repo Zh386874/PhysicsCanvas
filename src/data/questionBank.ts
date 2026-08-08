@@ -176,7 +176,7 @@ export const questionBank: QuestionItem[] = [
     tags: ['斜抛运动', '斜面约束', '速度变换', '多次落点'],
     sceneJson: {
       title:
-        '跳台滑雪·反弹段（2022全国乙卷）（覆盖第3问；起点为第一次落点P₁(20,0)；初速度为碰后速度v=(10,+10)；斜面足够长）',
+        '跳台滑雪·反弹段（2022全国乙卷）（覆盖第3问；起点为第一次落点P₁(2,0)；初速度为碰后速度v=(1,+1)；斜面足够长；等比缩小0.1倍）',
       topic: 'projectile',
       objects: [
         {
@@ -184,21 +184,21 @@ export const questionBank: QuestionItem[] = [
           type: 'ball',
           mass: 1,
           radius: 0.3,
-          initialPosition: { x: 20, y: 0 },
-          initialVelocity: { x: 10, y: 10 }
+          initialPosition: { x: 2, y: 0 },
+          initialVelocity: { x: 1, y: 1 }
         },
         {
           id: '着陆坡',
           type: 'platform',
-          startPoint: { x: 0, y: 20 },
-          endPoint: { x: 100, y: -80 },
+          startPoint: { x: 0, y: 2 },
+          endPoint: { x: 10, y: -8 },
           friction: 0
         }
       ],
       field: { type: 'none', E: { x: 0, y: 0 }, B: 0 },
-      gravity: 10,
+      gravity: 1,
       groundY: null,
-      worldWidth: 105,
+      worldWidth: 10.5,
       simulationTime: 6,
       particleRestitution: 1,
       groundRestitution: 0,
@@ -317,16 +317,16 @@ export const questionBank: QuestionItem[] = [
           id: '物块',
           type: 'ball',
           mass: 1,
-          radius: 0.2,
-          initialPosition: { x: 0, y: 0.1 },
-          initialVelocity: { x: 14, y: 0 }
+          radius: 0.4,
+          initialPosition: { x: 0, y: 0.2 },
+          initialVelocity: { x: 6, y: 0 }
         },
         {
           id: '木板',
           type: 'plate',
-          startPoint: { x: 0, y: 0.1 },
-          endPoint: { x: 5, y: 0.1 },
-          physicsThickness: 0.1,
+          startPoint: { x: 0, y: 0.2 },
+          endPoint: { x: 10, y: 0.2 },
+          physicsThickness: 0.2,
           angle: 0,
           frictionTop: 0.2,
           frictionBottom: 0,
@@ -336,9 +336,9 @@ export const questionBank: QuestionItem[] = [
         {
           id: '弹簧',
           type: 'spring',
-          anchor: { x: 0, y: 0.1 },
+          anchor: { x: 0, y: 0.2 },
           ballId: '物块',
-          naturalLength: 1,
+          naturalLength: 2,
           k: 100
         }
       ],
@@ -346,7 +346,7 @@ export const questionBank: QuestionItem[] = [
       gravity: 10,
       groundY: null,
       groundRestitution: 0,
-      worldWidth: 10
+      worldWidth: 11
     }
   },
   // ========== 电场偏转类 ==========
@@ -359,7 +359,7 @@ export const questionBank: QuestionItem[] = [
     tags: ['电场偏转', '类平抛运动', '匀强电场', '带电粒子'],
     sceneJson: {
       title:
-        '电场偏转类平抛（2020全国III卷第24题第3问建模；微观参数宏观等效放大100倍；微粒半径缩小为2mm；前两问未建模；E=-250预设第③问答案（精确值））',
+        '电场偏转类平抛（2020全国III卷第24题第3问建模；等比放大50倍以利观赏；前两问未建模；E=-12500预设第③问答案（精确值））',
       topic: 'electric_deflection',
       objects: [
         {
@@ -367,29 +367,29 @@ export const questionBank: QuestionItem[] = [
           type: 'ball',
           mass: 0.0001,
           charge: 0.0001,
-          radius: 0.002,
+          radius: 0.1,
           initialPosition: { x: 0, y: 0 },
-          initialVelocity: { x: 10, y: 0 }
+          initialVelocity: { x: 500, y: 0 }
         },
         {
           id: '上极板',
           type: 'platform',
-          startPoint: { x: 0, y: 0.05 },
-          endPoint: { x: 0.2, y: 0.05 },
+          startPoint: { x: 0, y: 2.5 },
+          endPoint: { x: 10, y: 2.5 },
           friction: 0
         },
         {
           id: '下极板',
           type: 'platform',
-          startPoint: { x: 0, y: -0.05 },
-          endPoint: { x: 0.2, y: -0.05 },
+          startPoint: { x: 0, y: -2.5 },
+          endPoint: { x: 10, y: -2.5 },
           friction: 0
         }
       ],
-      field: { type: 'electric', E: { x: 0, y: -250 }, B: 0 },
-      gravity: 10,
+      field: { type: 'electric', E: { x: 0, y: -12500 }, B: 0 },
+      gravity: 500,
       groundY: null,
-      worldWidth: 0.4,
+      worldWidth: 20,
       simulationTime: 0.05,
       particleRestitution: 0
     }
@@ -404,7 +404,7 @@ export const questionBank: QuestionItem[] = [
     tags: ['有界磁场', '圆周运动', '洛伦兹力', '带电粒子'],
     sceneJson: {
       title:
-        '有界磁场圆周运动（2021全国乙卷第25题第1问建模；矩形磁场边界未建模，无法验证"恰好从AD中点飞出"条件；微观参数宏观等效；B=0.4T对应R=2.5m）',
+        '有界磁场圆周运动（2021全国乙卷第25题第1问建模；用field.region建模12×6m矩形磁场（AB=2L、BC=L，L=6），B垂直纸面向里；粒子自AB边中点竖直射入、做R=3.75m圆弧、恰从AD边中点飞出）',
       topic: 'magnetic_circle',
       objects: [
         {
@@ -412,16 +412,21 @@ export const questionBank: QuestionItem[] = [
           type: 'ball',
           mass: 0.0001,
           charge: 0.001,
-          radius: 0.2,
-          initialPosition: { x: 0, y: 3.8 },
-          initialVelocity: { x: 10, y: 0 }
+          radius: 0.3,
+          initialPosition: { x: 6, y: 6 }, // AB 边中点
+          initialVelocity: { x: 0, y: -30 } // 竖直向下，垂直 AB 射入
         }
       ],
-      field: { type: 'magnetic', E: { x: 0, y: 0 }, B: 0.4 },
+      field: {
+        type: 'magnetic',
+        E: { x: 0, y: 0 },
+        B: -0.8, // 负值=垂直纸面向里（渲染 ⊗）
+        region: { x: 1.2, y: 2, width: 12, height: 6 } // 12m×6m 矩形（米单位，buildScene 会 ×50 转像素）
+      },
       gravity: 0,
       groundY: null,
-      worldWidth: 10,
-      simulationTime: 0.6
+      worldWidth: 12,
+      simulationTime: 0.6 // 覆盖圆弧+飞出直线
     }
   }
 ]
